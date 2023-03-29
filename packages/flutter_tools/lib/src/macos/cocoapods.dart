@@ -157,7 +157,9 @@ class CocoaPods {
     bool dependenciesChanged = true,
   }) async {
     if (!xcodeProject.podfile.existsSync()) {
-      throwToolExit('Podfile missing');
+      // TODO
+      return false;
+      // throwToolExit('Podfile missing');
     }
     _warnIfPodfileOutOfDate(xcodeProject);
     bool podsProcessed = false;

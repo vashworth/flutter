@@ -1149,6 +1149,66 @@ Future<void> injectPlugins(
   final List<Plugin> plugins = await findPlugins(project);
   // Sort the plugins by name to keep ordering stable in generated files.
   plugins.sort((Plugin left, Plugin right) => left.name.compareTo(right.name));
+
+  // TODO: Add FlutterPackage if needed
+  // TODO: Only generate podfile if there are plugins that are not set up for swift
+  // TODO: Generate Package.swift for FlutterPackage
+
+  bool includePods = false;
+  final List<String> packageDependencies = <String>[];
+  final List<String> packageProducts = <String>[];
+  for (final Plugin plugin in plugins) {
+    if (globals.localFileSystem.file('${plugin.path}ios/${plugin.name}/Package.swift').existsSync()) {
+      // plugin already has a Package.swift
+      packageDependencies.add('.package(name: "${plugin.name}", path: "${plugin.path}ios/${plugin.name}"),');
+      packageProducts.add('.product(name: "${plugin.name}", package: "${plugin.name}"),');
+    } else {
+      includePods = true;
+    }
+  }
+
+  if (packageDependencies.isNotEmpty) {
+    final File flutterPackage = globals.localFileSystem.file('${project.directory.path}/ios/FlutterPackage/Package.swift');
+    String packageContents = '''
+// swift-tools-version: 5.7
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+
+import PackageDescription
+
+let package = Package(
+    name: "FlutterPackage",
+    products: [
+        .library(
+            name: "FlutterPackage",
+            targets: ["FlutterPackage"]),
+    ],
+    dependencies: [
+        .package(name: "FlutterFramework", path: "/Users/vashworth/Development/flutter/bin/cache/artifacts/engine/ios"),
+''';
+    for (final String dependency in packageDependencies) {
+      packageContents += '        $dependency\n';
+    }
+    packageContents += '''
+    ],
+    targets: [
+        .target(
+            name: "FlutterPackage",
+            dependencies: [
+                .product(name: "FlutterFramework", package: "FlutterFramework"),
+''';
+
+    for (final String product in packageProducts) {
+      packageContents += '                $product\n';
+    }
+
+    packageContents += '''
+            ]),
+    ]
+)
+''';
+    flutterPackage.writeAsStringSync(packageContents);
+  }
+
   if (androidPlatform) {
     await _writeAndroidPluginRegistrant(project, plugins);
   }
@@ -1164,7 +1224,9 @@ Future<void> injectPlugins(
   if (windowsPlatform) {
     await writeWindowsPluginFiles(project, plugins, globals.templateRenderer);
   }
-  if (!project.isModule) {
+
+  // TODO: if does not include pods, remove pods
+  if (!project.isModule && includePods) {
     final List<XcodeBasedProject> darwinProjects = <XcodeBasedProject>[
       if (iosPlatform) project.ios,
       if (macOSPlatform) project.macos,
