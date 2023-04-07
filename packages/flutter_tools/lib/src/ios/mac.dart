@@ -223,6 +223,8 @@ Future<XcodeBuildResult> buildXcodeProject({
     targetOverride: targetOverride,
     buildInfo: buildInfo,
   );
+  // Runs podhelper
+  // TODO: only run if needed
   await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);
   if (configOnly) {
     return XcodeBuildResult(success: true);

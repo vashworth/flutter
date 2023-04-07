@@ -14,6 +14,7 @@ import 'base/error_handling_io.dart';
 import 'base/file_system.dart';
 import 'base/os.dart';
 import 'base/platform.dart';
+import 'base/project_migrator.dart';
 import 'base/template.dart';
 import 'base/version.dart';
 import 'cache.dart';
@@ -22,6 +23,8 @@ import 'dart/language_version.dart';
 import 'dart/package_map.dart';
 import 'features.dart';
 import 'globals.dart' as globals;
+import 'macos/swift_packages.dart';
+import 'migrations/flutter_package_migration.dart';
 import 'platform_plugins.dart';
 import 'plugins.dart';
 import 'project.dart';
@@ -1150,65 +1153,6 @@ Future<void> injectPlugins(
   // Sort the plugins by name to keep ordering stable in generated files.
   plugins.sort((Plugin left, Plugin right) => left.name.compareTo(right.name));
 
-  // TODO: Add FlutterPackage if needed
-  // TODO: Only generate podfile if there are plugins that are not set up for swift
-  // TODO: Generate Package.swift for FlutterPackage
-
-  bool includePods = false;
-  final List<String> packageDependencies = <String>[];
-  final List<String> packageProducts = <String>[];
-  for (final Plugin plugin in plugins) {
-    if (globals.localFileSystem.file('${plugin.path}ios/${plugin.name}/Package.swift').existsSync()) {
-      // plugin already has a Package.swift
-      packageDependencies.add('.package(name: "${plugin.name}", path: "${plugin.path}ios/${plugin.name}"),');
-      packageProducts.add('.product(name: "${plugin.name}", package: "${plugin.name}"),');
-    } else {
-      includePods = true;
-    }
-  }
-
-  if (packageDependencies.isNotEmpty) {
-    final File flutterPackage = globals.localFileSystem.file('${project.directory.path}/ios/FlutterPackage/Package.swift');
-    String packageContents = '''
-// swift-tools-version: 5.7
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
-import PackageDescription
-
-let package = Package(
-    name: "FlutterPackage",
-    products: [
-        .library(
-            name: "FlutterPackage",
-            targets: ["FlutterPackage"]),
-    ],
-    dependencies: [
-        .package(name: "FlutterFramework", path: "/Users/vashworth/Development/flutter/bin/cache/artifacts/engine/ios"),
-''';
-    for (final String dependency in packageDependencies) {
-      packageContents += '        $dependency\n';
-    }
-    packageContents += '''
-    ],
-    targets: [
-        .target(
-            name: "FlutterPackage",
-            dependencies: [
-                .product(name: "FlutterFramework", package: "FlutterFramework"),
-''';
-
-    for (final String product in packageProducts) {
-      packageContents += '                $product\n';
-    }
-
-    packageContents += '''
-            ]),
-    ]
-)
-''';
-    flutterPackage.writeAsStringSync(packageContents);
-  }
-
   if (androidPlatform) {
     await _writeAndroidPluginRegistrant(project, plugins);
   }
@@ -1225,6 +1169,107 @@ let package = Package(
     await writeWindowsPluginFiles(project, plugins, globals.templateRenderer);
   }
 
+  if (!(iosPlatform || macOSPlatform)) {
+    return;
+  }
+
+  bool includePods = false;
+  final List<SwiftPackagePackageDependency> packageDependencies = <SwiftPackagePackageDependency>[];
+  final List<SwiftPackageTargetDependency> packageProducts = <SwiftPackageTargetDependency>[];
+
+  for (final Plugin plugin in plugins) {
+    final SwiftPackage pluginSwiftPackage = SwiftPackage(
+      swiftPackagePath: '${plugin.path}ios/${plugin.name}/Package.swift',
+      fileSystem: globals.fs,
+      logger: globals.logger,
+      templateRenderer: globals.templateRenderer,
+    );
+    if (await pluginSwiftPackage.swiftPackage.exists()) {
+      // plugin already has a Package.swift
+      // Add plugin as dependency
+      packageDependencies.add(
+        SwiftPackagePackageDependency(name: plugin.name, path: '${plugin.path}ios/${plugin.name}'),
+      );
+      packageProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
+    } else {
+      if (!plugin.path.contains('.pub-cache')) {
+        // prompt user to migrate their plugin
+        // TODO: only prompt if compatible
+        if (globals.terminal.stdinHasTerminal) {
+          globals.terminal.usesTerminalUi = true;
+          final String result = await globals.terminal.promptForCharInput(
+            <String>['y', 'Y', 'n', 'N'],
+            displayAcceptedCharacters: false,
+            logger: globals.logger,
+            prompt: 'Would you like to migrate from Cocoapods to Swift Package Manager (y/n)?',
+          );
+
+          if (result.toLowerCase() == 'y') {
+            await pluginSwiftPackage.convertPodToSwiftPackage(plugin);
+            packageDependencies.add(
+              SwiftPackagePackageDependency(name: plugin.name, path: '${plugin.path}ios/${plugin.name}'),
+            );
+            packageProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
+          } else {
+            includePods = true;
+          }
+        } else {
+          // includePods = true;
+          // TODO: remove
+          await pluginSwiftPackage.convertPodToSwiftPackage(plugin);
+          packageDependencies.add(
+            SwiftPackagePackageDependency(name: plugin.name, path: '${plugin.path}ios/${plugin.name}'),
+          );
+          packageProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
+        }
+      } else {
+        includePods = true;
+      }
+    }
+  }
+
+  final SwiftPackage flutterPackage = SwiftPackage(
+    swiftPackagePath: '${project.directory.path}/ios/FlutterPackage/Package.swift',
+    fileSystem: globals.fs,
+    logger: globals.logger,
+    overwriteExisting: true,
+    templateRenderer: globals.templateRenderer,
+  );
+
+  if (packageDependencies.isNotEmpty || flutterPackage.swiftPackage.existsSync()) {
+    // TODO: get FlutterFramework path
+    final SwiftPackageContext packageContext = SwiftPackageContext(
+      name: 'FlutterPackage',
+      products: <SwiftPackageProduct>[
+        SwiftPackageProduct(name: 'FlutterPackage', targets: <String>['FlutterPackage']),
+      ],
+      dependencies: <SwiftPackagePackageDependency>[
+        SwiftPackagePackageDependency(name: 'FlutterFramework', path: '/Users/vashworth/Development/flutter/bin/cache/artifacts/engine/ios'),
+        ...packageDependencies,
+      ],
+      targets: <SwiftPackageTarget>[
+        SwiftPackageTarget(
+          name: 'FlutterPackage',
+          dependencies: <SwiftPackageTargetDependency>[
+            SwiftPackageTargetDependency(name: 'FlutterFramework', package: 'FlutterFramework'),
+            ...packageProducts,
+          ],
+        )
+      ],
+    );
+
+
+    await flutterPackage.createSwiftPackage(packageContext);
+
+    final List<ProjectMigrator> migrators = <ProjectMigrator>[
+      FlutterPackageMigration(project.ios, globals.logger),
+    ];
+
+    final ProjectMigration migration = ProjectMigration(migrators);
+    migration.run();
+  }
+
+  // TODO: Only generate podfile if there are plugins that are not set up for swift
   // TODO: if does not include pods, remove pods
   if (!project.isModule && includePods) {
     final List<XcodeBasedProject> darwinProjects = <XcodeBasedProject>[
@@ -1504,3 +1549,4 @@ Future<void> generateMainDartWithPluginRegistrant(
     rethrow;
   }
 }
+
