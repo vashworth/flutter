@@ -88,10 +88,14 @@ class SwiftPackage {
         newLines.add(newLine);
       }
 
-      await moduleMapFile.writeAsString(newLines.join('\n'));
-      await moduleMapFile.rename('${swiftPackage.parent.path}/Classes/module.modulemap');
-    }
+      final File newModuleMap = _fileSystem.file('${swiftPackage.parent.path}/Classes/module.modulemap');
+      if (!await newModuleMap.exists()) {
+        await newModuleMap.create(recursive: true);
+        await newModuleMap.writeAsString(newLines.join('\n'));
+      }
 
+      await moduleMapFile.delete();
+    }
 
     await classesDirectory?.rename('${swiftPackage.parent.path}/Classes/${plugin.name}');
 
@@ -146,9 +150,12 @@ class SwiftPackage {
     if (manifestOnly == false) {
       // Swift Packages require at least one source file, whether it be in Swift or Objective C.
       final File requiredSwiftFile = _fileSystem.file('${swiftPackage.parent.path}/Sources/${packageContext.name}/${packageContext.name}.swift');
-      if (!await requiredSwiftFile.exists() || overwriteExisting == true) {
-        requiredSwiftFile.writeAsStringSync('''
-''');
+
+      final bool fileAlreadyExists = await requiredSwiftFile.exists();
+      if (!fileAlreadyExists || overwriteExisting == true) {
+        if (!fileAlreadyExists) {
+          await requiredSwiftFile.create(recursive: true);
+        }
       }
     }
     final Template template = await Template.fromName(
