@@ -66,6 +66,7 @@ void _updateGeneratedXcodePropertiesFile({
   bool useMacOSConfig = false,
 }) {
   final StringBuffer localsBuffer = StringBuffer();
+  xcodeBuildSettings.add('BUILD_DIR=${globals.fs.path.absolute(getIosBuildDirectory())}');
 
   localsBuffer.writeln('// This is a generated file; do not edit or check into version control.');
   xcodeBuildSettings.forEach(localsBuffer.writeln);

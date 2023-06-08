@@ -31,6 +31,9 @@ import 'ios_deploy.dart';
 import 'ios_workflow.dart';
 import 'iproxy.dart';
 import 'mac.dart';
+import 'package:path/path.dart' as path;
+
+import 'xcdebug.dart';
 
 class IOSDevices extends PollingDeviceDiscovery {
   IOSDevices({
@@ -419,6 +422,8 @@ class IOSDevice extends Device {
   // 32-bit devices are not supported.
   bool isSupported() => cpuArchitecture == DarwinArch.arm64;
 
+  XCDebug? xcdebug;
+
   @override
   Future<LaunchResult> startApp(
     IOSApp package, {
@@ -431,6 +436,8 @@ class IOSDevice extends Device {
     String? userIdentifier,
     @visibleForTesting Duration? discoveryTimeout,
   }) async {
+    xcdebug = XCDebug(globals.processUtils, _logger, globals.xcode!, FlutterProject.current().ios, id);
+
     String? packageId;
     if (isWirelesslyConnected &&
         debuggingOptions.debuggingEnabled &&
@@ -522,8 +529,10 @@ class IOSDevice extends Device {
           uninstallFirst: debuggingOptions.uninstallFirst,
         );
       } else {
-        installationResult = await iosDeployDebugger!.launchAndAttach() ? 0 : 1;
+        // installationResult = await iosDeployDebugger!.launchAndAttach() ? 0 : 1;
+        installationResult = await xcdebug!.installAndLaunchApp() ? 0 : 1;
       }
+
       if (installationResult != 0) {
         _logger.printError('Could not run ${bundle.path} on $id.');
         _logger.printError('Try launching Xcode and selecting "Product > Run" to fix the problem:');
@@ -619,6 +628,7 @@ class IOSDevice extends Device {
     if (deployDebugger != null && deployDebugger.debuggerAttached) {
       return deployDebugger.exit();
     }
+    await xcdebug?.killXcode();
     return false;
   }
 
@@ -684,6 +694,7 @@ class IOSDevice extends Device {
     }
     _logReaders.clear();
     await _portForwarder?.dispose();
+    await xcdebug?.killXcode();
   }
 }
 
@@ -955,7 +966,8 @@ class IOSDeviceLogReader extends DeviceLogReader {
   /// https://github.com/flutter/flutter/issues/121231
   @visibleForTesting
   bool get useBothLogDeviceReaders {
-    return _usingCISystem && _majorSdkVersion >= 16;
+    return true;
+    // _usingCISystem && _majorSdkVersion >= 16;
   }
 
   /// Start and listen to idevicesyslog to get device logs for iOS versions
