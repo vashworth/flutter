@@ -13,9 +13,10 @@ import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:meta/meta.dart';
 import 'package:platform/platform.dart';
-
+import '../globals.dart' as globals;
 import '../macos/xcode.dart';
 import '../xcode_project.dart';
+import 'xcresult.dart';
 
 
 class XCDebug {
@@ -29,6 +30,7 @@ class XCDebug {
   final String deviceId;
 
   String? _xcodeProcessId;
+  List<String>? logKeys;
 
 
   Future<bool> _openProjectInXcode() async {
@@ -36,8 +38,12 @@ class XCDebug {
       final RunResult result = await _processUtils.run(
         <String>[
           'open',
-          '-n',
-          '-F',
+          // '-a',
+          // _xcode.xcodeSelectPath!,
+          '-n', // Open new instance even if one is already running
+          '-F', // Open the application fresh
+          '-g', // Do not bring the application to the foreground
+          '-j', // Launches the app hidden
           project.xcodeProject.path
         ],
         throwOnError: true,
@@ -93,6 +99,21 @@ class XCDebug {
       return false;
     }
 
+    try {
+
+      // TODO: path to DerivedData/Runner-xxx/Logs/Launch/LogStoreManifest.plist
+      Map<String, dynamic> propertyValues = globals.plistParser.parseFile('path/Logs/Launch/LogStoreManifest.plist');
+      // XCResultGenerator
+      if (propertyValues.containsKey('logs')) {
+        final Map<String, dynamic> logs = propertyValues['logs'] as Map<String, dynamic>;
+        logKeys = logs.keys.toList();
+      }
+    } catch (e, stackTrace) {
+      print(e);
+      print(stackTrace);
+    }
+
+
     int maxRetires = 3;
     for (int currentTry = 0; currentTry < maxRetires; currentTry++) {
       try {
@@ -102,11 +123,11 @@ class XCDebug {
             'xcdebug',
             '--pid', // Xcode process id
             _xcodeProcessId!,
+            '--background', // Leave Xcode as background app
             '-s', // scheme
             project.hostAppProjectName,
             '-d', // destination
             deviceId,
-            '-b', // Leave Xcode as background app
           ],
           throwOnError: true,
         );
@@ -129,6 +150,54 @@ class XCDebug {
     }
 
     return false;
+  }
+
+  Future<void> checkForLaunchFailure() async {
+    try {
+      // TODO: path to DerivedData/Runner-xxx/Logs/Launch/LogStoreManifest.plist
+      final Map<String, dynamic> propertyValues = globals.plistParser.parseFile('path/Logs/Launch/LogStoreManifest.plist');
+      //
+      if (!propertyValues.containsKey('logs')) {
+        return;
+      }
+
+      final Map<String, dynamic> logs = propertyValues['logs'] as Map<String, dynamic>;
+      final List<String> newLogKeys = logs.keys.toList();
+      String? logId;
+      for (final String logKey in newLogKeys) {
+        if (logKeys != null && !logKeys!.contains(logKey)) {
+          logId = logKey;
+          break;
+        }
+      }
+      if (logId == null) {
+        print('Did not find log');
+        return;
+      }
+
+      final Map<String, dynamic> logInfo = logs[logId] as Map<String, dynamic>;
+      final String fileName = logInfo['fileName'] as String;
+
+      // TODO: path to DerivedData/Runner-xxx/Logs/Launch/fileName
+      final XCResultGenerator xcResultGenerator = XCResultGenerator(
+        resultPath: 'path/Logs/Launch/$fileName',
+        xcode: globals.xcode!,
+        processUtils: globals.processUtils,
+      );
+
+      final XCResult result = await xcResultGenerator.generate();
+
+      if (result.parseSuccess) {
+        for (final XCResultIssue issue in result.issues) {
+          print(issue.message);
+        }
+      }
+
+
+    } catch (e, stackTrace) {
+      print(e);
+      print(stackTrace);
+    }
   }
 
   Future<void> killXcode() async {
