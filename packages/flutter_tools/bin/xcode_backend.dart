@@ -46,6 +46,7 @@ class Context {
     }
 
     final String subCommand = arguments.first;
+    echo('Executing command: $subCommand\n');
     switch (subCommand) {
       case 'build':
         buildApp();
@@ -61,6 +62,9 @@ class Context {
         // Exposed for integration testing only.
         addVmServiceBonjourService();
     }
+
+    // build
+    // embed_and_thin
   }
 
   bool existsDir(String path) {
@@ -181,7 +185,9 @@ class Context {
   void embedFlutterFrameworks() {
     // Embed App.framework from Flutter into the app (after creating the Frameworks directory
     // if it doesn't already exist).
+
     final String xcodeFrameworksDir = '${environment['TARGET_BUILD_DIR']}/${environment['FRAMEWORKS_FOLDER_PATH']}';
+    echo('Make directory: $xcodeFrameworksDir\n');
     runSync(
       'mkdir',
       <String>[
@@ -190,6 +196,8 @@ class Context {
         xcodeFrameworksDir,
       ]
     );
+
+    echo('Copy ${environment['BUILT_PRODUCTS_DIR']}/App.framework to $xcodeFrameworksDir\n');
     runSync(
       'rsync',
       <String>[
@@ -205,6 +213,7 @@ class Context {
 
     // Embed the actual Flutter.framework that the Flutter app expects to run against,
     // which could be a local build or an arch/type specific build.
+    echo('Copy ${environment['BUILT_PRODUCTS_DIR']}/Flutter.framework to $xcodeFrameworksDir\n');
     runSync(
       'rsync',
       <String>[
@@ -229,7 +238,16 @@ class Context {
       return;
     }
 
-    final String builtProductsPlist = '${environment['BUILT_PRODUCTS_DIR'] ?? ''}/${environment['INFOPLIST_PATH'] ?? ''}';
+    String? builtProductsPlist;
+    if (environment['INFOPLIST_PREPROCESS'] == 'YES' && environment['TARGET_TEMP_DIR'] != '') {
+      builtProductsPlist = '${environment['TARGET_TEMP_DIR']}/Preprocessed-Info.plist';
+    } else {
+      builtProductsPlist = '${environment['BUILT_PRODUCTS_DIR'] ?? ''}/${environment['INFOPLIST_PATH'] ?? ''}';
+      // BUILT_PRODUCTS_DIR = /Users/vashworth/Development/examples/flutter/plugins/prototype/build/ios/Debug-iphonesimulator
+      // INFOPLIST_PATH = Runner.app/Info.plist
+    }
+
+    echo('Updating Plist: $builtProductsPlist');
 
     if (!existsFile(builtProductsPlist)) {
       // Very occasionally Xcode hasn't created an Info.plist when this runs.
@@ -387,6 +405,8 @@ class Context {
     }
 
     flutterArgs.add('${buildMode}_ios_bundle_flutter_assets');
+
+    echo('Calling flutter command: $flutterArgs\n');
 
     final ProcessResult result = runSync(
       '${environmentEnsure('FLUTTER_ROOT')}/bin/flutter',

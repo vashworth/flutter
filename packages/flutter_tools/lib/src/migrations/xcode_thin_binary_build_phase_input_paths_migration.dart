@@ -49,6 +49,7 @@ class XcodeThinBinaryBuildPhaseInputPathsMigration extends ProjectMigrator {
 			);
 ''';
 
+    // TODO(vashworth): Use "${TARGET_TEMP_DIR}/Preprocessed-Info.plist" for debug, otherwise use "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"?
     const String thinBinaryBuildPhaseReplacement = r'''
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;

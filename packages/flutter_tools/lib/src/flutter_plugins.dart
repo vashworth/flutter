@@ -1189,39 +1189,8 @@ Future<void> injectPlugins(
       );
       packageProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
     } else {
-      if (!plugin.path.contains('.pub-cache')) {
-        // prompt user to migrate their plugin
-        // TODO: only prompt if compatible
-        if (globals.terminal.stdinHasTerminal) {
-          globals.terminal.usesTerminalUi = true;
-          final String result = await globals.terminal.promptForCharInput(
-            <String>['y', 'Y', 'n', 'N'],
-            displayAcceptedCharacters: false,
-            logger: globals.logger,
-            prompt: 'Would you like to migrate from Cocoapods to Swift Package Manager (y/n)?',
-          );
-
-          if (result.toLowerCase() == 'y') {
-            await pluginSwiftPackage.convertPodToSwiftPackage(plugin);
-            packageDependencies.add(
-              SwiftPackagePackageDependency(name: plugin.name, path: '${plugin.path}ios/${plugin.name}'),
-            );
-            packageProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
-          } else {
-            includePods = true;
-          }
-        } else {
-          // includePods = true;
-          // TODO: remove
-          await pluginSwiftPackage.convertPodToSwiftPackage(plugin);
-          packageDependencies.add(
-            SwiftPackagePackageDependency(name: plugin.name, path: '${plugin.path}ios/${plugin.name}'),
-          );
-          packageProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
-        }
-      } else {
-        includePods = true;
-      }
+      includePods = true;
+      globals.printStatus('Using a non-swift plugin: ${plugin.name}');
     }
   }
 
@@ -1241,7 +1210,8 @@ Future<void> injectPlugins(
         SwiftPackageProduct(name: 'FlutterPackage', targets: <String>['FlutterPackage']),
       ],
       dependencies: <SwiftPackagePackageDependency>[
-        SwiftPackagePackageDependency(name: 'FlutterFramework', path: '/Users/vashworth/Development/flutter/bin/cache/artifacts/engine/ios'),
+        // TODO: Get from engine cache dynamically, local engine?
+        SwiftPackagePackageDependency(name: 'FlutterFramework', path: '/Users/vashworth/Development/flutter/bin/cache/artifacts/engine/ios/FlutterFramework'),
         ...packageDependencies,
       ],
       targets: <SwiftPackageTarget>[

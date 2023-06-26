@@ -287,6 +287,8 @@ class BuildInfo {
       if (bundleSkSLPath != null)
         'BUNDLE_SKSL_PATH': bundleSkSLPath!,
       'PACKAGE_CONFIG': packagesPath,
+      // TODO(vashworth): only add for debug build
+      'INFOPLIST_PREPROCESS': 'YES',
       if (codeSizeDirectory != null)
         'CODE_SIZE_DIRECTORY': codeSizeDirectory!,
     };

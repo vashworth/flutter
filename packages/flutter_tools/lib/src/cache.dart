@@ -907,9 +907,20 @@ abstract class EngineCachedArtifact extends CachedArtifact {
       final String friendlyName = urlPath.replaceAll('/artifacts.zip', '').replaceAll('.zip', '');
       await artifactUpdater.downloadZipArchive('Downloading $friendlyName tools...', Uri.parse(url + urlPath), dir);
 
-      // TODO: insert Package.swift
+      // TODO(vashworth): insert Package.swift, handled in tool?
       if (cacheDir.startsWith('ios')) {
-        final File packageSwift = fileSystem.file(fileSystem.path.join(dir.path, 'Package.swift'));
+        final Directory flutterEnginePackage = dir.childDirectory('FlutterFramework');
+        if (!flutterEnginePackage.existsSync()) {
+          flutterEnginePackage.createSync();
+        }
+
+        final Link linkToFlutterFramework = flutterEnginePackage.childLink('Flutter.xcframework');
+        final File origFlutterFramework = fileSystem.file(fileSystem.path.join(dir.path, 'Flutter.xcframework'));
+        if (!linkToFlutterFramework.existsSync()) {
+          linkToFlutterFramework.createSync(origFlutterFramework.path);
+        }
+
+        final File packageSwift = fileSystem.file(fileSystem.path.join(flutterEnginePackage.path, 'Package.swift'));
         if (!packageSwift.existsSync()) {
           packageSwift.writeAsStringSync('''
 // swift-tools-version: 5.7
