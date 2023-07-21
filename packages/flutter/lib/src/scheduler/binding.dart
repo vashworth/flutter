@@ -14,7 +14,6 @@ import 'debug.dart';
 import 'priority.dart';
 import 'service_extensions.dart';
 
-export 'dart:developer' show Flow;
 export 'dart:ui' show AppLifecycleState, FrameTiming, TimingsCallback;
 
 export 'priority.dart' show Priority;
@@ -371,8 +370,9 @@ mixin SchedulerBinding on BindingBase {
   /// This is set by [handleAppLifecycleStateChanged] when the
   /// [SystemChannels.lifecycle] notification is dispatched.
   ///
-  /// The preferred way to watch for changes to this value is using
-  /// [WidgetsBindingObserver.didChangeAppLifecycleState].
+  /// The preferred ways to watch for changes to this value are using
+  /// [WidgetsBindingObserver.didChangeAppLifecycleState], or through an
+  /// [AppLifecycleListener] object.
   AppLifecycleState? get lifecycleState => _lifecycleState;
   AppLifecycleState? _lifecycleState;
 
@@ -392,19 +392,18 @@ mixin SchedulerBinding on BindingBase {
   @protected
   @mustCallSuper
   void handleAppLifecycleStateChanged(AppLifecycleState state) {
+    if (lifecycleState == state) {
+      return;
+    }
     _lifecycleState = state;
     switch (state) {
       case AppLifecycleState.resumed:
       case AppLifecycleState.inactive:
         _setFramesEnabledState(true);
+      case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         _setFramesEnabledState(false);
-      // ignore: no_default_cases
-      default:
-        // TODO(gspencergoog): Remove this and replace with real cases once
-        // engine change rolls into framework.
-        break;
     }
   }
 
@@ -940,7 +939,10 @@ mixin SchedulerBinding on BindingBase {
     }
 
     _warmUpFrame = true;
-    final TimelineTask timelineTask = TimelineTask()..start('Warm-up frame');
+    TimelineTask? debugTimelineTask;
+    if (!kReleaseMode) {
+      debugTimelineTask = TimelineTask()..start('Warm-up frame');
+    }
     final bool hadScheduledFrame = _hasScheduledFrame;
     // We use timers here to ensure that microtasks flush in between.
     Timer.run(() {
@@ -969,7 +971,9 @@ mixin SchedulerBinding on BindingBase {
     // scheduled frame has finished.
     lockEvents(() async {
       await endOfFrame;
-      timelineTask.finish();
+      if (!kReleaseMode) {
+        debugTimelineTask!.finish();
+      }
     });
   }
 

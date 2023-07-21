@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../foundation/leak_tracking.dart';
 import '../rendering/mock_canvas.dart';
 import '../widgets/semantics_tester.dart';
 import 'feedback_tester.dart';
@@ -653,6 +654,62 @@ void main() {
     semantics.dispose();
   });
 
+    testWidgets('IconButton Semantics (selected) - M3', (WidgetTester tester) async {
+    final SemanticsTester semantics = SemanticsTester(tester);
+
+    await tester.pumpWidget(
+      wrap(
+        useMaterial3: true,
+        child: IconButton(
+          onPressed: mockOnPressedFunction.handler,
+          isSelected: true,
+          icon: const Icon(Icons.link, semanticLabel: 'link'),
+        ),
+      ),
+    );
+
+    expect(
+      semantics,
+      hasSemantics(
+        TestSemantics.root(
+          children: <TestSemantics>[
+            TestSemantics(
+              textDirection: TextDirection.ltr,
+              children: <TestSemantics>[
+                TestSemantics(
+                  children: <TestSemantics>[
+                    TestSemantics(
+                      flags: <SemanticsFlag>[SemanticsFlag.scopesRoute],
+                      children: <TestSemantics>[
+                        TestSemantics(
+                          actions: <SemanticsAction>[
+                            SemanticsAction.tap,
+                          ],
+                          flags: <SemanticsFlag>[
+                            SemanticsFlag.hasEnabledState,
+                            SemanticsFlag.isButton,
+                            SemanticsFlag.isEnabled,
+                            SemanticsFlag.isFocusable,
+                            SemanticsFlag.isSelected,
+                          ],
+                          label: 'link',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+        ignoreId: true,
+        ignoreRect: true,
+        ignoreTransform: true,
+      ),
+    );
+    semantics.dispose();
+  });
+
   testWidgets('IconButton loses focus when disabled.', (WidgetTester tester) async {
     final FocusNode focusNode = FocusNode(debugLabel: 'IconButton');
     await tester.pumpWidget(
@@ -733,7 +790,7 @@ void main() {
 
     await tester.pumpWidget(
       wrap(
-        useMaterial3: theme.useMaterial3,
+        useMaterial3: false,
         child: Column(
           children: <Widget>[
             IconButton(
@@ -756,7 +813,7 @@ void main() {
     expect(focusNode1.hasPrimaryFocus, isTrue);
     expect(focusNode2.hasPrimaryFocus, isFalse);
 
-    expect(focusNode1.nextFocus(), isTrue);
+    expect(focusNode1.nextFocus(), isFalse);
     await tester.pump();
 
     expect(focusNode1.hasPrimaryFocus, isTrue);
@@ -2673,18 +2730,18 @@ void main() {
       final ColorScheme lightScheme = const ColorScheme.light().copyWith(onSurfaceVariant: const Color(0xffe91e60));
       // Brightness.dark
       await tester.pumpWidget(
-          MaterialApp(
-              theme: ThemeData(colorScheme: lightScheme, useMaterial3: true,),
-              home: Scaffold(
-                body: IconTheme.merge(
-                  data: const IconThemeData(size: 26),
-                  child: IconButton(
-                    icon: const Icon(Icons.account_box),
-                    onPressed: () {},
-                  ),
-                ),
-              )
+        MaterialApp(
+          theme: ThemeData(colorScheme: lightScheme, useMaterial3: true,),
+          home: Scaffold(
+            body: IconTheme.merge(
+              data: const IconThemeData(size: 26),
+              child: IconButton(
+                icon: const Icon(Icons.account_box),
+                onPressed: () {},
+              ),
+            ),
           )
+        )
       );
 
       Color? iconColor0() => _iconStyle(tester, Icons.account_box)?.color;
@@ -2713,6 +2770,25 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgetsWithLeakTracking('Material3 - IconButton memory leak', (WidgetTester tester) async {
+      // This is a regression test for https://github.com/flutter/flutter/issues/130708.
+      Widget buildWidget(bool showIconButton) {
+        return showIconButton
+          ? MaterialApp(
+              theme: ThemeData(useMaterial3: true),
+              home: IconButton(
+                onPressed: () { },
+                icon: const Icon(Icons.search),
+              ),
+            )
+          : const SizedBox();
+      }
+      await tester.pumpWidget(buildWidget(true));
+      await tester.pumpWidget(buildWidget(false));
+
+      // No exception is thrown.
     });
   });
 }

@@ -82,6 +82,7 @@ void main() {
   }) {
     final FocusNode focusNode = FocusNode();
     return MaterialApp(
+      theme: ThemeData(useMaterial3: false),
       home: Material(
         child: Directionality(
           textDirection: textDirection,
@@ -145,7 +146,7 @@ void main() {
   testWidgets('Menu responds to density changes', (WidgetTester tester) async {
     Widget buildMenu({VisualDensity? visualDensity = VisualDensity.standard}) {
       return MaterialApp(
-        theme: ThemeData(visualDensity: visualDensity),
+        theme: ThemeData(visualDensity: visualDensity, useMaterial3: false),
         home: Material(
           child: Column(
             children: <Widget>[
@@ -485,6 +486,53 @@ void main() {
     );
   }, variant: TargetPlatformVariant.desktop());
 
+  testWidgets('focus is returned to previous focus before invoking onPressed', (WidgetTester tester) async {
+    final FocusNode buttonFocus = FocusNode(debugLabel: 'Button Focus');
+    FocusNode? focusInOnPressed;
+
+    void onMenuSelected(TestMenu item) {
+      focusInOnPressed = FocusManager.instance.primaryFocus;
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Column(
+            children: <Widget>[
+              MenuBar(
+                controller: controller,
+                children: createTestMenus(
+                  onPressed: onMenuSelected,
+                ),
+              ),
+              ElevatedButton(
+                autofocus: true,
+                onPressed: () {},
+                focusNode: buttonFocus,
+                child: const Text('Press Me'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    expect(FocusManager.instance.primaryFocus, equals(buttonFocus));
+
+    await tester.tap(find.text(TestMenu.mainMenu1.label));
+    await tester.pump();
+
+    await tester.tap(find.text(TestMenu.subMenu11.label));
+    await tester.pump();
+
+    await tester.tap(find.text(TestMenu.subSubMenu110.label));
+    await tester.pump();
+
+    expect(focusInOnPressed, equals(buttonFocus));
+    expect(FocusManager.instance.primaryFocus, equals(buttonFocus));
+  });
+
   group('Menu functions', () {
     testWidgets('basic menu structure', (WidgetTester tester) async {
       await tester.pumpWidget(
@@ -542,6 +590,7 @@ void main() {
     testWidgets('geometry', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Material(
             child: Column(
               children: <Widget>[
@@ -606,6 +655,7 @@ void main() {
     testWidgets('geometry with RTL direction', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Material(
             child: Directionality(
               textDirection: TextDirection.rtl,
@@ -815,6 +865,7 @@ void main() {
         Padding(
           padding: const EdgeInsets.all(10.0),
           child: MaterialApp(
+            theme: ThemeData(useMaterial3: false),
             home: Material(
               child: Column(
                 children: <Widget>[
@@ -867,6 +918,7 @@ void main() {
         Padding(
           padding: const EdgeInsets.all(10.0),
           child: MaterialApp(
+            theme: ThemeData(useMaterial3: false),
             home: Material(
               child: Directionality(
                 textDirection: TextDirection.rtl,
@@ -2295,6 +2347,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Material(
             child: Column(
               children: <Widget>[
@@ -2338,6 +2391,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Directionality(
             textDirection: TextDirection.rtl,
             child: Material(
@@ -2384,6 +2438,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(300, 300));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Builder(
             builder: (BuildContext context) {
               return Directionality(
@@ -2428,6 +2483,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(300, 300));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Builder(
             builder: (BuildContext context) {
               return Directionality(
@@ -2472,6 +2528,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Builder(
             builder: (BuildContext context) {
               return Directionality(
@@ -2548,6 +2605,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Builder(
             builder: (BuildContext context) {
               return Directionality(
@@ -2624,6 +2682,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Builder(
             builder: (BuildContext context) {
               return Directionality(
@@ -2675,6 +2734,7 @@ void main() {
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Builder(
             builder: (BuildContext context) {
               return Directionality(
@@ -2730,7 +2790,7 @@ void main() {
     }) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData.light().copyWith(visualDensity: visualDensity),
+          theme: ThemeData.light(useMaterial3: false).copyWith(visualDensity: visualDensity),
           home: Directionality(
             textDirection: textDirection,
             child: Material(
@@ -3051,7 +3111,7 @@ void main() {
           child: Center(
             child: MenuItemButton(
               style: MenuItemButton.styleFrom(fixedSize: const Size(88.0, 36.0)),
-              onPressed: () { },
+              onPressed: () {},
               child: const Text('ABC'),
             ),
           ),
@@ -3059,27 +3119,30 @@ void main() {
       );
 
       // The flags should not have SemanticsFlag.isButton
-      expect(semantics, hasSemantics(
-        TestSemantics.root(
-          children: <TestSemantics>[
-            TestSemantics.rootChild(
-              actions: <SemanticsAction>[
-                SemanticsAction.tap,
-              ],
-              label: 'ABC',
-              rect: const Rect.fromLTRB(0.0, 0.0, 88.0, 48.0),
-              transform: Matrix4.translationValues(356.0, 276.0, 0.0),
-              flags: <SemanticsFlag>[
-                SemanticsFlag.hasEnabledState,
-                SemanticsFlag.isEnabled,
-                SemanticsFlag.isFocusable,
-              ],
-              textDirection: TextDirection.ltr,
-            ),
-          ],
+      expect(
+        semantics,
+        hasSemantics(
+          TestSemantics.root(
+            children: <TestSemantics>[
+              TestSemantics.rootChild(
+                actions: <SemanticsAction>[
+                  SemanticsAction.tap,
+                ],
+                label: 'ABC',
+                rect: const Rect.fromLTRB(0.0, 0.0, 88.0, 48.0),
+                transform: Matrix4.translationValues(356.0, 276.0, 0.0),
+                flags: <SemanticsFlag>[
+                  SemanticsFlag.hasEnabledState,
+                  SemanticsFlag.isEnabled,
+                  SemanticsFlag.isFocusable,
+                ],
+                textDirection: TextDirection.ltr,
+              ),
+            ],
+          ),
+          ignoreId: true,
         ),
-        ignoreId: true,
-      ));
+      );
 
       semantics.dispose();
     });
@@ -3101,22 +3164,23 @@ void main() {
       );
 
       // The flags should not have SemanticsFlag.isButton
-      expect(semantics, hasSemantics(
-        TestSemantics.root(
-          children: <TestSemantics>[
-            TestSemantics.rootChild(
-              label: 'ABC',
-              rect: const Rect.fromLTRB(0.0, 0.0, 88.0, 48.0),
-              transform: Matrix4.translationValues(356.0, 276.0, 0.0),
-              flags: <SemanticsFlag>[
-                SemanticsFlag.hasEnabledState,
-              ],
-              textDirection: TextDirection.ltr,
-            ),
-          ],
+      expect(
+        semantics,
+        hasSemantics(
+          TestSemantics.root(
+            children: <TestSemantics>[
+              TestSemantics(
+                rect: const Rect.fromLTRB(0.0, 0.0, 88.0, 48.0),
+                flags: <SemanticsFlag>[SemanticsFlag.hasEnabledState],
+                label: 'ABC',
+                textDirection: TextDirection.ltr,
+              ),
+            ],
+          ),
+          ignoreTransform: true,
+          ignoreId: true,
         ),
-        ignoreId: true,
-      ));
+      );
 
       semantics.dispose();
     });
@@ -3243,9 +3307,4 @@ enum TestMenu {
   final String acceleratorLabel;
   // Strip the accelerator markers.
   String get label => MenuAcceleratorLabel.stripAcceleratorMarkers(acceleratorLabel);
-  int get acceleratorIndex {
-    int index = -1;
-    MenuAcceleratorLabel.stripAcceleratorMarkers(acceleratorLabel, setIndex: (int i) => index = i);
-    return index;
-  }
 }

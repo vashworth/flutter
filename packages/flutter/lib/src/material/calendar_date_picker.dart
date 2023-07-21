@@ -1013,6 +1013,8 @@ class _DayPickerState extends State<_DayPicker> {
               // for the day of month. To do that we prepend day of month to the
               // formatted full date.
               label: '${localizations.formatDecimal(day)}, ${localizations.formatFullDate(dayToBuild)}$semanticLabelSuffix',
+              // Set button to true to make the date selectable.
+              button: true,
               selected: isSelectedDay,
               excludeSemantics: true,
               child: dayWidget,
@@ -1189,7 +1191,7 @@ class _YearPickerState extends State<YearPicker> {
     final Color? background = resolve<Color?>((DatePickerThemeData? theme) => isCurrentYear ? theme?.todayBackgroundColor : theme?.yearBackgroundColor, states);
     final MaterialStateProperty<Color?> overlayColor =
       MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) =>
-        effectiveValue((DatePickerThemeData? theme) => theme?.dayOverlayColor?.resolve(states)),
+        effectiveValue((DatePickerThemeData? theme) => theme?.yearOverlayColor?.resolve(states)),
       );
 
     BoxBorder? border;

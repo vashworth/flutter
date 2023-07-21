@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:ui' as ui show ParagraphBuilder;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -583,7 +585,7 @@ void main() {
     // Padding at the top of the rail.
     const double topPadding = 8.0;
     // Width of a destination.
-    const double destinationWidth = bool.hasEnvironment('SKPARAGRAPH_REMOVE_ROUNDING_HACK') ? 125.5 : 126.0;
+    final double destinationWidth = ui.ParagraphBuilder.shouldDisableRoundingHack ? 125.5 : 126.0;
     // Height of a destination indicator with icon.
     const double destinationHeight = 32.0;
     // Space between the indicator and label.
@@ -858,7 +860,7 @@ void main() {
     // Padding at the top of the rail.
     const double topPadding = 8.0;
     // Width of a destination.
-    const double destinationWidth = bool.hasEnvironment('SKPARAGRAPH_REMOVE_ROUNDING_HACK') ? 125.5 : 126.0;
+    final double destinationWidth = ui.ParagraphBuilder.shouldDisableRoundingHack ? 125.5 : 126.0;
     // Height of a destination indicator with icon.
     const double destinationHeight = 32.0;
     // Space between the indicator and label.
@@ -3043,6 +3045,81 @@ void main() {
         )
         ..rrect(
           rrect: RRect.fromLTRBR(140.0, 96.0, 196.0, 128.0, const Radius.circular(16)),
+          color: const Color(0xffe8def8),
+        ),
+    );
+  });
+
+  testWidgets('NavigationRail indicator renders properly with long labels', (WidgetTester tester) async {
+    // This is a regression test for https://github.com/flutter/flutter/issues/128005.
+    await _pumpNavigationRail(
+      tester,
+      navigationRail: NavigationRail(
+        selectedIndex: 1,
+        destinations: const <NavigationRailDestination>[
+          NavigationRailDestination(
+            icon: Icon(Icons.favorite_border),
+            selectedIcon: Icon(Icons.favorite),
+            label: Text('ABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+          ),
+          NavigationRailDestination(
+            icon: Icon(Icons.bookmark_border),
+            selectedIcon: Icon(Icons.bookmark),
+            label: Text('ABC'),
+          ),
+        ],
+        labelType: NavigationRailLabelType.all,
+      ),
+    );
+
+    final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.byIcon(Icons.favorite_border)));
+    await tester.pumpAndSettle();
+
+    final RenderObject inkFeatures = tester.allRenderObjects.firstWhere((RenderObject object) => object.runtimeType.toString() == '_RenderInkFeatures');
+
+    // Default values from M3 specification.
+    const double indicatorHeight = 32.0;
+    const double destinationWidth = 72.0;
+    const double destinationHorizontalPadding = 8.0;
+    const double indicatorWidth = destinationWidth - 2 * destinationHorizontalPadding; // 56.0
+
+    // The navigation rail width is larger than default because of the first destination long label.
+    final double railWidth = tester.getSize(find.byType(NavigationRail)).width;
+
+    // Expected indicator position.
+    final double indicatorLeft = (railWidth - indicatorWidth) / 2;
+    final double indicatorRight = (railWidth + indicatorWidth) / 2;
+    final Rect indicatorRect = Rect.fromLTRB(indicatorLeft, 0.0, indicatorRight, indicatorHeight);
+    final Rect includedRect = indicatorRect;
+    final Rect excludedRect = includedRect.inflate(10);
+
+    expect(
+      inkFeatures,
+      paints
+        ..clipPath(
+          pathMatcher: isPathThat(
+            includes: <Offset>[
+              includedRect.centerLeft,
+              includedRect.topCenter,
+              includedRect.centerRight,
+              includedRect.bottomCenter,
+            ],
+            excludes: <Offset>[
+              excludedRect.centerLeft,
+              excludedRect.topCenter,
+              excludedRect.centerRight,
+              excludedRect.bottomCenter,
+            ],
+          ),
+        )
+        ..rect(
+          rect: indicatorRect,
+          color: const Color(0x0a6750a4),
+        )
+        ..rrect(
+          rrect: RRect.fromLTRBR(indicatorLeft, 72.0, indicatorRight, 104.0, const Radius.circular(16)),
           color: const Color(0xffe8def8),
         ),
     );
