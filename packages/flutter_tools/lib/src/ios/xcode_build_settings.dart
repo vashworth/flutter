@@ -66,7 +66,7 @@ void _updateGeneratedXcodePropertiesFile({
   bool useMacOSConfig = false,
 }) {
   final StringBuffer localsBuffer = StringBuffer();
-  xcodeBuildSettings.add('BUILD_DIR=${globals.fs.path.absolute(getIosBuildDirectory())}');
+  //
 
   localsBuffer.writeln('// This is a generated file; do not edit or check into version control.');
   xcodeBuildSettings.forEach(localsBuffer.writeln);
@@ -170,6 +170,9 @@ Future<List<String>> _xcodeBuildSettingsLines({
 
   final String buildNumber = parsedBuildNumber(manifest: project.manifest, buildInfo: buildInfo) ?? '1';
   xcodeBuildSettings.add('FLUTTER_BUILD_NUMBER=$buildNumber');
+
+  // TODO: if (buildAction != XcodeBuildAction.archive) and is Xcode 15 and iOS 17+
+  xcodeBuildSettings.add('BUILD_DIR=${globals.fs.path.absolute(getIosBuildDirectory())}');
 
   final LocalEngineInfo? localEngineInfo = globals.artifacts?.localEngineInfo;
   if (localEngineInfo != null) {
