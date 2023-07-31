@@ -335,6 +335,8 @@ class IOSDevice extends Device {
   @override
   bool isConnected;
 
+  /// CoreDevice is a device connectivity stack introduced in Xcode 15. Devices
+  /// with iOS 17 or greater are CoreDevices.
   final bool isCoreDevice;
 
   final Map<IOSApp?, DeviceLogReader> _logReaders = <IOSApp?, DeviceLogReader>{};
@@ -362,10 +364,17 @@ class IOSDevice extends Device {
   }) async {
     bool result;
     try {
-      result = await _iosDeploy.isAppInstalled(
-        bundleId: app.id,
-        deviceId: id,
-      );
+      if (isCoreDevice) {
+        result = await _coreDeviceControl.isAppInstalled(
+          bundleId: app.id,
+          deviceId: id,
+        );
+      } else {
+        result = await _iosDeploy.isAppInstalled(
+          bundleId: app.id,
+          deviceId: id,
+        );
+      }
     } on ProcessException catch (e) {
       _logger.printError(e.message);
       return false;
@@ -389,13 +398,17 @@ class IOSDevice extends Device {
 
     int installationResult;
     try {
-      installationResult = await _iosDeploy.installApp(
-        deviceId: id,
-        bundlePath: bundle.path,
-        appDeltaDirectory: app.appDeltaDirectory,
-        launchArguments: <String>[],
-        interfaceType: connectionInterface,
-      );
+      if (isCoreDevice) {
+        installationResult = await _coreDeviceControl.installApp(deviceId: id, bundlePath: bundle.path) ? 0 : 1;
+      } else {
+        installationResult = await _iosDeploy.installApp(
+          deviceId: id,
+          bundlePath: bundle.path,
+          appDeltaDirectory: app.appDeltaDirectory,
+          launchArguments: <String>[],
+          interfaceType: connectionInterface,
+        );
+      }
     } on ProcessException catch (e) {
       _logger.printError(e.message);
       return false;
@@ -417,10 +430,14 @@ class IOSDevice extends Device {
   }) async {
     int uninstallationResult;
     try {
-      uninstallationResult = await _iosDeploy.uninstallApp(
-        deviceId: id,
-        bundleId: app.id,
-      );
+      if (isCoreDevice) {
+        uninstallationResult = await _coreDeviceControl.uninstallApp(deviceId: id, bundleId: app.id) ? 0 : 1;
+      } else {
+        uninstallationResult = await _iosDeploy.uninstallApp(
+          deviceId: id,
+          bundleId: app.id,
+        );
+      }
     } on ProcessException catch (e) {
       _logger.printError(e.message);
       return false;
@@ -464,6 +481,7 @@ class IOSDevice extends Device {
           targetOverride: mainPath,
           activeArch: cpuArchitecture,
           deviceID: id,
+          isCoreDevice: isCoreDevice,
       );
       if (!buildResult.success) {
         _logger.printError('Could not build the precompiled application for the device.');
@@ -502,7 +520,7 @@ class IOSDevice extends Device {
         _logger.printTrace('Debugging is enabled, connecting to vmService');
         final DeviceLogReader deviceLogReader = getLogReader(
           app: package,
-          usingCISystem: debuggingOptions.usingCISystem || isCoreDevice,
+          usingCISystem: debuggingOptions.usingCISystem,
         );
 
         // If the device supports syslog reading, prefer launching the app without
@@ -549,7 +567,6 @@ class IOSDevice extends Device {
       } else {
         installationResult = await iosDeployDebugger!.launchAndAttach() ? 0 : 1;
       }
-
       if (installationResult != 0) {
         _logger.printError('Could not run ${bundle.path} on $id.');
         _logger.printError('Try launching Xcode and selecting "Product > Run" to fix the problem:');
@@ -565,7 +582,16 @@ class IOSDevice extends Device {
 
       _logger.printTrace('Application launched on the device. Waiting for Dart VM Service url.');
 
-      final int defaultTimeout = isWirelesslyConnected ? 45 : 30;
+      final int defaultTimeout;
+      if (isCoreDevice && debuggingOptions.debuggingEnabled) {
+        // Core devices with debugging enabled takes longer because this includes time to install the app on the device.
+        defaultTimeout = isWirelesslyConnected ? 60 : 45;
+      } else if (isWirelesslyConnected) {
+        defaultTimeout = 45;
+      } else {
+        defaultTimeout = 30;
+      }
+
       final Timer timer = Timer(discoveryTimeout ?? Duration(seconds: defaultTimeout), () {
         _logger.printError('The Dart VM Service was not discovered after $defaultTimeout seconds. This is taking much longer than expected...');
 
@@ -586,13 +612,13 @@ class IOSDevice extends Device {
 
       Uri? localUri;
       if (isWirelesslyConnected) {
-        // Wait for Dart VM Service to start up.
-        final Uri? serviceURL = await vmServiceDiscovery?.uri;
-        if (serviceURL == null) {
-          await iosDeployDebugger?.stopAndDumpBacktrace();
-          await dispose();
-          return LaunchResult.failed();
-        }
+        // // Wait for Dart VM Service to start up.
+        // final Uri? serviceURL = await vmServiceDiscovery?.uri;
+        // if (serviceURL == null) {
+        //   await iosDeployDebugger?.stopAndDumpBacktrace();
+        //   await dispose();
+        //   return LaunchResult.failed();
+        // }
 
         // If Dart VM Service URL with the device IP is not found within 5 seconds,
         // change the status message to prompt users to click Allow. Wait 5 seconds because it
@@ -606,11 +632,11 @@ class IOSDevice extends Device {
         });
 
         // Get Dart VM Service URL with the device IP as the host.
-        localUri = await MDnsVmServiceDiscovery.instance!.getVMServiceUriForLaunch(
+        localUri = await MDnsVmServiceDiscovery.instance!.getVMServiceUriForAttach(
           packageId,
           this,
           usesIpv6: ipv6,
-          deviceVmservicePort: serviceURL.port,
+          // deviceVmservicePort: serviceURL.port,
           useDeviceIPAsHost: true,
         );
 
@@ -785,9 +811,6 @@ class IOSDevice extends Device {
     }
     _logReaders.clear();
     await _portForwarder?.dispose();
-    if (_xcodeDebug.debugStarted) {
-      await _xcodeDebug.exit();
-    }
   }
 }
 
@@ -855,8 +878,10 @@ class IOSDeviceLogReader extends DeviceLogReader {
   IOSDeviceLogReader._(
     this._iMobileDevice,
     this._majorSdkVersion,
-    this._device,
+    this._deviceId,
     this.name,
+    this._isWirelesslyConnected,
+    this._isCoreDevice,
     String appName,
     bool usingCISystem,
   ) : // Match for lines for the runner in syslog.
@@ -877,8 +902,10 @@ class IOSDeviceLogReader extends DeviceLogReader {
     return IOSDeviceLogReader._(
       iMobileDevice,
       device.majorSdkVersion,
-      device,
+      device.id,
       device.name,
+      device.isWirelesslyConnected,
+      device.isCoreDevice,
       appName,
       usingCISystem,
     );
@@ -886,11 +913,12 @@ class IOSDeviceLogReader extends DeviceLogReader {
 
   /// Create an [IOSDeviceLogReader] for testing.
   factory IOSDeviceLogReader.test({
-    required IOSDevice device,
     required IMobileDevice iMobileDevice,
     bool useSyslog = true,
     bool usingCISystem = false,
     int? majorSdkVersion,
+    bool isWirelesslyConnected = false,
+    bool isCoreDevice = false,
   }) {
     final int sdkVersion;
     if (majorSdkVersion != null) {
@@ -899,13 +927,15 @@ class IOSDeviceLogReader extends DeviceLogReader {
       sdkVersion = useSyslog ? 12 : 13;
     }
     return IOSDeviceLogReader._(
-      iMobileDevice, sdkVersion, device, 'test', 'Runner', usingCISystem);
+      iMobileDevice, sdkVersion, '1234', 'test', isWirelesslyConnected, isCoreDevice, 'Runner', usingCISystem);
   }
 
   @override
   final String name;
   final int _majorSdkVersion;
-  final IOSDevice _device;
+  final String _deviceId;
+  final bool _isWirelesslyConnected;
+  final bool _isCoreDevice;
   final IMobileDevice _iMobileDevice;
   final bool _usingCISystem;
 
@@ -955,7 +985,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
   /// `idevicesyslog` often have different prefixes on non-flutter messages
   /// and are often not critical for CI tests.
   bool _excludeLog(String message, IOSDeviceLogSource source) {
-    print('[$source]: $message');
+    // print('[$source]: $message');
     if (!usingMultipleLoggingSources) {
       return false;
     }
@@ -989,23 +1019,24 @@ class IOSDeviceLogReader extends DeviceLogReader {
 
   static const int minimumUniversalLoggingSdkVersion = 13;
 
-  /// Use both logs from `idevicesyslog` and `ios-deploy` when debugging from CI system
-  /// since sometimes `ios-deploy` does not return the device logs:
-  /// https://github.com/flutter/flutter/issues/121231
+  /// Use `idevicesyslog` to stream logs from the device when one of the following criteria is met:
+  /// 1) The device is a CoreDevice.
+  /// 2) The device has iOS 16 or greater and it's being debugged from CI.
+  /// 3) The device has iOS 12 or lower.
+  ///
+  /// Syslog stopped working on iOS 13 (https://github.com/flutter/flutter/issues/41133).
+  /// However, from at least iOS 16, it has began working again. It's unclear
+  /// why it started working again.
   @visibleForTesting
   bool get useSyslogLogging {
-    // use it for iOS less than 13
-    // use if 16+ and running in CI
-    // use if 17+
-
-    // Syslog stopped working on iOS 13 (https://github.com/flutter/flutter/issues/41133).
-    // However, from at least iOS 16, it has began working again. It's unclear
-    // why it started working again so only use syslogs for iOS versions prior
-    // to 13 unless [useBothLogDeviceReaders] is true.
-
-    if (_device.isCoreDevice) {
+    // `ios-deploy` stopped working with iOS 17 / Xcode 15, so use `idevicesyslog` instead.
+    if (_isCoreDevice) {
       return true;
     }
+
+    // Use both logs from `idevicesyslog` and `ios-deploy` when debugging from CI system
+    // since sometimes `ios-deploy` does not return the device logs:
+    // https://github.com/flutter/flutter/issues/121231
     if (_usingCISystem && _majorSdkVersion >= 16) {
       return true;
     }
@@ -1015,16 +1046,20 @@ class IOSDeviceLogReader extends DeviceLogReader {
     return false;
   }
 
+  /// Use the Dart VM to stream logs from the device when one of the following criteria is met:
+  /// 1) The device is a CoreDevice and wirelessly connected.
+  /// 2) The device has iOS 13 or greater and `ios-deploy` it not used or not attached.
+  @visibleForTesting
   bool get useUnifiedLogging {
-     // use for 13 or greater unless ios deploy is being used
-    // use for 17+ on wireless devices
-    // Prefer the more complete logs from the attached debugger.
-    if (_device.isCoreDevice) {
-      if (_device.isWirelesslyConnected) {
+    // `idevicesyslog` doesn't work on wireless devices, so use logs from Dart VM instead.
+    if (_isCoreDevice) {
+      if (_isWirelesslyConnected) {
         return true;
       }
       return false;
     }
+
+    // Prefer the more complete logs from the attached debugger.
     if (_majorSdkVersion >= minimumUniversalLoggingSdkVersion && (_iosDeployDebugger == null || !_iosDeployDebugger!.debuggerAttached)) {
       return true;
     }
@@ -1032,14 +1067,18 @@ class IOSDeviceLogReader extends DeviceLogReader {
     return false;
   }
 
+  @visibleForTesting
+  // Use `ios-deploy` to stream logs from the device when the device is not a CoreDevice and has iOS 13 or greater.
   bool get useIOSDeployLogging {
     // use for 13+ and less than 17
-    if (_majorSdkVersion < minimumUniversalLoggingSdkVersion || _device.isCoreDevice) {
+    if (_majorSdkVersion < minimumUniversalLoggingSdkVersion || _isCoreDevice) {
       return false;
     }
     return true;
   }
 
+  @visibleForTesting
+  /// Returns true when using multiple sources for streaming the device logs.
   bool get usingMultipleLoggingSources {
     final int numberOfSources = (useIOSDeployLogging ? 1 : 0) + (useSyslogLogging ? 1 : 0) + (useUnifiedLogging ? 1 : 0);
     if (numberOfSources > 1) {
@@ -1079,7 +1118,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
         _addToLinesController(message, IOSDeviceLogSource.unifiedLogging);
       }
     }
-    print("Set up unified logging");
+
     _loggingSubscriptions.addAll(<StreamSubscription<void>>[
       connectedVmService.service.onStdoutEvent.listen(logMessage),
       connectedVmService.service.onStderrEvent.listen(logMessage),
@@ -1115,23 +1154,16 @@ class IOSDeviceLogReader extends DeviceLogReader {
   // Strip off the logging metadata (leave the category), or just echo the line.
   String _debuggerLineHandler(String line) => _debuggerLoggingRegex.firstMatch(line)?.group(1) ?? line;
 
-  IOSink? sink;
-
   /// Start and listen to idevicesyslog to get device logs for iOS versions
   /// prior to 13 or if [useBothLogDeviceReaders] is true.
   void _listenToSysLog() {
     if (!useSyslogLogging) {
       return;
     }
-    final String directoryPath = '';
-
-    sink = globals.fs.file(path.join(directoryPath, '${_device.id}.log')).openWrite();
-    sink?.write('Hello world');
-    _iMobileDevice.startLogger(_device.id, isWirelesslyConnected: _device.isWirelesslyConnected).then<void>((Process process) {
+    _iMobileDevice.startLogger(_deviceId, isWirelesslyConnected: _isWirelesslyConnected).then<void>((Process process) {
       process.stdout.transform<String>(utf8.decoder).transform<String>(const LineSplitter()).listen(_newSyslogLineHandler());
       process.stderr.transform<String>(utf8.decoder).transform<String>(const LineSplitter()).listen(_newSyslogLineHandler());
       process.exitCode.whenComplete(() {
-        print('idevicesyslog done');
         if (!linesController.hasListener) {
           return;
         }
@@ -1161,7 +1193,6 @@ class IOSDeviceLogReader extends DeviceLogReader {
     bool printing = false;
 
     return (String line) {
-      sink?.write(line);
       if (printing) {
         if (!_anyLineRegex.hasMatch(line)) {
           _addToLinesController(decodeSyslog(line), IOSDeviceLogSource.idevicesyslog);

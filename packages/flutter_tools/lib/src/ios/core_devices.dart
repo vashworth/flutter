@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 import 'package:process/process.dart';
 
 import '../base/file_system.dart';
+import '../base/io.dart';
 import '../base/logger.dart';
 import '../base/process.dart';
 import '../convert.dart';
@@ -75,27 +76,28 @@ class IOSCoreDeviceControl {
       output.path,
     ];
 
-    final RunResult results = await _processUtils.run(command);
-    if (results.exitCode != 0) {
-      _logger.printError('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
-      return <Object?>[];
-    }
-
-    final String stringOutput = output.readAsStringSync();
-
     try {
-      final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['result'];
-      if (decodeResult is Map<String, Object?>) {
-        final Object? decodeDevices = decodeResult['devices'];
-        if (decodeDevices is List<Object?>) {
-          return decodeDevices;
+      await _processUtils.run(command, throwOnError: true);
+
+      final String stringOutput = output.readAsStringSync();
+
+      try {
+        final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['result'];
+        if (decodeResult is Map<String, Object?>) {
+          final Object? decodeDevices = decodeResult['devices'];
+          if (decodeDevices is List<Object?>) {
+            return decodeDevices;
+          }
         }
+        _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
+        return <Object?>[];
+      } on FormatException {
+        // We failed to parse the devicectl output, or it returned junk.
+        _logger.printError('devicectl returned non-JSON response: $stringOutput');
+        return <Object?>[];
       }
-      _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
-      return <Object?>[];
-    } on FormatException {
-      // We failed to parse the devicectl output, or it returned junk.
-      _logger.printError('devicectl returned non-JSON response: $stringOutput');
+    } on ProcessException catch (err) {
+      _logger.printError('Error executing devicectl: $err');
       return <Object?>[];
     } finally {
       tempDirectory.deleteSync(recursive: true);
@@ -114,6 +116,95 @@ class IOSCoreDeviceControl {
       }
     }
     return devices;
+  }
+
+  /// Executes `devicectl` command to get list of apps installed on the device.
+  /// If [bundleId] is provided, it will only return apps matching the bundle
+  /// identifier exactly.
+  Future<List<Object?>> _listInstalledApps({
+    required String deviceId,
+    String? bundleId,
+  }) async {
+    if (!_xcode.isDevicectlInstalled) {
+      _logger.printError('devicectl is not installed.');
+      return <Object?>[];
+    }
+
+    final Directory tempDirectory = _fileSystem.systemTempDirectory.createTempSync('core_devices.');
+    final File output = tempDirectory.childFile('core_device_app_list.json');
+    output.createSync();
+
+    final List<String> command = <String>[
+      ..._xcode.xcrunCommand(),
+      'devicectl',
+      'device',
+      'info',
+      'apps',
+      '--device',
+      deviceId,
+      if (bundleId != null)
+        '--bundle-id',
+        bundleId!,
+      '--json-output',
+      output.path,
+    ];
+
+    try {
+      await _processUtils.run(command, throwOnError: true);
+
+      final String stringOutput = output.readAsStringSync();
+
+      try {
+        final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['result'];
+        if (decodeResult is Map<String, Object?>) {
+          final Object? decodeApps = decodeResult['apps'];
+          if (decodeApps is List<Object?>) {
+            return decodeApps;
+          }
+        }
+        _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
+        return <Object?>[];
+      } on FormatException {
+        // We failed to parse the devicectl output, or it returned junk.
+        _logger.printError('devicectl returned non-JSON response: $stringOutput');
+        return <Object?>[];
+      }
+    } on ProcessException catch (err) {
+      _logger.printError('Error executing devicectl: $err');
+      return <Object?>[];
+    } finally {
+      tempDirectory.deleteSync(recursive: true);
+    }
+  }
+
+  @visibleForTesting
+  Future<List<IOSCoreDeviceInstalledApp>> getInstalledApps({
+    required String deviceId,
+    required String bundleId,
+  }) async {
+    final List<IOSCoreDeviceInstalledApp> apps = <IOSCoreDeviceInstalledApp>[];
+
+    final List<Object?> appsData = await _listInstalledApps(deviceId: deviceId, bundleId: bundleId);
+    for (final Object? appObject in appsData) {
+      if (appObject is Map<String, Object?>) {
+        apps.add(IOSCoreDeviceInstalledApp.fromPreviewJson(appObject));
+      }
+    }
+    return apps;
+  }
+
+  Future<bool> isAppInstalled({
+    required String deviceId,
+    required String bundleId,
+  }) async {
+    final List<IOSCoreDeviceInstalledApp> apps = await getInstalledApps(
+      deviceId: deviceId,
+      bundleId: bundleId,
+    );
+    if (apps.isNotEmpty) {
+      return true;
+    }
+    return false;
   }
 
   Future<bool> installApp({
@@ -142,24 +233,76 @@ class IOSCoreDeviceControl {
       output.path,
     ];
 
-    final RunResult results = await _processUtils.run(command);
-    if (results.exitCode != 0) {
-      _logger.printError('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
+    try {
+      await _processUtils.run(command, throwOnError: true);
+      final String stringOutput = output.readAsStringSync();
+
+      try {
+        final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['info'];
+        if (decodeResult is Map<String, Object?> && decodeResult['outcome'] == 'success') {
+          return true;
+        }
+        _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
+        return false;
+      } on FormatException {
+        // We failed to parse the devicectl output, or it returned junk.
+        _logger.printError('devicectl returned non-JSON response: $stringOutput');
+        return false;
+      }
+    } on ProcessException catch (err) {
+      _logger.printError('Error executing devicectl: $err');
+      return false;
+    } finally {
+      tempDirectory.deleteSync(recursive: true);
+    }
+  }
+
+  /// Uninstalls the app from the device. Will succeed even if the app is not
+  /// currently installed on the device.
+  Future<bool> uninstallApp({
+    required String deviceId,
+    required String bundleId,
+  }) async {
+    if (!_xcode.isDevicectlInstalled) {
+      _logger.printError('devicectl is not installed.');
       return false;
     }
 
-    final String stringOutput = output.readAsStringSync();
+    final Directory tempDirectory = _fileSystem.systemTempDirectory.createTempSync('core_devices.');
+    final File output = tempDirectory.childFile('uninstall_results.json');
+    output.createSync();
+
+    final List<String> command = <String>[
+      ..._xcode.xcrunCommand(),
+      'devicectl',
+      'device',
+      'uninstall',
+      'app',
+      '--device',
+      deviceId,
+      bundleId,
+      '--json-output',
+      output.path,
+    ];
 
     try {
-      final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['info'];
-      if (decodeResult is Map<String, Object?> && decodeResult['outcome'] == 'success') {
-        return true;
+      await _processUtils.run(command, throwOnError: true);
+      final String stringOutput = output.readAsStringSync();
+
+      try {
+        final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['info'];
+        if (decodeResult is Map<String, Object?> && decodeResult['outcome'] == 'success') {
+          return true;
+        }
+        _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
+        return false;
+      } on FormatException {
+        // We failed to parse the devicectl output, or it returned junk.
+        _logger.printError('devicectl returned non-JSON response: $stringOutput');
+        return false;
       }
-      _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
-      return false;
-    } on FormatException {
-      // We failed to parse the devicectl output, or it returned junk.
-      _logger.printError('devicectl returned non-JSON response: $stringOutput');
+    } on ProcessException catch (err) {
+      _logger.printError('Error executing devicectl: $err');
       return false;
     } finally {
       tempDirectory.deleteSync(recursive: true);
@@ -189,31 +332,29 @@ class IOSCoreDeviceControl {
       '--device',
       deviceId,
       bundleId,
-      if (launchArguments.isNotEmpty) ...<String>[
-        launchArguments.join(' '),
-      ],
+      if (launchArguments.isNotEmpty) ...launchArguments,
       '--json-output',
       output.path,
     ];
 
-    final RunResult results = await _processUtils.run(command);
-    if (results.exitCode != 0) {
-      _logger.printError('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
-      return false;
-    }
-
-    final String stringOutput = output.readAsStringSync();
-
     try {
-      final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['info'];
-      if (decodeResult is Map<String, Object?> && decodeResult['outcome'] == 'success') {
-        return true;
+      await _processUtils.run(command, throwOnError: true);
+      final String stringOutput = output.readAsStringSync();
+
+      try {
+        final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['info'];
+        if (decodeResult is Map<String, Object?> && decodeResult['outcome'] == 'success') {
+          return true;
+        }
+        _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
+        return false;
+      } on FormatException {
+        // We failed to parse the devicectl output, or it returned junk.
+        _logger.printError('devicectl returned non-JSON response: $stringOutput');
+        return false;
       }
-      _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
-      return false;
-    } on FormatException {
-      // We failed to parse the devicectl output, or it returned junk.
-      _logger.printError('devicectl returned non-JSON response: $stringOutput');
+    } on ProcessException catch (err) {
+      _logger.printError('Error executing devicectl: $err');
       return false;
     } finally {
       tempDirectory.deleteSync(recursive: true);
@@ -635,11 +776,72 @@ class _IOSCoreDeviceCPUType {
     return _IOSCoreDeviceCPUType._(
       name: data['name']?.toString(),
       subType: data['subType'] is int? ? data['subType'] as int? : null,
-      cpuType: data['cpuType'] is int? ? data['cpuType'] as int? : null,
+      cpuType: data['type'] is int? ? data['type'] as int? : null,
     );
   }
 
   final String? name;
   final int? subType;
   final int? cpuType;
+}
+
+@visibleForTesting
+class IOSCoreDeviceInstalledApp {
+  IOSCoreDeviceInstalledApp._({
+    required this.appClip,
+    required this.builtByDeveloper,
+    required this.bundleIdentifier,
+    required this.bundleVersion,
+    required this.defaultApp,
+    required this.hidden,
+    required this.internalApp,
+    required this.name,
+    required this.removable,
+    required this.url,
+    required this.version,
+  });
+
+  /// Parse JSON from `devicectl` while it's in preview mode.
+  ///
+  /// Example:
+  /// {
+  ///   "appClip" : false,
+  ///   "builtByDeveloper" : true,
+  ///   "bundleIdentifier" : "com.example.flutterApp",
+  ///   "bundleVersion" : "1",
+  ///   "defaultApp" : false,
+  ///   "hidden" : false,
+  ///   "internalApp" : false,
+  ///   "name" : "Flutter App",
+  ///   "removable" : true,
+  ///   "url" : "file:///private/var/containers/Bundle/Application/12345E6A-7F89-0C12-345E-F6A7E890CFF1/Runner.app/",
+  ///   "version" : "1.0.0"
+  /// }
+  factory IOSCoreDeviceInstalledApp.fromPreviewJson(Map<String, Object?> data) {
+    return IOSCoreDeviceInstalledApp._(
+      appClip: data['appClip'] is bool? ? data['appClip'] as bool? : null,
+      builtByDeveloper: data['builtByDeveloper'] is bool? ? data['builtByDeveloper'] as bool? : null,
+      bundleIdentifier: data['bundleIdentifier']?.toString(),
+      bundleVersion: data['bundleVersion']?.toString(),
+      defaultApp: data['defaultApp'] is bool? ? data['defaultApp'] as bool? : null,
+      hidden: data['hidden'] is bool? ? data['hidden'] as bool? : null,
+      internalApp: data['internalApp'] is bool? ? data['internalApp'] as bool? : null,
+      name: data['name']?.toString(),
+      removable: data['removable'] is bool? ? data['removable'] as bool? : null,
+      url: data['url']?.toString(),
+      version: data['version']?.toString(),
+    );
+  }
+
+  final bool? appClip;
+  final bool? builtByDeveloper;
+  final String? bundleIdentifier;
+  final String? bundleVersion;
+  final bool? defaultApp;
+  final bool? hidden;
+  final bool? internalApp;
+  final String? name;
+  final bool? removable;
+  final String? url;
+  final String? version;
 }

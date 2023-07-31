@@ -20,7 +20,7 @@ function run(args_array = []) {
 
 	const xcodeResult = getXcode(args);
 	if (xcodeResult.error != null) {
-		return new RunJsonResponse(false, xcodeResult.error);
+		return new RunJsonResponse(false, xcodeResult.error).stringify();
 	}
 	const xcode = xcodeResult.result;
 
@@ -130,9 +130,9 @@ class CommandArguments {
 				flag = entry;
 				value = args[index + 1];
 
-				// If next value in the array is also a flag, set the value to null.
+				// If next value in the array is also a flag, set the value to "true".
 				if (value != null && value.startsWith("--")) {
-					value = null;
+					value = "true";
 				} else {
 					index++;
 				}
@@ -183,7 +183,7 @@ class CommandArguments {
 			return null;
 		}
 		if (value == null || value === "") {
-			return true;
+			return false;
 		}
 		if (value !== "true" && value !== "false") {
 			throw `Invalid value for ${flag}`;
