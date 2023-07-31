@@ -47,14 +47,14 @@ class IOSCoreDeviceControl {
     Duration timeout = const Duration(seconds: _minimumTimeoutInSeconds),
   }) async {
     if (!_xcode.isDevicectlInstalled) {
-      _logger.printTrace('devicectl is not installed.');
+      _logger.printError('devicectl is not installed.');
       return <Object?>[];
     }
 
     // Default to minimum timeout if needed to prevent error.
     Duration validTimeout = timeout;
     if (timeout.inSeconds < _minimumTimeoutInSeconds) {
-      _logger.printTrace(
+      _logger.printError(
           'Timeout of ${timeout.inSeconds} seconds is below the minimum timeout value '
           'for devicectl. Changing the timeout to the minimum value of $_minimumTimeoutInSeconds.');
       validTimeout = const Duration(seconds: _minimumTimeoutInSeconds);
@@ -77,7 +77,7 @@ class IOSCoreDeviceControl {
 
     final RunResult results = await _processUtils.run(command);
     if (results.exitCode != 0) {
-      _logger.printTrace('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
+      _logger.printError('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
       return <Object?>[];
     }
 
@@ -91,11 +91,11 @@ class IOSCoreDeviceControl {
           return decodeDevices;
         }
       }
-      _logger.printTrace('devicectl returned unexpected JSON response: $stringOutput');
+      _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
       return <Object?>[];
     } on FormatException {
       // We failed to parse the devicectl output, or it returned junk.
-      _logger.printTrace('devicectl returned non-JSON response: $stringOutput');
+      _logger.printError('devicectl returned non-JSON response: $stringOutput');
       return <Object?>[];
     } finally {
       tempDirectory.deleteSync(recursive: true);
@@ -110,7 +110,7 @@ class IOSCoreDeviceControl {
     final List<Object?> devicesSection = await _listCoreDevices(timeout: timeout);
     for (final Object? deviceObject in devicesSection) {
       if (deviceObject is Map<String, Object?>) {
-        devices.add(IOSCoreDevice(deviceObject, logger: _logger));
+        devices.add(IOSCoreDevice.fromPreviewJson(deviceObject, logger: _logger));
       }
     }
     return devices;
@@ -121,13 +121,13 @@ class IOSCoreDeviceControl {
     required String bundlePath,
   }) async {
     if (!_xcode.isDevicectlInstalled) {
-      _logger.printTrace('devicectl is not installed.');
+      _logger.printError('devicectl is not installed.');
       return false;
     }
 
-    // final Directory tempDirectory = _fileSystem.systemTempDirectory.createTempSync('core_devices.');
-    // final File output = tempDirectory.childFile('install_results.json');
-    // output.createSync();
+    final Directory tempDirectory = _fileSystem.systemTempDirectory.createTempSync('core_devices.');
+    final File output = tempDirectory.childFile('install_results.json');
+    output.createSync();
 
     final List<String> command = <String>[
       ..._xcode.xcrunCommand(),
@@ -138,33 +138,32 @@ class IOSCoreDeviceControl {
       '--device',
       deviceId,
       bundlePath,
-      // '--json-output',
-      // output.path,
+      '--json-output',
+      output.path,
     ];
 
     final RunResult results = await _processUtils.run(command);
     if (results.exitCode != 0) {
-      _logger.printTrace('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
+      _logger.printError('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
       return false;
     }
 
-    if (results.stdout.contains('App installed:') && results.stdout.contains('installationURL: file')) {
-      return true;
+    final String stringOutput = output.readAsStringSync();
+
+    try {
+      final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['info'];
+      if (decodeResult is Map<String, Object?> && decodeResult['outcome'] == 'success') {
+        return true;
+      }
+      _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
+      return false;
+    } on FormatException {
+      // We failed to parse the devicectl output, or it returned junk.
+      _logger.printError('devicectl returned non-JSON response: $stringOutput');
+      return false;
+    } finally {
+      tempDirectory.deleteSync(recursive: true);
     }
-    return false;
-
-    // final String stringOutput = output.readAsStringSync();
-
-    // try {
-    //   final Object? decodeResult = (json.decode(stringOutput) as Map<String, Obj'];
-
-    // } on FormatException {
-    //   // We failed to parse the devicectl output, or it returned junk.
-    //   _logger.printTrace('devicectl returned non-JSON response: $stringOutput');
-    //   return false;
-    // } finally {
-    //   tempDirectory.deleteSync(recursive: true);
-    // }
   }
 
   Future<bool> launchApp({
@@ -173,9 +172,13 @@ class IOSCoreDeviceControl {
     List<String> launchArguments = const <String>[],
   }) async {
     if (!_xcode.isDevicectlInstalled) {
-      _logger.printTrace('devicectl is not installed.');
+      _logger.printError('devicectl is not installed.');
       return false;
     }
+
+    final Directory tempDirectory = _fileSystem.systemTempDirectory.createTempSync('core_devices.');
+    final File output = tempDirectory.childFile('launch_results.json');
+    output.createSync();
 
     final List<String> command = <String>[
       ..._xcode.xcrunCommand(),
@@ -189,30 +192,47 @@ class IOSCoreDeviceControl {
       if (launchArguments.isNotEmpty) ...<String>[
         launchArguments.join(' '),
       ],
-      // '--json-output',
-      // output.path,
+      '--json-output',
+      output.path,
     ];
 
     final RunResult results = await _processUtils.run(command);
     if (results.exitCode != 0) {
-      _logger.printTrace('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
+      _logger.printError('Error executing devicectl: ${results.exitCode}\n${results.stderr}');
       return false;
     }
 
-    if (results.stdout.contains('Launched application')) {
-      return true;
+    final String stringOutput = output.readAsStringSync();
+
+    try {
+      final Object? decodeResult = (json.decode(stringOutput) as Map<String, Object?>)['info'];
+      if (decodeResult is Map<String, Object?> && decodeResult['outcome'] == 'success') {
+        return true;
+      }
+      _logger.printError('devicectl returned unexpected JSON response: $stringOutput');
+      return false;
+    } on FormatException {
+      // We failed to parse the devicectl output, or it returned junk.
+      _logger.printError('devicectl returned non-JSON response: $stringOutput');
+      return false;
+    } finally {
+      tempDirectory.deleteSync(recursive: true);
     }
-    return false;
   }
 }
 
 class IOSCoreDevice {
-  IOSCoreDevice(
-    Map<String, Object?> data, {
-    required Logger logger,
-  })  : _data = data,
-        _logger = logger;
+  IOSCoreDevice._({
+    required this.capabilities,
+    required this.connectionProperties,
+    required this.deviceProperties,
+    required this.hardwareProperties,
+    required this.coreDeviceIdentifer,
+    required this.visibilityClass,
+  });
 
+  /// Parse JSON from `devicectl` while it's in preview mode.
+  ///
   /// Example:
   /// {
   ///   "capabilities" : [
@@ -226,8 +246,53 @@ class IOSCoreDevice {
   ///   "identifier" : "123456BB5-AEDE-7A22-B890-1234567890DD",
   ///   "visibilityClass" : "default"
   /// }
-  final Map<String, Object?> _data;
-  final Logger _logger;
+  factory IOSCoreDevice.fromPreviewJson(
+    Map<String, Object?> data, {
+    required Logger logger,
+  }) {
+    final List<_IOSCoreDeviceCapability> capabilitiesList = <_IOSCoreDeviceCapability>[];
+    if (data['capabilities'] is List<Object?>) {
+      final List<Object?> capabilitiesData = data['capabilities']! as List<Object?>;
+      for (final Object? capabilityData in capabilitiesData) {
+        if (capabilityData != null && capabilityData is Map<String, Object?>) {
+          capabilitiesList.add(_IOSCoreDeviceCapability.fromPreviewJson(capabilityData));
+        }
+      }
+    }
+
+    _IOSCoreDeviceConnectionProperties? connectionProperties;
+    if (data['connectionProperties'] is Map<String, Object?>) {
+      final Map<String, Object?> connectionPropertiesData = data['connectionProperties']! as Map<String, Object?>;
+      connectionProperties = _IOSCoreDeviceConnectionProperties.fromPreviewJson(
+        connectionPropertiesData,
+        logger: logger,
+      );
+    }
+
+    _IOSCoreDeviceProperties? deviceProperties;
+    if (data['deviceProperties'] is Map<String, Object?>) {
+      final Map<String, Object?> devicePropertiesData = data['deviceProperties']! as Map<String, Object?>;
+      deviceProperties = _IOSCoreDeviceProperties.fromPreviewJson(devicePropertiesData);
+    }
+
+    _IOSCoreDeviceHardwareProperties? hardwareProperties;
+    if (data['hardwareProperties'] is Map<String, Object?>) {
+      final Map<String, Object?> hardwarePropertiesData = data['hardwareProperties']! as Map<String, Object?>;
+      hardwareProperties = _IOSCoreDeviceHardwareProperties.fromPreviewJson(
+        hardwarePropertiesData,
+        logger: logger,
+      );
+    }
+
+    return IOSCoreDevice._(
+      capabilities: capabilitiesList,
+      connectionProperties: connectionProperties,
+      deviceProperties: deviceProperties,
+      hardwareProperties: hardwareProperties,
+      coreDeviceIdentifer: data['identifier']?.toString(),
+      visibilityClass: data['visibilityClass']?.toString(),
+    );
+  }
 
   String? get udid => hardwareProperties?.udid;
 
@@ -244,63 +309,29 @@ class IOSCoreDevice {
   }
 
   @visibleForTesting
-  List<IOSCoreDeviceCapability> get capabilities {
-    final List<IOSCoreDeviceCapability> capabilitiesList = <IOSCoreDeviceCapability>[];
-    if (_data['capabilities'] is List<Object?>) {
-      final List<Object?> capabilitiesData = _data['capabilities']! as List<Object?>;
-      for (final Object? capabilityData in capabilitiesData) {
-        if (capabilityData != null && capabilityData is Map<String, Object?>) {
-          capabilitiesList.add(IOSCoreDeviceCapability(capabilityData));
-        }
-      }
-    }
-    return capabilitiesList;
-  }
+  final List<_IOSCoreDeviceCapability> capabilities;
 
   @visibleForTesting
-  IOSCoreDeviceConnectionProperties? get connectionProperties {
-    if (_data['connectionProperties'] is Map<String, Object?>) {
-      final Map<String, Object?> connectionPropertiesData = _data['connectionProperties']! as Map<String, Object?>;
-      return IOSCoreDeviceConnectionProperties(
-        connectionPropertiesData,
-        logger: _logger,
-      );
-    }
-    return null;
-  }
+  final _IOSCoreDeviceConnectionProperties? connectionProperties;
 
-  // @visibleForTesting
-  IOSCoreDeviceProperties? get deviceProperties {
-    if (_data['deviceProperties'] is Map<String, Object?>) {
-      final Map<String, Object?> devicePropertiesData = _data['deviceProperties']! as Map<String, Object?>;
-      return IOSCoreDeviceProperties(devicePropertiesData);
-    }
-    return null;
-  }
+  final _IOSCoreDeviceProperties? deviceProperties;
 
   @visibleForTesting
-  IOSCoreDeviceHardwareProperties? get hardwareProperties {
-    if (_data['hardwareProperties'] is Map<String, Object?>) {
-      final Map<String, Object?> hardwarePropertiesData = _data['hardwareProperties']! as Map<String, Object?>;
-      return IOSCoreDeviceHardwareProperties(
-        hardwarePropertiesData,
-        logger: _logger,
-      );
-    }
-    return null;
-  }
+  final _IOSCoreDeviceHardwareProperties? hardwareProperties;
 
-  /// This is not the UDID of the device.
-  String? get coreDeviceIdentifer => _data['identifier']?.toString();
-
-  String? get visibilityClass => _data['visibilityClass']?.toString();
+  final String? coreDeviceIdentifer;
+  final String? visibilityClass;
 }
 
-class IOSCoreDeviceCapability {
-  IOSCoreDeviceCapability(
-    Map<String, Object?> data,
-  ) : _data = data;
 
+class _IOSCoreDeviceCapability {
+  _IOSCoreDeviceCapability._({
+    required this.featureIdentifier,
+    required this.name,
+  });
+
+  /// Parse JSON from `devicectl` while it's in preview mode.
+  ///
   /// Example:
   /// "capabilities" : [
   ///   {
@@ -312,19 +343,33 @@ class IOSCoreDeviceCapability {
   ///     "name" : "Launch Application"
   ///   }
   /// ]
-  final Map<String, Object?> _data;
+  factory _IOSCoreDeviceCapability.fromPreviewJson(Map<String, Object?> data) {
+    return _IOSCoreDeviceCapability._(
+      featureIdentifier: data['featureIdentifier']?.toString(),
+      name: data['name']?.toString(),
+    );
+  }
 
-  String? get featureIdentifier => _data['featureIdentifier']?.toString();
-  String? get name => _data['name']?.toString();
+  final String? featureIdentifier;
+  final String? name;
 }
 
-class IOSCoreDeviceConnectionProperties {
-  IOSCoreDeviceConnectionProperties(
-    Map<String, Object?> data, {
-    required Logger logger,
-  })  : _data = data,
-        _logger = logger;
+class _IOSCoreDeviceConnectionProperties {
+  _IOSCoreDeviceConnectionProperties._({
+    required this.authenticationType,
+    required this.isMobileDeviceOnly,
+    required this.lastConnectionDate,
+    required this.localHostnames,
+    required this.pairingState,
+    required this.potentialHostnames,
+    required this.transportType,
+    required this.tunnelIPAddress,
+    required this.tunnelState,
+    required this.tunnelTransportProtocol,
+  });
 
+  /// Parse JSON from `devicectl` while it's in preview mode.
+  ///
   /// Example:
   /// "connectionProperties" : {
   ///   "authenticationType" : "manualPairing",
@@ -345,55 +390,73 @@ class IOSCoreDeviceConnectionProperties {
   ///   "tunnelState" : "connected",
   ///   "tunnelTransportProtocol" : "tcp"
   /// }
-  final Map<String, Object?> _data;
-  final Logger _logger;
-
-  String? get authenticationType => _data['authenticationType']?.toString();
-  bool? get isMobileDeviceOnly {
-    if (_data['isMobileDeviceOnly'] is bool?) {
-      return _data['isMobileDeviceOnly'] as bool?;
-    }
-    return null;
-  }
-
-  String? get lastConnectionDate => _data['lastConnectionDate']?.toString();
-  List<String>? get localHostnames {
-    if (_data['localHostnames'] is List<Object?>) {
-      final List<Object?> values = _data['localHostnames']! as List<Object?>;
+  factory _IOSCoreDeviceConnectionProperties.fromPreviewJson(
+    Map<String, Object?> data, {
+    required Logger logger,
+  }) {
+    List<String>? localHostnames;
+    if (data['localHostnames'] is List<Object?>) {
+      final List<Object?> values = data['localHostnames']! as List<Object?>;
       try {
-        return List<String>.from(values);
+        localHostnames = List<String>.from(values);
       } on TypeError {
-        _logger.printTrace('Error parsing localHostnames value: $values');
+        logger.printTrace('Error parsing localHostnames value: $values');
       }
     }
-    return null;
-  }
 
-  String? get pairingState => _data['pairingState']?.toString();
-  List<String>? get potentialHostnames {
-    if (_data['potentialHostnames'] is List<Object?>) {
-      final List<Object?> values = _data['potentialHostnames']! as List<Object?>;
+    List<String>? potentialHostnames;
+    if (data['potentialHostnames'] is List<Object?>) {
+      final List<Object?> values = data['potentialHostnames']! as List<Object?>;
       try {
-        return List<String>.from(values);
+        potentialHostnames = List<String>.from(values);
       } on TypeError {
-        _logger.printTrace('Error parsing potentialHostnames value: $values');
+        logger.printTrace('Error parsing potentialHostnames value: $values');
       }
     }
-    return null;
+    return _IOSCoreDeviceConnectionProperties._(
+      authenticationType: data['authenticationType']?.toString(),
+      isMobileDeviceOnly: data['isMobileDeviceOnly'] is bool? ? data['isMobileDeviceOnly'] as bool? : null,
+      lastConnectionDate: data['lastConnectionDate']?.toString(),
+      localHostnames: localHostnames,
+      pairingState: data['pairingState']?.toString(),
+      potentialHostnames: potentialHostnames,
+      transportType: data['transportType']?.toString(),
+      tunnelIPAddress: data['tunnelIPAddress']?.toString(),
+      tunnelState: data['tunnelState']?.toString(),
+      tunnelTransportProtocol: data['tunnelTransportProtocol']?.toString(),
+    );
   }
 
+  final String? authenticationType;
+  final bool? isMobileDeviceOnly;
+  final String? lastConnectionDate;
+  final List<String>? localHostnames;
+  final String? pairingState;
+  final List<String>? potentialHostnames;
   /// When [transportType] is not null, values may be `wired` or `localNetwork`.
-  String? get transportType => _data['transportType']?.toString();
-  String? get tunnelIPAddress => _data['tunnelIPAddress']?.toString();
-  String? get tunnelState => _data['tunnelState']?.toString();
-  String? get tunnelTransportProtocol => _data['tunnelTransportProtocol']?.toString();
+  final String? transportType;
+  final String? tunnelIPAddress;
+  final String? tunnelState;
+  final String? tunnelTransportProtocol;
 }
 
-class IOSCoreDeviceProperties {
-  IOSCoreDeviceProperties(
-    Map<String, Object?> data,
-  ) : _data = data;
+class _IOSCoreDeviceProperties {
+  _IOSCoreDeviceProperties._({
+    required this.bootedFromSnapshot,
+    required this.bootedSnapshotName,
+    required this.bootState,
+    required this.ddiServicesAvailable,
+    required this.developerModeStatus,
+    required this.hasInternalOSBuild,
+    required this.name,
+    required this.osBuildUpdate,
+    required this.osVersionNumber,
+    required this.rootFileSystemIsWritable,
+    required this.screenViewingURL,
+  });
 
+  /// Parse JSON from `devicectl` while it's in preview mode.
+  ///
   /// Example:
   /// "deviceProperties" : {
   ///   "bootedFromSnapshot" : true,
@@ -408,52 +471,54 @@ class IOSCoreDeviceProperties {
   ///   "rootFileSystemIsWritable" : false,
   ///   "screenViewingURL" : "coredevice-devices:/viewDeviceByUUID?uuid=123456BB5-AEDE-7A22-B890-1234567890DD"
   /// }
-  final Map<String, Object?> _data;
-
-  bool? get bootedFromSnapshot {
-    if (_data['bootedFromSnapshot'] is bool?) {
-      return _data['bootedFromSnapshot'] as bool?;
-    }
-    return null;
+  factory _IOSCoreDeviceProperties.fromPreviewJson(Map<String, Object?> data) {
+    return _IOSCoreDeviceProperties._(
+      bootedFromSnapshot: data['bootedFromSnapshot'] is bool? ? data['bootedFromSnapshot'] as bool? : null,
+      bootedSnapshotName: data['bootedSnapshotName']?.toString(),
+      bootState: data['bootState']?.toString(),
+      ddiServicesAvailable: data['ddiServicesAvailable'] is bool? ? data['ddiServicesAvailable'] as bool? : null,
+      developerModeStatus: data['developerModeStatus']?.toString(),
+      hasInternalOSBuild: data['hasInternalOSBuild'] is bool? ? data['hasInternalOSBuild'] as bool? : null,
+      name: data['name']?.toString(),
+      osBuildUpdate: data['osBuildUpdate']?.toString(),
+      osVersionNumber: data['osVersionNumber']?.toString(),
+      rootFileSystemIsWritable: data['rootFileSystemIsWritable'] is bool? ? data['rootFileSystemIsWritable'] as bool? : null,
+      screenViewingURL: data['screenViewingURL']?.toString(),
+    );
   }
 
-  String? get bootedSnapshotName => _data['bootedSnapshotName']?.toString();
-  String? get bootState => _data['bootState']?.toString();
-  bool? get ddiServicesAvailable {
-    if (_data['ddiServicesAvailable'] is bool?) {
-      return _data['ddiServicesAvailable'] as bool?;
-    }
-    return null;
-  }
-
-  String? get developerModeStatus => _data['developerModeStatus']?.toString();
-  bool? get hasInternalOSBuild {
-    if (_data['hasInternalOSBuild'] is bool?) {
-      return _data['hasInternalOSBuild'] as bool?;
-    }
-    return null;
-  }
-
-  String? get name => _data['name']?.toString();
-  String? get osBuildUpdate => _data['osBuildUpdate']?.toString();
-  String? get osVersionNumber => _data['osVersionNumber']?.toString();
-  bool? get rootFileSystemIsWritable {
-    if (_data['rootFileSystemIsWritable'] is bool?) {
-      return _data['rootFileSystemIsWritable'] as bool?;
-    }
-    return null;
-  }
-
-  String? get screenViewingURL => _data['screenViewingURL']?.toString();
+  final bool? bootedFromSnapshot;
+  final String? bootedSnapshotName;
+  final String? bootState;
+  final bool? ddiServicesAvailable;
+  final String? developerModeStatus;
+  final bool? hasInternalOSBuild;
+  final String? name;
+  final String? osBuildUpdate;
+  final String? osVersionNumber;
+  final bool? rootFileSystemIsWritable;
+  final String? screenViewingURL;
 }
 
-class IOSCoreDeviceHardwareProperties {
-  IOSCoreDeviceHardwareProperties(
-    Map<String, Object?> data, {
-    required Logger logger,
-  })  : _data = data,
-        _logger = logger;
+class _IOSCoreDeviceHardwareProperties {
+  _IOSCoreDeviceHardwareProperties._({
+    required this.cpuType,
+    required this.deviceType,
+    required this.ecid,
+    required this.hardwareModel,
+    required this.internalStorageCapacity,
+    required this.marketingName,
+    required this.platform,
+    required this.productType,
+    required this.serialNumber,
+    required this.supportedCPUTypes,
+    required this.supportedDeviceFamilies,
+    required this.thinningProductType,
+    required this.udid,
+  });
 
+  /// Parse JSON from `devicectl` while it's in preview mode.
+  ///
   /// Example:
   /// "hardwareProperties" : {
   ///   "cpuType" : {
@@ -488,91 +553,93 @@ class IOSCoreDeviceHardwareProperties {
   ///   "thinningProductType" : "iPad14,3-A",
   ///   "udid" : "00001234-0001234A3C03401E"
   /// }
-  final Map<String, Object?> _data;
-  final Logger _logger;
-
-  IOSCoreDeviceCPUType? get cpuType {
-    if (_data['cpuType'] is Map<String, Object?>) {
-      return IOSCoreDeviceCPUType(_data['cpuType']! as Map<String, Object?>);
+  factory _IOSCoreDeviceHardwareProperties.fromPreviewJson(
+    Map<String, Object?> data, {
+    required Logger logger,
+  }) {
+    _IOSCoreDeviceCPUType? cpuType;
+    if (data['cpuType'] is Map<String, Object?>) {
+      cpuType = _IOSCoreDeviceCPUType.fromPreviewJson(data['cpuType']! as Map<String, Object?>);
     }
-    return null;
-  }
 
-  String? get deviceType => _data['deviceType']?.toString();
-  int? get ecid {
-    if (_data['ecid'] is int?) {
-      return _data['ecid'] as int?;
-    }
-    return null;
-  }
-
-  String? get hardwareModel => _data['hardwareModel']?.toString();
-  int? get internalStorageCapacity {
-    if (_data['internalStorageCapacity'] is int?) {
-      return _data['internalStorageCapacity'] as int?;
-    }
-    return null;
-  }
-
-  String? get marketingName => _data['marketingName']?.toString();
-  String? get platform => _data['platform']?.toString();
-  String? get productType => _data['productType']?.toString();
-  String? get serialNumber => _data['serialNumber']?.toString();
-  List<IOSCoreDeviceCPUType>? get supportedCPUTypes {
-    if (_data['supportedCPUTypes'] is List<Object?>) {
-      final List<Object?> values = _data['supportedCPUTypes']! as List<Object?>;
-      final List<IOSCoreDeviceCPUType> cpuTypes = <IOSCoreDeviceCPUType>[];
+    List<_IOSCoreDeviceCPUType>? supportedCPUTypes;
+    if (data['supportedCPUTypes'] is List<Object?>) {
+      final List<Object?> values = data['supportedCPUTypes']! as List<Object?>;
+      final List<_IOSCoreDeviceCPUType> cpuTypes = <_IOSCoreDeviceCPUType>[];
       for (final Object? cpuTypeData in values) {
         if (cpuTypeData is Map<String, Object?>) {
-          cpuTypes.add(IOSCoreDeviceCPUType(cpuTypeData));
+          cpuTypes.add(_IOSCoreDeviceCPUType.fromPreviewJson(cpuTypeData));
         }
       }
-      return cpuTypes;
+      supportedCPUTypes = cpuTypes;
     }
-    return null;
-  }
 
-  List<int>? get supportedDeviceFamilies {
-    if (_data['supportedDeviceFamilies'] is List<Object?>) {
-      final List<Object?> values = _data['supportedDeviceFamilies']! as List<Object?>;
+    List<int>? supportedDeviceFamilies;
+    if (data['supportedDeviceFamilies'] is List<Object?>) {
+      final List<Object?> values = data['supportedDeviceFamilies']! as List<Object?>;
       try {
-        return List<int>.from(values);
+        supportedDeviceFamilies = List<int>.from(values);
       } on TypeError {
-        _logger.printTrace('Error parsing supportedDeviceFamilies value: $values');
+        logger.printTrace('Error parsing supportedDeviceFamilies value: $values');
       }
     }
-    return null;
+
+    return _IOSCoreDeviceHardwareProperties._(
+      cpuType: cpuType,
+      deviceType: data['deviceType']?.toString(),
+      ecid: data['ecid'] is int? ? data['ecid'] as int? : null,
+      hardwareModel: data['hardwareModel']?.toString(),
+      internalStorageCapacity: data['internalStorageCapacity'] is int? ? data['internalStorageCapacity'] as int? : null,
+      marketingName: data['marketingName']?.toString(),
+      platform: data['platform']?.toString(),
+      productType: data['productType']?.toString(),
+      serialNumber: data['serialNumber']?.toString(),
+      supportedCPUTypes: supportedCPUTypes,
+      supportedDeviceFamilies: supportedDeviceFamilies,
+      thinningProductType: data['thinningProductType']?.toString(),
+      udid: data['udid']?.toString(),
+    );
   }
 
-  String? get thinningProductType => _data['thinningProductType']?.toString();
-  String? get udid => _data['udid']?.toString();
+  final _IOSCoreDeviceCPUType? cpuType;
+  final String? deviceType;
+  final int? ecid;
+  final String? hardwareModel;
+  final int? internalStorageCapacity;
+  final String? marketingName;
+  final String? platform;
+  final String? productType;
+  final String? serialNumber;
+  final List<_IOSCoreDeviceCPUType>? supportedCPUTypes;
+  final List<int>? supportedDeviceFamilies;
+  final String? thinningProductType;
+  final String? udid;
 }
 
-class IOSCoreDeviceCPUType {
-  IOSCoreDeviceCPUType(
-    Map<String, Object?> data,
-  ) : _data = data;
+class _IOSCoreDeviceCPUType {
+  _IOSCoreDeviceCPUType._({
+    this.name,
+    this.subType,
+    this.cpuType,
+  });
 
+  /// Parse JSON from `devicectl` while it's in preview mode.
+  ///
   /// Example:
   /// "cpuType" : {
   ///   "name" : "arm64e",
   ///   "subType" : 2,
   ///   "type" : 16777228
   /// }
-  final Map<String, Object?> _data;
-
-  String? get name => _data['name']?.toString();
-  int? get subType {
-    if (_data['subType'] is int?) {
-      return _data['subType'] as int?;
-    }
-    return null;
+  factory _IOSCoreDeviceCPUType.fromPreviewJson(Map<String, Object?> data) {
+    return _IOSCoreDeviceCPUType._(
+      name: data['name']?.toString(),
+      subType: data['subType'] is int? ? data['subType'] as int? : null,
+      cpuType: data['cpuType'] is int? ? data['cpuType'] as int? : null,
+    );
   }
 
-  int? get cpuType {
-    if (_data['type'] is int?) {
-      return _data['type'] as int?;
-    }
-    return null;
-  }
+  final String? name;
+  final int? subType;
+  final int? cpuType;
 }

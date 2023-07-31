@@ -13,6 +13,7 @@ import '../base/io.dart';
 import '../base/logger.dart';
 import '../base/platform.dart';
 import '../base/process.dart';
+import '../base/user_messages.dart';
 import '../base/version.dart';
 import '../build_info.dart';
 import '../cache.dart';
@@ -69,6 +70,7 @@ class XCDevice {
     required Platform platform,
     required IProxy iproxy,
     required FileSystem fileSystem,
+    required UserMessages userMessages,
   }) : _processUtils = ProcessUtils(logger: logger, processManager: processManager),
       _logger = logger,
       _iMobileDevice = IMobileDevice(
@@ -94,6 +96,8 @@ class XCDevice {
         logger: logger,
         processManager: processManager,
         xcode: xcode,
+        fileSystem: fileSystem,
+        userMessages: userMessages,
       ),
       _iProxy = iproxy,
       _xcode = xcode {
@@ -477,7 +481,7 @@ class XCDevice {
     final Map<String, IOSCoreDevice> coreDeviceMap = <String, IOSCoreDevice>{};
     if (_xcode.isDevicectlInstalled) {
       // `devicectl` was introduced in Xcode 15 in a preview format. Since it's not
-      //   // yet stable and may be prone to change, catch any errors to prevent any crashes.
+      // yet stable and may be prone to change, catch any errors to prevent any crashes.
       final List<IOSCoreDevice> coreDevices = await _coreDeviceControl.getCoreDevices();
       for (final IOSCoreDevice device in coreDevices) {
         if (device.udid == null) {

@@ -354,7 +354,7 @@ class MDnsVmServiceDiscovery {
   /// When [useDeviceIPAsHost] is true, it will use the device's IP as the
   /// host and will not forward the port.
   ///
-  /// Differs from `getVMServiceUriForLaunch` because it can search for any available Dart VM Service.
+  /// Differs from [getVMServiceUriForLaunch] because it can search for any available Dart VM Service.
   /// Since [applicationId] and [deviceVmservicePort] are optional, it can either look for any service
   /// or a specific service matching [applicationId]/[deviceVmservicePort].
   /// It may find more than one service, which will throw an error listing the found services.
@@ -391,7 +391,7 @@ class MDnsVmServiceDiscovery {
   /// When [useDeviceIPAsHost] is true, it will use the device's IP as the
   /// host and will not forward the port.
   ///
-  /// Differs from `getVMServiceUriForAttach` because it only searches for a specific service.
+  /// Differs from [getVMServiceUriForAttach] because it only searches for a specific service.
   /// This is enforced by [applicationId] and [deviceVmservicePort] being required.
   Future<Uri?> getVMServiceUriForLaunch(
     String applicationId,

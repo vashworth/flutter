@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:meta/meta.dart';
+import 'package:path/path.dart' as path;
 import 'package:process/process.dart';
 import 'package:vm_service/vm_service.dart' as vm_service;
 
@@ -34,8 +35,7 @@ import 'ios_workflow.dart';
 import 'iproxy.dart';
 import 'mac.dart';
 import 'xcode_debug.dart';
-
-import 'package:path/path.dart' as path;
+import 'xcodeproj.dart';
 
 class IOSDevices extends PollingDeviceDiscovery {
   IOSDevices({
@@ -498,7 +498,6 @@ class IOSDevice extends Device {
     try {
       ProtocolDiscovery? vmServiceDiscovery;
       int installationResult = 1;
-
       if (debuggingOptions.debuggingEnabled) {
         _logger.printTrace('Debugging is enabled, connecting to vmService');
         final DeviceLogReader deviceLogReader = getLogReader(
@@ -537,7 +536,7 @@ class IOSDevice extends Device {
           debuggingOptions: debuggingOptions,
           package: package,
           launchArguments: launchArguments,
-        );
+        ) ? 0 : 1;
       } else if (iosDeployDebugger == null) {
         installationResult = await _iosDeploy.launchApp(
           deviceId: id,
@@ -636,7 +635,7 @@ class IOSDevice extends Device {
     }
   }
 
-  Future<int> _startAppOnCoreDevice({
+  Future<bool> _startAppOnCoreDevice({
     required DebuggingOptions debuggingOptions,
     required IOSApp package,
     required List<String> launchArguments,
@@ -647,38 +646,65 @@ class IOSDevice extends Device {
       // Install app to device
       final bool installSuccess = await _coreDeviceControl.installApp(deviceId: id, bundlePath: package.deviceBundlePath);
       if (!installSuccess) {
-        return 0;
+        return installSuccess;
       }
 
       // Launch app to device
       final bool launchSuccess = await _coreDeviceControl.launchApp(deviceId: id, bundleId: package.id, launchArguments: launchArguments);
 
-      return launchSuccess ? 0 : 1;
+      return launchSuccess;
     } else {
-      final int launchTimeout = isWirelesslyConnected ? 45 : 30;
+      final int launchTimeout = isWirelesslyConnected ? 75 : 60;
       final Timer timer = Timer(Duration(seconds: launchTimeout), () {
         _logger.printError('Xcode is taking longer than expected to start debugging the app. Ensure the project is opened in Xcode.');
       });
 
+      XcodeDebugProject debugProject;
+
+      if (package is PrebuiltIOSApp) {
+        debugProject = await _xcodeDebug.createXcodeProjectWithCustomBundle(
+          package,
+          templateRenderer: globals.templateRenderer,
+        );
+      } else if (package is BuildableIOSApp) {
+        final IosProject project = package.project;
+        final XcodeProjectInfo? projectInfo = await project.projectInfo();
+        if (projectInfo == null) {
+          globals.printError('Xcode project not found.');
+          return false;
+        }
+        if (project.xcodeWorkspace == null) {
+          globals.printError('Unable to get Xcode workspace.');
+          return false;
+        }
+        final String? scheme = projectInfo.schemeFor(debuggingOptions.buildInfo);
+        if (scheme == null) {
+          globals.printError('Unable to get scheme.');
+          return false;
+        }
+
+        debugProject = XcodeDebugProject(
+          scheme: scheme,
+          xcodeProject: project.xcodeProject,
+          xcodeWorkspace: project.xcodeWorkspace!,
+        );
+      } else {
+        // This should not happen. Currently, only PrebuiltIOSApp and
+        // BuildableIOSApp extend from IOSApp.
+        _logger.printError('IOSApp type ${package.runtimeType} is not recognized.');
+        return false;
+      }
+
       final bool debugSuccess = await _xcodeDebug.debugApp(
-        project: FlutterProject.current().ios,
+        project: debugProject,
         deviceId: id,
         debuggingOptions: debuggingOptions,
         launchArguments:launchArguments,
       );
       timer.cancel();
 
-      return debugSuccess ? 0 : 1;
+      return debugSuccess;
     }
-  }
-
-  Future<LaunchResult> _handleLaunchFailure(Directory bundle) async {
-    _logger.printError('Could not run ${bundle.path} on $id.');
-    _logger.printError('Try launching Xcode and selecting "Product > Run" to fix the problem:');
-    _logger.printError('  open ios/Runner.xcworkspace');
-    _logger.printError('');
-    await dispose();
-    return LaunchResult.failed();
   }
 
   @override
@@ -760,7 +786,7 @@ class IOSDevice extends Device {
     _logReaders.clear();
     await _portForwarder?.dispose();
     if (_xcodeDebug.debugStarted) {
-      _xcodeDebug.exit();
+      await _xcodeDebug.exit();
     }
   }
 }
@@ -829,7 +855,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
   IOSDeviceLogReader._(
     this._iMobileDevice,
     this._majorSdkVersion,
-    this._deviceId,
+    this._device,
     this.name,
     String appName,
     bool usingCISystem,
@@ -851,7 +877,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
     return IOSDeviceLogReader._(
       iMobileDevice,
       device.majorSdkVersion,
-      device.id,
+      device,
       device.name,
       appName,
       usingCISystem,
@@ -860,6 +886,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
 
   /// Create an [IOSDeviceLogReader] for testing.
   factory IOSDeviceLogReader.test({
+    required IOSDevice device,
     required IMobileDevice iMobileDevice,
     bool useSyslog = true,
     bool usingCISystem = false,
@@ -872,13 +899,13 @@ class IOSDeviceLogReader extends DeviceLogReader {
       sdkVersion = useSyslog ? 12 : 13;
     }
     return IOSDeviceLogReader._(
-      iMobileDevice, sdkVersion, '1234', 'test', 'Runner', usingCISystem);
+      iMobileDevice, sdkVersion, device, 'test', 'Runner', usingCISystem);
   }
 
   @override
   final String name;
   final int _majorSdkVersion;
-  final String _deviceId;
+  final IOSDevice _device;
   final IMobileDevice _iMobileDevice;
   final bool _usingCISystem;
 
@@ -928,7 +955,8 @@ class IOSDeviceLogReader extends DeviceLogReader {
   /// `idevicesyslog` often have different prefixes on non-flutter messages
   /// and are often not critical for CI tests.
   bool _excludeLog(String message, IOSDeviceLogSource source) {
-    if (!useBothLogDeviceReaders) {
+    print('[$source]: $message');
+    if (!usingMultipleLoggingSources) {
       return false;
     }
     if (message.startsWith('flutter:')) {
@@ -936,7 +964,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
         return true;
       }
       _streamFlutterMessages.add(message);
-    } else if (source == IOSDeviceLogSource.idevicesyslog) {
+    } else if (useIOSDeployLogging && source != IOSDeviceLogSource.iosDeploy) {
       return true;
     }
     return false;
@@ -961,12 +989,71 @@ class IOSDeviceLogReader extends DeviceLogReader {
 
   static const int minimumUniversalLoggingSdkVersion = 13;
 
+  /// Use both logs from `idevicesyslog` and `ios-deploy` when debugging from CI system
+  /// since sometimes `ios-deploy` does not return the device logs:
+  /// https://github.com/flutter/flutter/issues/121231
+  @visibleForTesting
+  bool get useSyslogLogging {
+    // use it for iOS less than 13
+    // use if 16+ and running in CI
+    // use if 17+
+
+    // Syslog stopped working on iOS 13 (https://github.com/flutter/flutter/issues/41133).
+    // However, from at least iOS 16, it has began working again. It's unclear
+    // why it started working again so only use syslogs for iOS versions prior
+    // to 13 unless [useBothLogDeviceReaders] is true.
+
+    if (_device.isCoreDevice) {
+      return true;
+    }
+    if (_usingCISystem && _majorSdkVersion >= 16) {
+      return true;
+    }
+    if (_majorSdkVersion < minimumUniversalLoggingSdkVersion) {
+      return true;
+    }
+    return false;
+  }
+
+  bool get useUnifiedLogging {
+     // use for 13 or greater unless ios deploy is being used
+    // use for 17+ on wireless devices
+    // Prefer the more complete logs from the attached debugger.
+    if (_device.isCoreDevice) {
+      if (_device.isWirelesslyConnected) {
+        return true;
+      }
+      return false;
+    }
+    if (_majorSdkVersion >= minimumUniversalLoggingSdkVersion && (_iosDeployDebugger == null || !_iosDeployDebugger!.debuggerAttached)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool get useIOSDeployLogging {
+    // use for 13+ and less than 17
+    if (_majorSdkVersion < minimumUniversalLoggingSdkVersion || _device.isCoreDevice) {
+      return false;
+    }
+    return true;
+  }
+
+  bool get usingMultipleLoggingSources {
+    final int numberOfSources = (useIOSDeployLogging ? 1 : 0) + (useSyslogLogging ? 1 : 0) + (useUnifiedLogging ? 1 : 0);
+    if (numberOfSources > 1) {
+      return true;
+    }
+    return false;
+  }
+
   /// Listen to Dart VM for logs on iOS 13 or greater.
   ///
   /// Only send logs to stream if [_iosDeployDebugger] is null or
   /// the [_iosDeployDebugger] debugger is not attached.
   Future<void> _listenToUnifiedLoggingEvents(FlutterVmService connectedVmService) async {
-    if (_majorSdkVersion < minimumUniversalLoggingSdkVersion) {
+    if (!useUnifiedLogging) {
       return;
     }
     try {
@@ -983,7 +1070,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
     }
 
     void logMessage(vm_service.Event event) {
-      if (_iosDeployDebugger != null && _iosDeployDebugger!.debuggerAttached) {
+      if (!useUnifiedLogging) {
         // Prefer the more complete logs from the attached debugger.
         return;
       }
@@ -992,7 +1079,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
         _addToLinesController(message, IOSDeviceLogSource.unifiedLogging);
       }
     }
-
+    print("Set up unified logging");
     _loggingSubscriptions.addAll(<StreamSubscription<void>>[
       connectedVmService.service.onStdoutEvent.listen(logMessage),
       connectedVmService.service.onStderrEvent.listen(logMessage),
@@ -1005,7 +1092,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
   /// Send messages from ios-deploy debugger stream to device log reader stream.
   set debuggerStream(IOSDeployDebugger? debugger) {
     // Logging is gathered from syslog on iOS earlier than 13.
-    if (_majorSdkVersion < minimumUniversalLoggingSdkVersion) {
+    if (!useIOSDeployLogging) {
       return;
     }
     _iosDeployDebugger = debugger;
@@ -1028,32 +1115,19 @@ class IOSDeviceLogReader extends DeviceLogReader {
   // Strip off the logging metadata (leave the category), or just echo the line.
   String _debuggerLineHandler(String line) => _debuggerLoggingRegex.firstMatch(line)?.group(1) ?? line;
 
-  /// Use both logs from `idevicesyslog` and `ios-deploy` when debugging from CI system
-  /// since sometimes `ios-deploy` does not return the device logs:
-  /// https://github.com/flutter/flutter/issues/121231
-  @visibleForTesting
-  bool get useBothLogDeviceReaders {
-    return true;
-    _usingCISystem && _majorSdkVersion >= 16;
-  }
-
   IOSink? sink;
 
   /// Start and listen to idevicesyslog to get device logs for iOS versions
   /// prior to 13 or if [useBothLogDeviceReaders] is true.
   void _listenToSysLog() {
-    // Syslog stopped working on iOS 13 (https://github.com/flutter/flutter/issues/41133).
-    // However, from at least iOS 16, it has began working again. It's unclear
-    // why it started working again so only use syslogs for iOS versions prior
-    // to 13 unless [useBothLogDeviceReaders] is true.
-    if (!useBothLogDeviceReaders && _majorSdkVersion >= minimumUniversalLoggingSdkVersion) {
+    if (!useSyslogLogging) {
       return;
     }
     final String directoryPath = '';
 
-    sink = globals.fs.file(path.join(directoryPath, '${_deviceId}.log')).openWrite();
+    sink = globals.fs.file(path.join(directoryPath, '${_device.id}.log')).openWrite();
     sink?.write('Hello world');
-    _iMobileDevice.startLogger(_deviceId).then<void>((Process process) {
+    _iMobileDevice.startLogger(_device.id, isWirelesslyConnected: _device.isWirelesslyConnected).then<void>((Process process) {
       process.stdout.transform<String>(utf8.decoder).transform<String>(const LineSplitter()).listen(_newSyslogLineHandler());
       process.stderr.transform<String>(utf8.decoder).transform<String>(const LineSplitter()).listen(_newSyslogLineHandler());
       process.exitCode.whenComplete(() {
@@ -1064,7 +1138,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
         // When using both log readers, do not close the stream on exit.
         // This is to allow ios-deploy to be the source of authority to close
         // the stream.
-        if (useBothLogDeviceReaders && debuggerStream != null) {
+        if (useSyslogLogging && useIOSDeployLogging && debuggerStream != null) {
           return;
         }
         linesController.close();

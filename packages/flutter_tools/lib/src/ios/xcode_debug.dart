@@ -8,50 +8,57 @@ import 'dart:io';
 import 'package:process/process.dart';
 
 import '../base/common.dart';
+import '../base/file_system.dart';
 import '../base/logger.dart';
 import '../base/process.dart';
+import '../base/template.dart';
+import '../base/user_messages.dart';
 import '../cache.dart';
 import '../convert.dart';
 
 import '../device.dart';
-import '../globals.dart' as globals;
 import '../macos/xcode.dart';
-import '../xcode_project.dart';
-import 'xcodeproj.dart';
+import '../template.dart';
+import 'application_package.dart';
 
-
+/// A class to handle interacting with Xcode via Mac Scripting to debug
+/// applications.
 class XcodeDebug {
   XcodeDebug({
     required Logger logger,
     required ProcessManager processManager,
     required Xcode xcode,
+    required FileSystem fileSystem,
+    required UserMessages userMessages,
   })  : _logger = logger,
         _processUtils = ProcessUtils(logger: logger, processManager: processManager),
-        _xcode = xcode;
+        _xcode = xcode,
+        _fileSystem = fileSystem,
+        _userMessage = userMessages;
 
 
   final ProcessUtils _processUtils;
   final Logger _logger;
   final Xcode _xcode;
+  final FileSystem _fileSystem;
+  final UserMessages _userMessage;
 
-  // String? _xcodeProcessId;
-  // List<String>? logKeys;
   Process? _startDebugSession;
-  bool _automatedOpen = false;
+  XcodeDebugProject? _currentDebuggingProject;
 
-  bool get debugStarted => _startDebugSession != null;
+  bool get debugStarted => _currentDebuggingProject != null;
 
-  String? get pathToXcodeApp {
+  String get pathToXcodeApp {
     final String? pathToXcode = _xcode.xcodeSelectPath;
     if (pathToXcode == null || pathToXcode.isEmpty) {
-      return null;
+      throwToolExit(_userMessage.xcodeMissing);
     }
     final int index = pathToXcode.indexOf('.app');
-    return pathToXcode.substring(0, index + 4); // + '/Contents/MacOS/Xcode';
+    return pathToXcode.substring(0, index + 4);
   }
 
   String get pathToXcodeAutomationScript {
-    final String flutterToolsAbsolutePath = globals.fs.path.join(
+    final String flutterToolsAbsolutePath = _fileSystem.path.join(
       Cache.flutterRoot!,
       'packages',
       'flutter_tools',
@@ -60,39 +67,21 @@ class XcodeDebug {
   }
 
   Future<bool> debugApp({
-    required IosProject project,
+    required XcodeDebugProject project,
     required String deviceId,
     required DebuggingOptions debuggingOptions,
     required List<String> launchArguments,
   }) async {
-    if (pathToXcodeApp == null) {
-      throwToolExit(globals.userMessages.xcodeMissing);
-    }
-
-    if (project.xcodeWorkspace == null) {
-      globals.printError('Unable to get scheme or workspace');
-      return false;
-    }
-
-    final XcodeProjectInfo? projectInfo = await project.projectInfo();
-    if (projectInfo == null) {
-      globals.printError('Xcode project not found.');
-      return false;
-    }
-    final String? scheme = projectInfo.schemeFor(debuggingOptions.buildInfo);
-    if (scheme == null) {
-      globals.printError('Unable to get scheme or workspace');
-      return false;
-    }
 
     // If project is not already opened in Xcode, open it.
-    if (!await _isProjectOpenInXcode(project)) {
-      final bool openResult = await _openProjectInXcode(project);
+    if (!await _isProjectOpenInXcode(xcodeProject: project.xcodeProject, xcodeWorkspace: project.xcodeWorkspace)) {
+      final bool openResult = await _openProjectInXcode(xcodeWorkspace: project.xcodeWorkspace);
       if (!openResult) {
         return openResult;
       }
     }
 
+    _currentDebuggingProject = project;
     _startDebugSession = await _processUtils.start(
       <String>[
         ..._xcode.xcrunCommand(),
@@ -102,15 +91,15 @@ class XcodeDebug {
         pathToXcodeAutomationScript,
         'debug',
         '--xcode-path',
-        pathToXcodeApp!,
+        pathToXcodeApp,
         '--project-path',
         project.xcodeProject.path,
         '--workspace-path',
-        project.xcodeWorkspace!.path,
+        project.xcodeWorkspace.path,
         '--device-id',
         deviceId,
         '--scheme',
-        scheme,
+        project.scheme,
         '--skip-building',
         '--launch-args',
         json.encode(launchArguments),
@@ -122,6 +111,7 @@ class XcodeDebug {
         .transform<String>(utf8.decoder)
         .transform<String>(const LineSplitter())
         .listen((String line) {
+          _logger.printTrace(line);
           stdout = stdout + line;
     });
 
@@ -130,12 +120,14 @@ class XcodeDebug {
         .transform<String>(utf8.decoder)
         .transform<String>(const LineSplitter())
         .listen((String line) {
+          _logger.printTrace('err: $line');
           stderr = stderr + line;
     });
 
     final int exitCode = await _startDebugSession!.exitCode.whenComplete(() async {
       await stdoutSubscription.cancel();
       await stderrSubscription.cancel();
+      _startDebugSession = null;
     });
 
     if (exitCode != 0) {
@@ -162,22 +154,46 @@ class XcodeDebug {
         }
         return true;
       }
-      _logger.printTrace('osascript returned unexpected JSON response: ${stdout}');
+      _logger.printTrace('osascript returned unexpected JSON response: $stdout');
       return false;
     } on FormatException {
-      _logger.printTrace('osascript returned non-JSON response: ${stdout}');
+      _logger.printTrace('osascript returned non-JSON response: $stdout');
       return false;
     }
   }
 
-
-  bool exit() {
+  Future<bool> exit() async {
     final bool success = (_startDebugSession == null) || _startDebugSession!.kill();
-    _startDebugSession = null;
+
+    if (_currentDebuggingProject != null) {
+      final XcodeDebugProject project = _currentDebuggingProject!;
+      await stopDebuggingApp(
+        xcodeWorkspace: project.xcodeWorkspace,
+        xcodeProject: project.xcodeProject,
+        closeXcode: project.isTemporaryProject,
+      );
+
+      if (project.isTemporaryProject) {
+        // Wait a couple seconds before deleting the project. If project is
+        // still opened in Xcode and it's deleted, it will prompt the user to
+        // restore it.
+        await Future<void>.delayed(const Duration(seconds: 1));
+        try {
+          project.xcodeProject.parent.deleteSync(recursive: true);
+        } on FileSystemException {
+          _logger.printError('Failed to delete temporary Xcode project: ${project.xcodeProject.parent.path}');
+        }
+      }
+      _currentDebuggingProject = null;
+    }
+
     return success;
   }
 
-  Future<bool> _isProjectOpenInXcode(IosProject project) async {
+  Future<bool> _isProjectOpenInXcode({
+    required Directory xcodeWorkspace,
+    required Directory xcodeProject,
+  }) async {
 
     final RunResult result = await _processUtils.run(
       <String>[
@@ -188,11 +204,11 @@ class XcodeDebug {
         pathToXcodeAutomationScript,
         'project-opened',
         '--xcode-path',
-        pathToXcodeApp!,
+        pathToXcodeApp,
         '--project-path',
-        project.xcodeProject.path,
+        xcodeProject.path,
         '--workspace-path',
-        project.xcodeWorkspace!.path,
+        xcodeWorkspace.path,
       ],
       throwOnError: true,
     );
@@ -220,32 +236,24 @@ class XcodeDebug {
     }
   }
 
-  Future<bool> _openProjectInXcode(IosProject project) async {
-    if (pathToXcodeApp == null) {
-      throwToolExit(globals.userMessages.xcodeMissing);
-    }
-
-    if (project.xcodeWorkspace == null) {
-      globals.printError('Unable to get workspace');
-      return false;
-    }
-
+  Future<bool> _openProjectInXcode({
+    required Directory xcodeWorkspace,
+  }) async {
     try {
       final RunResult result = await _processUtils.run(
         <String>[
           'open',
           '-a',
-          pathToXcodeApp!,
+          pathToXcodeApp,
           // '-n', // Open a new instance of the application(s) even if one is already running.
           // '-F', // Opens the application "fresh," that is, without restoring windows. Saved persistent state is lost, except for Untitled documents.
           '-g', // Do not bring the application to the foreground.
           '-j', // Launches the app hidden.
-          project.xcodeWorkspace!.path
+          xcodeWorkspace.path
         ],
         throwOnError: true,
       );
       if (result.exitCode == 0) {
-        _automatedOpen = true;
         return true;
       }
     } on ProcessException catch (error, stackTrace) {
@@ -254,7 +262,12 @@ class XcodeDebug {
     return false;
   }
 
-  Future<bool> stopDebuggingApp(IosProject project) async {
+  Future<bool> stopDebuggingApp({
+    required Directory xcodeWorkspace,
+    required Directory xcodeProject,
+    bool closeXcode = false,
+    bool promptToSaveOnClose = false,
+  }) async {
     final RunResult result = await _processUtils.run(
       <String>[
         ..._xcode.xcrunCommand(),
@@ -263,13 +276,14 @@ class XcodeDebug {
         'JavaScript',
         pathToXcodeAutomationScript,
         'stop',
-        pathToXcodeApp!,
         '--xcode-path',
-        pathToXcodeApp!,
+        pathToXcodeApp,
         '--project-path',
-        project.xcodeProject.path,
+        xcodeProject.path,
         '--workspace-path',
-        project.xcodeWorkspace!.path,
+        xcodeWorkspace.path,
+        if (closeXcode) '--close-window',
+        if (promptToSaveOnClose) '--prompt-to-save'
       ],
       throwOnError: true,
     );
@@ -285,6 +299,7 @@ class XcodeDebug {
         final XcodeAutomationScriptResponse response = XcodeAutomationScriptResponse.fromJson(decodeResult);
         if (response.status == false) {
           _logger.printError('Error stopping app in Xcode: ${response.errorMessage}');
+          return false;
         }
         return true;
       }
@@ -296,184 +311,35 @@ class XcodeDebug {
     }
   }
 
-  // Future<List<String>> _getXcodeProcessIds() async {
-  //   if (pathToXcode == null) {
-  //     throwToolExit(globals.userMessages.xcodeMissing);
-  //   }
+  Future<XcodeDebugProject> createXcodeProjectWithCustomBundle(
+    PrebuiltIOSApp package, {
+    required TemplateRenderer templateRenderer,
+  }) async {
+    final Directory tempXcodeProject = _fileSystem.systemTempDirectory.createTempSync('flutter_empty_xcode.');
 
-  //   try {
-  //     final RunResult result = await _processUtils.run(
-  //       <String>[
-  //         'pgrep',
-  //         '-x',
-  //         '-f',
-  //         pathToXcode!,
-  //       ],
-  //     );
+    final Template template = await Template.fromName(
+      _fileSystem.path.join('xcode', 'ios', 'custom_application_bundle'),
+      fileSystem: _fileSystem,
+      templateManifest: null,
+      logger: _logger,
+      templateRenderer: templateRenderer,
+    );
 
-  //   //    0       One or more processes were matched.
+    template.render(
+      tempXcodeProject,
+      <String, Object>{
+        'applicationBundlePath': package.deviceBundlePath
+      },
+      printStatusWhenWriting: false,
+    );
 
-  //   //  1       No processes were matched.
-
-  //   //  2       Invalid options were specified on the command line.
-
-  //   //  3       An internal error occurred.
-
-  //     if (result.exitCode == 0) {
-  //       final String listOutput = result.stdout;
-  //       return LineSplitter.split(listOutput).toList();
-  //     }
-  //   } catch (e, stackTrace) {
-  //     print(e);
-  //     print(stackTrace);
-  //   }
-  //   return <String>[];
-  // }
-
-  // Future<bool> installAndLaunchApp() async {
-  //   final List<String> xcodeProcesses = await _getXcodeProcessIds();
-
-  //   // await Future<void>.delayed(const Duration(seconds: 1));
-
-  //   final bool success = await _openProjectInXcode();
-  //   if (!success) {
-  //     print('Failed to open Xcode');
-  //     return false;
-  //   }
-  //   final List<String> newXcodeProcesses = await _getXcodeProcessIds();
-
-  //   for (final String processId in newXcodeProcesses) {
-  //     if (!xcodeProcesses.contains(processId)) {
-  //       _xcodeProcessId = processId;
-  //       break;
-  //     }
-  //   }
-  //   if (_xcodeProcessId == null) {
-  //     print('No Xcode process found to target');
-  //     return false;
-  //   }
-
-  //   try {
-
-  //     // TODO: path to DerivedData/Runner-xxx/Logs/Launch/LogStoreManifest.plist
-  //     Map<String, dynamic> propertyValues = globals.plistParser.parseFile('path/Logs/Launch/LogStoreManifest.plist');
-  //     // XCResultGenerator
-  //     if (propertyValues.containsKey('logs')) {
-  //       final Map<String, dynamic> logs = propertyValues['logs'] as Map<String, dynamic>;
-  //       logKeys = logs.keys.toList();
-  //     }
-  //   } catch (e, stackTrace) {
-  //     print(e);
-  //     print(stackTrace);
-  //   }
-
-
-  //   int maxRetires = 3;
-  //   for (int currentTry = 0; currentTry < maxRetires; currentTry++) {
-  //     try {
-  //       final RunResult result = await _processUtils.run(
-  //         <String>[
-  //           ..._xcode.xcrunCommand(),
-  //           'xcdebug',
-  //           '--pid', // Xcode process id
-  //           _xcodeProcessId!,
-  //           '--background', // Leave Xcode as background app
-  //           '-s', // scheme
-  //           project.hostAppProjectName,
-  //           '-d', // destination
-  //           deviceId,
-  //         ],
-  //         throwOnError: true,
-  //       );
-
-  //       print(result.exitCode);
-  //       if (result.stderr.isNotEmpty) {
-  //         // 2023-06-08 16:51:45.390 xcdebug[91211:711350] Error: Error Domain=NSOSStatusErrorDomain Code=-10000 "errAEEventFailed" UserInfo={ErrorNumber=-10000, ErrorString=The workspace document Runner.xcodeproj has not finished loading. Check the 'loaded' property before messaging a workspace document.}
-  //         if (result.stderr.contains('xcodeproj has not finished loading')) {
-  //           await Future<void>.delayed(const Duration(milliseconds: 5));
-  //           continue;
-  //         }
-  //       }
-  //       if (result.exitCode == 0) {
-  //         return true;
-  //       }
-  //     } catch (err, stackTrace) {
-  //       print(err);
-  //       print(stackTrace);
-  //     }
-  //   }
-
-  //   return false;
-  // }
-
-  // Future<void> checkForLaunchFailure() async {
-  //   try {
-  //     // TODO: path to DerivedData/Runner-xxx/Logs/Launch/LogStoreManifest.plist
-  //     final Map<String, dynamic> propertyValues = globals.plistParser.parseFile('path/Logs/Launch/LogStoreManifest.plist');
-  //     //
-  //     if (!propertyValues.containsKey('logs')) {
-  //       return;
-  //     }
-
-  //     final Map<String, dynamic> logs = propertyValues['logs'] as Map<String, dynamic>;
-  //     final List<String> newLogKeys = logs.keys.toList();
-  //     String? logId;
-  //     for (final String logKey in newLogKeys) {
-  //       if (logKeys != null && !logKeys!.contains(logKey)) {
-  //         logId = logKey;
-  //         break;
-  //       }
-  //     }
-  //     if (logId == null) {
-  //       print('Did not find log');
-  //       return;
-  //     }
-
-  //     final Map<String, dynamic> logInfo = logs[logId] as Map<String, dynamic>;
-  //     final String fileName = logInfo['fileName'] as String;
-
-  //     // TODO: path to DerivedData/Runner-xxx/Logs/Launch/fileName
-  //     final XCResultGenerator xcResultGenerator = XCResultGenerator(
-  //       resultPath: 'path/Logs/Launch/$fileName',
-  //       xcode: globals.xcode!,
-  //       processUtils: globals.processUtils,
-  //     );
-
-  //     final XCResult result = await xcResultGenerator.generate();
-
-  //     if (result.parseSuccess) {
-  //       for (final XCResultIssue issue in result.issues) {
-  //         print(issue.message);
-  //       }
-  //     }
-
-
-  //   } catch (e, stackTrace) {
-  //     print(e);
-  //     print(stackTrace);
-  //   }
-  // }
-
-  // Future<void> killXcode() async {
-  //   if (_xcodeProcessId == null) {
-  //     print('No Xcode process found to kill');
-  //     return;
-  //   }
-  //   try {
-  //     await _processUtils.run(
-  //       <String>[
-  //         'kill',
-  //         _xcodeProcessId!,
-  //       ],
-  //       throwOnError: true,
-  //     );
-  //   } catch (err, stackTrace) {
-  //     print(err);
-  //     print(stackTrace);
-  //   }
-
-  // }
-
+    return XcodeDebugProject(
+      scheme: 'Runner',
+      xcodeProject: tempXcodeProject.childDirectory('Runner.xcodeproj'),
+      xcodeWorkspace: tempXcodeProject.childDirectory('Runner.xcworkspace'),
+      isTemporaryProject: true,
+    );
+  }
 }
 
 class XcodeAutomationScriptResponse {
@@ -521,4 +387,19 @@ class XcodeAutomationScriptDebugResult {
   final bool? completed; // Whether this scheme action has completed (sucessfully or otherwise) or not. Will be false if still running
   final String? status; // (not yet started/‌running/‌cancelled/‌failed/‌error occurred/‌succeeded) : Indicates the status of the scheme action.
   final String? errorMessage; //If the result's status is "error occurred", this will be the error message; otherwise, this will be "missing value".
+}
+
+class XcodeDebugProject {
+  XcodeDebugProject({
+    required this.scheme,
+    required this.xcodeWorkspace,
+    required this.xcodeProject,
+    this.isTemporaryProject = false,
+  });
+
+  final String scheme;
+  final Directory xcodeWorkspace;
+  final Directory xcodeProject;
+  final bool isTemporaryProject;
+
 }

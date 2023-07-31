@@ -3,17 +3,14 @@
 // found in the LICENSE file.
 
 /**
- * @fileoverview Description of file, its uses and information
- * about its dependencies.
- * @package
+ * @fileoverview Mac Script to interact with Xcode. Functionality includes
+ * checking if a given project is open in Xcode, starting a debug session for
+ * a given project, and stopping a debug session for a given project.
  */
 
 "use strict";
 
 function run(args_array = []) {
-
-	// debugger
-
 	let args;
 	try {
 		args = new CommandArguments(args_array);
@@ -21,20 +18,20 @@ function run(args_array = []) {
 		return new RunJsonResponse(false, `Failed to parse arguments: ${e}`);
 	}
 
-	let xcodeResult = getXcode(args);
+	const xcodeResult = getXcode(args);
 	if (xcodeResult.error != null) {
 		return new RunJsonResponse(false, xcodeResult.error);
 	}
-	let xcode = xcodeResult.result;
+	const xcode = xcodeResult.result;
 
 	if (args.command === "project-opened") {
-		let result = getWorkspace(xcode, args);
+		const result = getWorkspace(xcode, args);
 		return new RunJsonResponse(result.error == null, result.error).stringify();
 	} else if (args.command === "debug") {
-		let result = debugApp(xcode, args);
+		const result = debugApp(xcode, args);
 		return new RunJsonResponse(result.error == null, result.error, result.result).stringify();
 	} else if (args.command === "stop") {
-		let result = stopApp(xcode, args);
+		const result = stopApp(xcode, args);
 		return new RunJsonResponse(result.error == null, result.error).stringify();
 	} else {
 		return new RunJsonResponse(false, "Unknown command").stringify();
@@ -54,15 +51,15 @@ class CommandArguments {
 
 		const parsedArguments = this.parseArguments(args);
 
-		this.xcodePath = this.validatedCommonStringArgument("--xcode-path", parsedArguments["--xcode-path"]);
-		this.projectPath = this.validatedCommonStringArgument("--project-path", parsedArguments["--project-path"]);
-		this.workspacePath = this.validatedCommonStringArgument("--workspace-path", parsedArguments["--workspace-path"]);
-		this.targetDestinationId = this.validatedDebugStringArgument("--device-id", parsedArguments["--device-id"]);
-		this.targetSchemeName = this.validatedDebugStringArgument("--scheme", parsedArguments["--scheme"]);
-		this.skipBuilding = this.validatedDebugBoolArgument(parsedArguments["--skip-building"]);
-		this.launchArguments = this.validatedDebugJsonArgument("--launch-args", parsedArguments["--launch-args"]);
-
-		// console.log(JSON.stringify(this));
+		this.xcodePath = this.validatedStringArgument("--xcode-path", parsedArguments["--xcode-path"]);
+		this.projectPath = this.validatedStringArgument("--project-path", parsedArguments["--project-path"]);
+		this.workspacePath = this.validatedStringArgument("--workspace-path", parsedArguments["--workspace-path"]);
+		this.targetDestinationId = this.validatedStringArgument("--device-id", parsedArguments["--device-id"]);
+		this.targetSchemeName = this.validatedStringArgument("--scheme", parsedArguments["--scheme"]);
+		this.skipBuilding = this.validatedBoolArgument("--skip-building", parsedArguments["--skip-building"]);
+		this.launchArguments = this.validatedJsonArgument("--launch-args", parsedArguments["--launch-args"]);
+		this.closeWindowOnStop = this.validatedBoolArgument("--close-window", parsedArguments["--close-window"]);
+		this.promptToSaveBeforeClose = this.validatedBoolArgument("--prompt-to-save", parsedArguments["--prompt-to-save"]);
 	}
 
 	/**
@@ -84,6 +81,38 @@ class CommandArguments {
 	}
 
 	/**
+	 * Validates the flag is allowed for the current command.
+	 *
+	 * @param {!string} flag
+	 * @returns {!bool} The validated command.
+	 */
+	isArgumentAllowed(flag) {
+		const allowedArguments = {
+			"common": {
+				"--xcode-path": true,
+				"--project-path": true,
+				"--workspace-path": true,
+			},
+			"project-opened": {},
+			"debug": {
+				"--device-id": true,
+				"--scheme": true,
+				"--skip-building": true,
+				"--launch-args": true,
+			},
+			"stop": {
+				"--close-window": true,
+				"--prompt-to-save": true,
+			},
+		}
+
+		if (allowedArguments["common"][flag] === true || allowedArguments[this.command][flag] === true) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
 	 * Parses the command line arguments into an object.
 	 *
 	 * @param {!Array<string>} args List of arguments passed from the command line.
@@ -91,9 +120,9 @@ class CommandArguments {
 	 * @throws Will throw an error if flag is not recognized.
 	 */
 	parseArguments(args) {
-		let valuesPerFlag = {};
+		const valuesPerFlag = {};
 		for (let index = 1; index < args.length; index++) {
-			let entry = args[index];
+			const entry = args[index];
 			let flag;
 			let value;
 			const splitIndex = entry.indexOf("=");
@@ -114,7 +143,7 @@ class CommandArguments {
 			if (!flag.startsWith("--")) {
 				throw `Unrecognized Flag: ${flag}`;
 			}
-			// console.log(`Flag: ${flag}, Value: ${value}`);
+
 			valuesPerFlag[flag] = value;
 		}
 		return valuesPerFlag;
@@ -122,14 +151,18 @@ class CommandArguments {
 
 
 	/**
-	 * Validates `value` is not null, undefined, or empty.
+	 * Validates `value` is not null, undefined, or empty. If the flag is not
+	 *     allowed for the current command, return `null`.
 	 *
 	 * @param {!string} flag
 	 * @param {?string} value
 	 * @returns {!string}
 	 * @throws Will throw an error if `value` is null, undefined, or empty.
 	 */
-	validatedCommonStringArgument(flag, value) {
+	validatedStringArgument(flag, value) {
+		if (!this.isArgumentAllowed(flag)) {
+			return null;
+		}
 		if (value == null || value === "") {
 			throw `Missing value for ${flag}`;
 		}
@@ -137,55 +170,47 @@ class CommandArguments {
 	}
 
 	/**
-	 * Validates `value` is not null, undefined, or empty when the command is
-	 *     `debug`. If the command is not `debug`, will always return `null`.
-	 *
-	 * @param {!string} flag
-	 * @param {?string} value
-	 * @returns {?string}
-	 * @throws Will throw an error if the command is `debug` and `value` is
-	 *     null, undefined, or empty.
-	 */
-	validatedDebugStringArgument(flag, value) {
-		if (this.command !== "debug") {
-			return null;
-		}
-		return this.validatedCommonStringArgument(flag, value);
-	}
-
-	/**
-	 * Converts `value` to a boolean when the command is `debug`. If `value` is
-	 *     null, undefined, or empty, it will return true. If the command is
-	 *     not `debug`, will always return `null`.
+	 * Converts `value` to a boolean. If `value` is null, undefined, or empty,
+	 *     it will return true. If the flag is not allowed for the current
+	 *     command, will return `null`.
 	 *
 	 * @param {?string} value
 	 * @returns {?boolean}
+	 * @throws Will throw an error if `value` is not empty, null, "true", or "false".
 	 */
-	validatedDebugBoolArgument(value) {
-		if (this.command !== "debug") {
+	validatedBoolArgument(flag, value) {
+		if (!this.isArgumentAllowed(flag)) {
 			return null;
 		}
 		if (value == null || value === "") {
 			return true;
 		}
+		if (value !== "true" && value !== "false") {
+			throw `Invalid value for ${flag}`;
+		}
 		return value === "true";
 	}
 
 	/**
-	 * Validates `value` is not null, undefined, or empty when the command is
-	 *     `debug`. Parses `value` as JSON. If the command is not `debug`,
-	 *     will always return `null`.
+	 * Validates `value` is not null, undefined, or empty. Parses `value` as
+	 *     JSON. If the flag is not allowed for the current command, will
+	 *     return `null`.
 	 *
 	 * @param {!string} flag
 	 * @param {?string} value
 	 * @returns {!Object}
-	 * @throws Will throw an error if the command is `debug` and the value is
+	 * @throws Will throw an error if the flag is allowed and the value is
 	 *     null, undefined, or empty. Will also throw an error if parsing fails.
 	 */
-	validatedDebugJsonArgument(flag, value) {
-		const stringValue = this.validatedDebugStringArgument(flag, value);
+	validatedJsonArgument(flag, value) {
+		if (!this.isArgumentAllowed(flag)) {
+			return null;
+		}
+		if (value == null || value === "") {
+			throw `Missing value for ${flag}`;
+		}
 		try {
-			return JSON.parse(stringValue);
+			return JSON.parse(value);
 		} catch (e) {
 			throw `Error parsing ${flag}: ${e}`;
 		}
@@ -261,8 +286,8 @@ class DebugResult {
  */
 function getXcode(args) {
 	try {
-		let xcode = Application(args.xcodePath);
-		let isXcodeRunning = xcode.running();
+		const xcode = Application(args.xcodePath);
+		const isXcodeRunning = xcode.running();
 
 		if (!isXcodeRunning) {
 			return new FunctionResult(null, "Xcode is not running");
@@ -287,9 +312,9 @@ function getWorkspace(xcode, args) {
 	let matchingDocument = null;
 
 	try {
-		let documents = xcode.workspaceDocuments();
+		const documents = xcode.workspaceDocuments();
 		for (let document of documents) {
-			let filePath = document.file().toString();
+			const filePath = document.file().toString();
 			if (filePath === args.projectPath || filePath === args.workspacePath) {
 				matchingDocument = document;
 				break;
@@ -317,18 +342,18 @@ function getWorkspace(xcode, args) {
  * @returns {!FunctionResult}
  */
 function debugApp(xcode, args) {
-	let documentLoadedResult = waitForWorkspaceToLoad(xcode, args);
+	const documentLoadedResult = waitForWorkspaceToLoad(xcode, args);
 	if (documentLoadedResult.error != null) {
 		return new FunctionResult(null, documentLoadedResult.error);
 	}
 
-	let workspaceResult = getWorkspace(xcode, args);
+	const workspaceResult = getWorkspace(xcode, args);
 	if (workspaceResult.error != null) {
 		return new FunctionResult(null, workspaceResult.error);
 	}
-	let targetWorkspace = workspaceResult.result;
+	const targetWorkspace = workspaceResult.result;
 
-	let destinationResult = getTargetDestination(targetWorkspace, args.targetDestinationId);
+	const destinationResult = getTargetDestination(targetWorkspace, args.targetDestinationId);
 	if (destinationResult.error != null) {
 		return new FunctionResult(null, destinationResult.error)
 	}
@@ -345,24 +370,22 @@ function debugApp(xcode, args) {
 		// the `activeRunDestination` to the targeted device prior to starting the debug.
 		targetWorkspace.activeRunDestination = destinationResult.result;
 
-		let actionResult = targetWorkspace.debug({
+		const actionResult = targetWorkspace.debug({
 			scheme: args.targetSchemeName,
 			skipBuilding: args.skipBuilding,
 			commandLineArguments: args.launchArguments,
 		});
 
-		// Wait until app has started.
+		// Wait until app has started up to a max of 10 minutes.
 		// Potential statuses include: not yet started/‌running/‌cancelled/‌failed/‌error occurred/‌succeeded.
-		// If started without issue, `completed` will continue to be false until
-		// the debug session has been stopped.
-		let isCompleted = actionResult.completed();
-		let checkFrequencyInSeconds = 0.5;
-		while (!isCompleted) {
+		const checkFrequencyInSeconds = 0.5;
+		const maxWaitInSeconds = 10 * 60; // 10 minutes
+		const iterations = maxWaitInSeconds * (1 / checkFrequencyInSeconds);
+		for (let i = 0; i < iterations; i++) {
 			if (actionResult.status() != "not yet started") {
 				break;
 			}
 			delay(checkFrequencyInSeconds);
-			isCompleted = actionResult.completed();
 		}
 
 		return new FunctionResult(new DebugResult(actionResult));
@@ -400,7 +423,7 @@ function getTargetDestination(targetWorkspace, deviceId) {
 
 /**
  * Waits for the workspace to load. If the workspace is not loaded or in the
- * process of opening, it will wait indefinitely.
+ * process of opening, it will wait up to 10 minutes.
  *
  * @param {!Application} xcode Mac Scripting Application for Xcode
  * @param {!CommandArguments} args
@@ -408,27 +431,26 @@ function getTargetDestination(targetWorkspace, deviceId) {
  */
 function waitForWorkspaceToLoad(xcode, args) {
 	try {
-		let isDocumentLoaded = false;
-		let checkFrequencyInSeconds = 0.5;
-		while(!isDocumentLoaded) {
+		const checkFrequencyInSeconds = 0.5;
+		const maxWaitInSeconds = 10 * 60; // 10 minutes
+		const iterations = maxWaitInSeconds * (1 / checkFrequencyInSeconds);
+		for (let i = 0; i < iterations; i++) {
 			for (let window of xcode.windows()) {
-				let document = window.document();
+				const document = window.document();
 				if (document != null) {
-					let filePath = document.file().toString();
+					const filePath = document.file().toString();
 					if (filePath === args.projectPath || filePath === args.workspacePath) {
 						if (document.loaded()) {
-							isDocumentLoaded = true;
+							return new FunctionResult(null, null);
 						}
 					}
 				}
 			}
 			delay(checkFrequencyInSeconds);
 		}
-		if (isDocumentLoaded) {
-			return new FunctionResult(true, null);
-		}
+		return new FunctionResult(null, "Timed out waiting for workspace to load");
 	} catch (e) {
-		return new FunctionResult(true, `Failed to wait for workspace to load: ${e}`);
+		return new FunctionResult(null, `Failed to wait for workspace to load: ${e}`);
 	}
 }
 
@@ -440,46 +462,26 @@ function waitForWorkspaceToLoad(xcode, args) {
  * @returns {!FunctionResult}
  */
 function stopApp(xcode, args) {
-	let workspaceResult = getWorkspace(xcode, args);
+	const workspaceResult = getWorkspace(xcode, args);
 	if (workspaceResult.error != null) {
 		return new FunctionResult(null, workspaceResult.error);
 	}
-	let targetDocument = workspaceResult.result;
+	const targetDocument = workspaceResult.result;
 
 	try {
 		targetDocument.stop();
+
+		if (args.closeWindowOnStop) {
+			// Wait a couple seconds before closing Xcode, otherwise it'll
+			// prompt the user to stop the app.
+			delay(2);
+
+			targetDocument.close({
+				saving: args.promptToSaveBeforeClose === true ? "ask" : "no",
+			});
+		}
 	} catch (e) {
 		return new FunctionResult(null, `Failed to stop app: ${e}`);
 	}
 	return new FunctionResult(null, null);
 }
-
-// function openProject(xcode, args) {
-// 	try {
-// 		xcode.open(args.workspacePath);
-
-// 		// Wait for document to be loaded
-// 		for (let i = 0; i < 120; i++) {
-// 			let isDocumentLoaded = false;
-// 			for (let window of xcode.windows()) {
-// 				let document = window.document();
-// 				if (document != null) {
-// 					let filePath = document.file().toString();
-// 					if (filePath === args.projectPath || filePath === args.workspacePath) {
-// 						window.visible = false;
-// 						if (document.loaded()) {
-// 							isDocumentLoaded = true;
-// 						}
-// 					}
-// 				}
-// 			}
-// 			if (isDocumentLoaded) {
-// 				break;
-// 			}
-// 			delay(0.25);
-// 		}
-// 	} catch (e) {
-// 		return new FunctionResult(null, `Failed to open project: $`);
-// 	}
-// 	return new FunctionResult(null, null);
-// }
