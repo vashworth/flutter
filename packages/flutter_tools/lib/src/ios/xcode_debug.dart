@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'dart:io';
+import 'package:meta/meta.dart';
 import 'package:process/process.dart';
 
 import '../base/common.dart';
@@ -15,11 +16,8 @@ import '../base/template.dart';
 import '../base/user_messages.dart';
 import '../cache.dart';
 import '../convert.dart';
-
-import '../device.dart';
 import '../macos/xcode.dart';
 import '../template.dart';
-import 'application_package.dart';
 
 /// A class to handle interacting with Xcode via Mac Scripting to debug
 /// applications.
@@ -30,11 +28,13 @@ class XcodeDebug {
     required Xcode xcode,
     required FileSystem fileSystem,
     required UserMessages userMessages,
+    String? flutterRoot,
   })  : _logger = logger,
         _processUtils = ProcessUtils(logger: logger, processManager: processManager),
         _xcode = xcode,
         _fileSystem = fileSystem,
-        _userMessage = userMessages;
+        _userMessage = userMessages,
+        _flutterRoot = flutterRoot ?? Cache.flutterRoot!;
 
 
   final ProcessUtils _processUtils;
@@ -42,11 +42,17 @@ class XcodeDebug {
   final Xcode _xcode;
   final FileSystem _fileSystem;
   final UserMessages _userMessage;
+  final String _flutterRoot;
 
-  Process? _startDebugSession;
-  XcodeDebugProject? _currentDebuggingProject;
+  /// Process to start a debug session. The process will exit once the debug session has been started.
+  @visibleForTesting
+  Process? startDebugSessionProcess;
 
-  bool get debugStarted => _currentDebuggingProject != null;
+  // Information about the project that is currently being debugged. Will become null once the debug session is stopped.
+  @visibleForTesting
+  XcodeDebugProject? currentDebuggingProject;
+
+  bool get debugStarted => currentDebuggingProject != null;
 
   String get pathToXcodeApp {
     final String? pathToXcode = _xcode.xcodeSelectPath;
@@ -54,12 +60,15 @@ class XcodeDebug {
       throwToolExit(_userMessage.xcodeMissing);
     }
     final int index = pathToXcode.indexOf('.app');
+    if (index == -1) {
+      throwToolExit(_userMessage.xcodeMissing);
+    }
     return pathToXcode.substring(0, index + 4);
   }
 
   String get pathToXcodeAutomationScript {
     final String flutterToolsAbsolutePath = _fileSystem.path.join(
-      Cache.flutterRoot!,
+      _flutterRoot,
       'packages',
       'flutter_tools',
     );
@@ -69,7 +78,6 @@ class XcodeDebug {
   Future<bool> debugApp({
     required XcodeDebugProject project,
     required String deviceId,
-    required DebuggingOptions debuggingOptions,
     required List<String> launchArguments,
   }) async {
 
@@ -81,8 +89,8 @@ class XcodeDebug {
       }
     }
 
-    _currentDebuggingProject = project;
-    _startDebugSession = await _processUtils.start(
+    currentDebuggingProject = project;
+    startDebugSessionProcess = await _processUtils.start(
       <String>[
         ..._xcode.xcrunCommand(),
         'osascript',
@@ -107,66 +115,67 @@ class XcodeDebug {
     );
 
     String stdout = '';
-    final StreamSubscription<String> stdoutSubscription = _startDebugSession!.stdout
+
+    final StreamSubscription<String> stdoutSubscription = startDebugSessionProcess!.stdout
         .transform<String>(utf8.decoder)
         .transform<String>(const LineSplitter())
         .listen((String line) {
           _logger.printTrace(line);
-          stdout = stdout + line;
+          stdout += line;
     });
 
     String stderr = '';
-    final StreamSubscription<String> stderrSubscription = _startDebugSession!.stderr
+    final StreamSubscription<String> stderrSubscription = startDebugSessionProcess!.stderr
         .transform<String>(utf8.decoder)
         .transform<String>(const LineSplitter())
         .listen((String line) {
           _logger.printTrace('err: $line');
-          stderr = stderr + line;
+          stderr += line;
     });
 
-    final int exitCode = await _startDebugSession!.exitCode.whenComplete(() async {
+    final int exitCode = await startDebugSessionProcess!.exitCode.whenComplete(() async {
       await stdoutSubscription.cancel();
       await stderrSubscription.cancel();
-      _startDebugSession = null;
+      startDebugSessionProcess = null;
     });
 
     if (exitCode != 0) {
-      _logger.printTrace('Error executing osascript: ${exitCode}\n${stderr}');
+      _logger.printError('Error executing osascript: $exitCode\n$stderr');
       return false;
     }
 
-    try {
-      final Object decodeResult = json.decode(stdout) as Map<String, Object?>;
-      if (decodeResult is Map<String, Object?>) {
-        final XcodeAutomationScriptResponse response = XcodeAutomationScriptResponse.fromJson(decodeResult);
-        if (response.status == false) {
-          _logger.printError('Error opening project in Xcode: ${response.errorMessage}');
-          return false;
-        }
-        if (response.debugResult?.status != 'running') {
-          _logger.printTrace(
-            'Debugging through Xcode returned the following:.\n'
-            '  Status: ${response.debugResult?.status}\n'
-            '  Completed: ${response.debugResult?.completed}\n'
-            '  Error Message: ${response.debugResult?.errorMessage}\n'
-          );
-          return false;
-        }
-        return true;
-      }
-      _logger.printTrace('osascript returned unexpected JSON response: $stdout');
-      return false;
-    } on FormatException {
-      _logger.printTrace('osascript returned non-JSON response: $stdout');
+    final XcodeAutomationScriptResponse? response = parseScriptResponse(stdout);
+    if (response == null) {
       return false;
     }
+    if (response.status == false) {
+      _logger.printError('Error starting debug session in Xcode: ${response.errorMessage}');
+      return false;
+    }
+    if (response.debugResult == null) {
+      _logger.printError('Unable to get debug results from response: $stdout');
+      return false;
+    }
+    if (response.debugResult?.status != 'running') {
+      _logger.printError(
+        'Unexpected debug results: \n'
+        '  Status: ${response.debugResult?.status}\n'
+        '  Completed: ${response.debugResult?.completed}\n'
+        '  Error Message: ${response.debugResult?.errorMessage}\n'
+      );
+      return false;
+    }
+    return true;
   }
 
-  Future<bool> exit() async {
-    final bool success = (_startDebugSession == null) || _startDebugSession!.kill();
+  Future<bool> exit({
+    @visibleForTesting
+    bool skipDelay = false,
+  }) async {
+    final bool success = (startDebugSessionProcess == null) || startDebugSessionProcess!.kill();
 
-    if (_currentDebuggingProject != null) {
-      final XcodeDebugProject project = _currentDebuggingProject!;
+    if (currentDebuggingProject != null) {
+      final XcodeDebugProject project = currentDebuggingProject!;
       await stopDebuggingApp(
         xcodeWorkspace: project.xcodeWorkspace,
         xcodeProject: project.xcodeProject,
@@ -177,14 +186,17 @@ class XcodeDebug {
         // Wait a couple seconds before deleting the project. If project is
         // still opened in Xcode and it's deleted, it will prompt the user to
         // restore it.
-        await Future<void>.delayed(const Duration(seconds: 1));
+        if (!skipDelay) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+        }
+
         try {
           project.xcodeProject.parent.deleteSync(recursive: true);
         } on FileSystemException {
           _logger.printError('Failed to delete temporary Xcode project: ${project.xcodeProject.parent.path}');
         }
       }
-      _currentDebuggingProject = null;
+      currentDebuggingProject = null;
     }
 
     return success;
@@ -214,25 +226,36 @@ class XcodeDebug {
     );
 
     if (result.exitCode != 0) {
-      _logger.printTrace('Error executing osascript: ${result.exitCode}\n${result.stderr}');
+      _logger.printError('Error executing osascript: ${result.exitCode}\n${result.stderr}');
       return false;
     }
 
+    final XcodeAutomationScriptResponse? response = parseScriptResponse(result.stdout);
+    if (response == null) {
+      return false;
+    }
+    if (response.status == false) {
+      _logger.printTrace('Error checking if project opened in Xcode: ${response.errorMessage}');
+      return false;
+    }
+    return true;
+  }
+
+  @visibleForTesting
+  XcodeAutomationScriptResponse? parseScriptResponse(String results) {
     try {
-      final Object decodeResult = json.decode(result.stdout) as Map<String, Object?>;
+      final Object decodeResult = json.decode(results) as Object;
       if (decodeResult is Map<String, Object?>) {
         final XcodeAutomationScriptResponse response = XcodeAutomationScriptResponse.fromJson(decodeResult);
-        if (response.status == false) {
-          _logger.printTrace('Error checking if project opened in Xcode: ${response.errorMessage}');
-          return false;
+        if (response.status != null) {
+          return response;
         }
-        return true;
       }
-      _logger.printTrace('osascript returned unexpected JSON response: ${result.stdout}');
-      return false;
+      _logger.printError('osascript returned unexpected JSON response: $results');
+      return null;
     } on FormatException {
-      _logger.printTrace('osascript returned non-JSON response: ${result.stdout}');
-      return false;
+      _logger.printError('osascript returned non-JSON response: $results');
+      return null;
     }
   }
 
@@ -240,7 +263,7 @@ class XcodeDebug {
     required Directory xcodeWorkspace,
   }) async {
     try {
-      final RunResult result = await _processUtils.run(
+      await _processUtils.run(
         <String>[
           'open',
           '-a',
@@ -253,9 +276,7 @@ class XcodeDebug {
         ],
         throwOnError: true,
       );
-      if (result.exitCode == 0) {
-        return true;
-      }
+      return true;
     } on ProcessException catch (error, stackTrace) {
       _logger.printError('$error', stackTrace: stackTrace);
     }
@@ -289,33 +310,29 @@ class XcodeDebug {
     );
 
     if (result.exitCode != 0) {
-      _logger.printTrace('Error executing osascript: ${result.exitCode}\n${result.stderr}');
+      _logger.printError('Error executing osascript: ${result.exitCode}\n${result.stderr}');
       return false;
     }
 
-    try {
-      final Object decodeResult = json.decode(result.stdout) as Map<String, Object?>;
-      if (decodeResult is Map<String, Object?>) {
-        final XcodeAutomationScriptResponse response = XcodeAutomationScriptResponse.fromJson(decodeResult);
-        if (response.status == false) {
-          _logger.printError('Error stopping app in Xcode: ${response.errorMessage}');
-          return false;
-        }
-        return true;
-      }
-      _logger.printTrace('osascript returned unexpected JSON response: ${result.stdout}');
-      return false;
-    } on FormatException {
-      _logger.printTrace('osascript returned non-JSON response: ${result.stdout}');
+    final XcodeAutomationScriptResponse? response = parseScriptResponse(result.stdout);
+    if (response == null) {
       return false;
     }
+    if (response.status == false) {
+      _logger.printError('Error stopping app in Xcode: ${response.errorMessage}');
+      return false;
+    }
+    return true;
   }
 
   Future<XcodeDebugProject> createXcodeProjectWithCustomBundle(
-    PrebuiltIOSApp package, {
+    String deviceBundlePath, {
     required TemplateRenderer templateRenderer,
+    @visibleForTesting
+    Directory? projectDestination,
   }) async {
-    final Directory tempXcodeProject = _fileSystem.systemTempDirectory.createTempSync('flutter_empty_xcode.');
+    final Directory tempXcodeProject = projectDestination ?? _fileSystem.systemTempDirectory.createTempSync('flutter_empty_xcode.');
+    // final Directory tempXcodeProject = _fileSystem.directory("/Users/vashworth/Development/experiment/flutter/temporary");
 
     final Template template = await Template.fromName(
       _fileSystem.path.join('xcode', 'ios', 'custom_application_bundle'),
@@ -328,7 +345,7 @@ class XcodeDebug {
     template.render(
       tempXcodeProject,
       <String, Object>{
-        'applicationBundlePath': package.deviceBundlePath
+        'applicationBundlePath': deviceBundlePath
       },
       printStatusWhenWriting: false,
     );
@@ -342,6 +359,7 @@ class XcodeDebug {
   }
 }
 
+@visibleForTesting
 class XcodeAutomationScriptResponse {
   XcodeAutomationScriptResponse._({
     this.status,
@@ -368,7 +386,7 @@ class XcodeAutomationScriptResponse {
   final XcodeAutomationScriptDebugResult? debugResult;
 }
 
-
+@visibleForTesting
 class XcodeAutomationScriptDebugResult {
   XcodeAutomationScriptDebugResult._({
     required this.completed,

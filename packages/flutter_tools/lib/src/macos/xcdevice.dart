@@ -71,6 +71,8 @@ class XCDevice {
     required IProxy iproxy,
     required FileSystem fileSystem,
     required UserMessages userMessages,
+    @visibleForTesting
+    IOSCoreDeviceControl? coreDeviceControl,
   }) : _processUtils = ProcessUtils(logger: logger, processManager: processManager),
       _logger = logger,
       _iMobileDevice = IMobileDevice(
@@ -86,7 +88,7 @@ class XCDevice {
         platform: platform,
         processManager: processManager,
       ),
-      _coreDeviceControl = IOSCoreDeviceControl(
+      _coreDeviceControl = coreDeviceControl?? IOSCoreDeviceControl(
         logger: logger,
         processManager: processManager,
         xcode: xcode,

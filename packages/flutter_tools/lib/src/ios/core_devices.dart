@@ -410,10 +410,10 @@ class IOSCoreDevice {
       );
     }
 
-    _IOSCoreDeviceProperties? deviceProperties;
+    IOSCoreDeviceProperties? deviceProperties;
     if (data['deviceProperties'] is Map<String, Object?>) {
       final Map<String, Object?> devicePropertiesData = data['deviceProperties']! as Map<String, Object?>;
-      deviceProperties = _IOSCoreDeviceProperties.fromPreviewJson(devicePropertiesData);
+      deviceProperties = IOSCoreDeviceProperties.fromPreviewJson(devicePropertiesData);
     }
 
     _IOSCoreDeviceHardwareProperties? hardwareProperties;
@@ -455,7 +455,7 @@ class IOSCoreDevice {
   @visibleForTesting
   final _IOSCoreDeviceConnectionProperties? connectionProperties;
 
-  final _IOSCoreDeviceProperties? deviceProperties;
+  final IOSCoreDeviceProperties? deviceProperties;
 
   @visibleForTesting
   final _IOSCoreDeviceHardwareProperties? hardwareProperties;
@@ -581,8 +581,9 @@ class _IOSCoreDeviceConnectionProperties {
   final String? tunnelTransportProtocol;
 }
 
-class _IOSCoreDeviceProperties {
-  _IOSCoreDeviceProperties._({
+@visibleForTesting
+class IOSCoreDeviceProperties {
+  IOSCoreDeviceProperties._({
     required this.bootedFromSnapshot,
     required this.bootedSnapshotName,
     required this.bootState,
@@ -612,8 +613,8 @@ class _IOSCoreDeviceProperties {
   ///   "rootFileSystemIsWritable" : false,
   ///   "screenViewingURL" : "coredevice-devices:/viewDeviceByUUID?uuid=123456BB5-AEDE-7A22-B890-1234567890DD"
   /// }
-  factory _IOSCoreDeviceProperties.fromPreviewJson(Map<String, Object?> data) {
-    return _IOSCoreDeviceProperties._(
+  factory IOSCoreDeviceProperties.fromPreviewJson(Map<String, Object?> data) {
+    return IOSCoreDeviceProperties._(
       bootedFromSnapshot: data['bootedFromSnapshot'] is bool? ? data['bootedFromSnapshot'] as bool? : null,
       bootedSnapshotName: data['bootedSnapshotName']?.toString(),
       bootState: data['bootState']?.toString(),

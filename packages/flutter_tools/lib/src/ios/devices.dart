@@ -5,7 +5,6 @@
 import 'dart:async';
 
 import 'package:meta/meta.dart';
-import 'package:path/path.dart' as path;
 import 'package:process/process.dart';
 import 'package:vm_service/vm_service.dart' as vm_service;
 
@@ -554,6 +553,7 @@ class IOSDevice extends Device {
           debuggingOptions: debuggingOptions,
           package: package,
           launchArguments: launchArguments,
+          discoveryTimeout: discoveryTimeout,
         ) ? 0 : 1;
       } else if (iosDeployDebugger == null) {
         installationResult = await _iosDeploy.launchApp(
@@ -612,13 +612,13 @@ class IOSDevice extends Device {
 
       Uri? localUri;
       if (isWirelesslyConnected) {
-        // // Wait for Dart VM Service to start up.
-        // final Uri? serviceURL = await vmServiceDiscovery?.uri;
-        // if (serviceURL == null) {
-        //   await iosDeployDebugger?.stopAndDumpBacktrace();
-        //   await dispose();
-        //   return LaunchResult.failed();
-        // }
+        // Wait for Dart VM Service to start up.
+        final Uri? serviceURL = await vmServiceDiscovery?.uri;
+        if (serviceURL == null) {
+          await iosDeployDebugger?.stopAndDumpBacktrace();
+          await dispose();
+          return LaunchResult.failed();
+        }
 
         // If Dart VM Service URL with the device IP is not found within 5 seconds,
         // change the status message to prompt users to click Allow. Wait 5 seconds because it
@@ -632,11 +632,11 @@ class IOSDevice extends Device {
         });
 
         // Get Dart VM Service URL with the device IP as the host.
-        localUri = await MDnsVmServiceDiscovery.instance!.getVMServiceUriForAttach(
+        localUri = await MDnsVmServiceDiscovery.instance!.getVMServiceUriForLaunch(
           packageId,
           this,
           usesIpv6: ipv6,
-          // deviceVmservicePort: serviceURL.port,
+          deviceVmservicePort: serviceURL.port,
           useDeviceIPAsHost: true,
         );
 
@@ -665,6 +665,7 @@ class IOSDevice extends Device {
     required DebuggingOptions debuggingOptions,
     required IOSApp package,
     required List<String> launchArguments,
+    @visibleForTesting Duration? discoveryTimeout,
   }) async {
     if (!debuggingOptions.debuggingEnabled) {
       // Release mode
@@ -681,7 +682,7 @@ class IOSDevice extends Device {
       return launchSuccess;
     } else {
       final int launchTimeout = isWirelesslyConnected ? 75 : 60;
-      final Timer timer = Timer(Duration(seconds: launchTimeout), () {
+      final Timer timer = Timer(discoveryTimeout ?? Duration(seconds: launchTimeout), () {
         _logger.printError('Xcode is taking longer than expected to start debugging the app. Ensure the project is opened in Xcode.');
       });
 
@@ -689,7 +690,7 @@ class IOSDevice extends Device {
 
       if (package is PrebuiltIOSApp) {
         debugProject = await _xcodeDebug.createXcodeProjectWithCustomBundle(
-          package,
+          package.deviceBundlePath,
           templateRenderer: globals.templateRenderer,
         );
       } else if (package is BuildableIOSApp) {
@@ -705,8 +706,7 @@ class IOSDevice extends Device {
         }
         final String? scheme = projectInfo.schemeFor(debuggingOptions.buildInfo);
         if (scheme == null) {
-          globals.printError('Unable to get scheme.');
-          return false;
+          projectInfo.reportFlavorNotFoundAndExit();
         }
 
         debugProject = XcodeDebugProject(
@@ -724,7 +724,6 @@ class IOSDevice extends Device {
       final bool debugSuccess = await _xcodeDebug.debugApp(
         project: debugProject,
         deviceId: id,
-        debuggingOptions: debuggingOptions,
         launchArguments:launchArguments,
       );
       timer.cancel();
@@ -994,7 +993,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
         return true;
       }
       _streamFlutterMessages.add(message);
-    } else if (useIOSDeployLogging && source != IOSDeviceLogSource.iosDeploy) {
+    } else if (useIOSDeployLogging && source == IOSDeviceLogSource.idevicesyslog) {
       return true;
     }
     return false;
@@ -1048,7 +1047,10 @@ class IOSDeviceLogReader extends DeviceLogReader {
 
   /// Use the Dart VM to stream logs from the device when one of the following criteria is met:
   /// 1) The device is a CoreDevice and wirelessly connected.
-  /// 2) The device has iOS 13 or greater and `ios-deploy` it not used or not attached.
+  /// 2) The device has iOS 13 or greater and [_iosDeployDebugger] is null or
+  /// the [_iosDeployDebugger] debugger is not attached.
+  ///
+  /// This value may change if [_iosDeployDebugger] changes.
   @visibleForTesting
   bool get useUnifiedLogging {
     // `idevicesyslog` doesn't work on wireless devices, so use logs from Dart VM instead.
@@ -1061,6 +1063,25 @@ class IOSDeviceLogReader extends DeviceLogReader {
 
     // Prefer the more complete logs from the attached debugger.
     if (_majorSdkVersion >= minimumUniversalLoggingSdkVersion && (_iosDeployDebugger == null || !_iosDeployDebugger!.debuggerAttached)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Determine whether to listen to the Dart VM for logging events. Returns true when one of the following criteria is met:
+  /// 1) The device is a CoreDevice and wirelessly connected.
+  /// 2) The device has iOS 13 or greater.
+  bool get _shouldListenForUnifiedLoggingEvents {
+    // `idevicesyslog` doesn't work on wireless devices, so use logs from Dart VM instead.
+    if (_isCoreDevice) {
+      if (_isWirelesslyConnected) {
+        return true;
+      }
+      return false;
+    }
+
+    if (_majorSdkVersion >= minimumUniversalLoggingSdkVersion) {
       return true;
     }
 
@@ -1092,7 +1113,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
   /// Only send logs to stream if [_iosDeployDebugger] is null or
   /// the [_iosDeployDebugger] debugger is not attached.
   Future<void> _listenToUnifiedLoggingEvents(FlutterVmService connectedVmService) async {
-    if (!useUnifiedLogging) {
+    if (!_shouldListenForUnifiedLoggingEvents) {
       return;
     }
     try {
