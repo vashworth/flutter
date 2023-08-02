@@ -692,6 +692,7 @@ class IOSDevice extends Device {
         debugProject = await _xcodeDebug.createXcodeProjectWithCustomBundle(
           package.deviceBundlePath,
           templateRenderer: globals.templateRenderer,
+          verboseLogging: debuggingOptions.usingCISystem,
         );
       } else if (package is BuildableIOSApp) {
         final IosProject project = package.project;
@@ -713,6 +714,7 @@ class IOSDevice extends Device {
           scheme: scheme,
           xcodeProject: project.xcodeProject,
           xcodeWorkspace: project.xcodeWorkspace!,
+          verboseLogging: debuggingOptions.usingCISystem,
         );
       } else {
         // This should not happen. Currently, only PrebuiltIOSApp and

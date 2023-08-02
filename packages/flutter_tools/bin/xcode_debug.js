@@ -60,6 +60,11 @@ class CommandArguments {
 		this.launchArguments = this.validatedJsonArgument("--launch-args", parsedArguments["--launch-args"]);
 		this.closeWindowOnStop = this.validatedBoolArgument("--close-window", parsedArguments["--close-window"]);
 		this.promptToSaveBeforeClose = this.validatedBoolArgument("--prompt-to-save", parsedArguments["--prompt-to-save"]);
+		this.verbose = this.validatedBoolArgument("--verbose", parsedArguments["--verbose"]);
+
+		if (this.verbose) {
+			console.log(JSON.stringify(this));
+		}
 	}
 
 	/**
@@ -92,6 +97,7 @@ class CommandArguments {
 				"--xcode-path": true,
 				"--project-path": true,
 				"--workspace-path": true,
+				"--verbose": true,
 			},
 			"project-opened": {},
 			"debug": {
@@ -323,7 +329,11 @@ function debugApp(xcode, args) {
 	}
 	const targetWorkspace = workspaceResult.result;
 
-	const destinationResult = getTargetDestination(targetWorkspace, args.targetDestinationId);
+	const destinationResult = getTargetDestination(
+		targetWorkspace,
+		args.targetDestinationId,
+		args.verbose,
+	);
 	if (destinationResult.error != null) {
 		return new FunctionResult(null, destinationResult.error)
 	}
@@ -351,9 +361,13 @@ function debugApp(xcode, args) {
 		const checkFrequencyInSeconds = 0.5;
 		const maxWaitInSeconds = 10 * 60; // 10 minutes
 		const iterations = maxWaitInSeconds * (1 / checkFrequencyInSeconds);
+		const verboseLogInterval = 10 * (1 / checkFrequencyInSeconds);
 		for (let i = 0; i < iterations; i++) {
 			if (actionResult.status() != "not yet started") {
 				break;
+			}
+			if (args.verbose && i % verboseLogInterval === 0) {
+				console.log(`Action result status: ${actionResult.status()}`);
 			}
 			delay(checkFrequencyInSeconds);
 		}
@@ -370,12 +384,16 @@ function debugApp(xcode, args) {
  *
  * @param {!WorkspaceDocument} targetWorkspace WorkspaceDocument from Mac Scripting for Xcode
  * @param {!string} deviceId
+ * @param {?bool} verbose
  * @returns {!FunctionResult}
  */
-function getTargetDestination(targetWorkspace, deviceId) {
+function getTargetDestination(targetWorkspace, deviceId, verbose = false) {
 	try {
 		let targetDestination;
 		for (let runDest of targetWorkspace.runDestinations()) {
+			if (runDest.device() != null && verbose) {
+				console.log(`Device: ${runDest.device().deviceIdentifier()}`);
+			}
 			if (runDest.device() != null && runDest.device().deviceIdentifier() === deviceId) {
 				targetDestination = runDest;
 				break;
@@ -403,15 +421,21 @@ function waitForWorkspaceToLoad(xcode, args) {
 	try {
 		const checkFrequencyInSeconds = 0.5;
 		const maxWaitInSeconds = 10 * 60; // 10 minutes
+		const verboseLogInterval = 10 * (1 / checkFrequencyInSeconds);
 		const iterations = maxWaitInSeconds * (1 / checkFrequencyInSeconds);
 		for (let i = 0; i < iterations; i++) {
-			const workspaceResult = getWorkspace(xcode, args);
-				if (workspaceResult.error == null) {
-					const document = workspaceResult.result;
-					if (document.loaded()) {
-						return new FunctionResult(null, null);
-					}
+			// Every 10 seconds, print the list of workspaces if verbose
+			const verbose = args.verbose && i % verboseLogInterval === 0;
+
+			const workspaceResult = getWorkspace(xcode, args, verbose);
+			if (workspaceResult.error == null) {
+				const document = workspaceResult.result;
+				if (document.loaded()) {
+					return new FunctionResult(null, null);
 				}
+			} else if (verbose) {
+				console.log(workspaceResult.error);
+			}
 			delay(checkFrequencyInSeconds);
 		}
 		return new FunctionResult(null, "Timed out waiting for workspace to load");
@@ -427,15 +451,19 @@ function waitForWorkspaceToLoad(xcode, args) {
  *
  * @param {!Application} xcode Mac Scripting Application for Xcode
  * @param {!CommandArguments} args
+ * @param {?bool} verbose
  * @returns {!FunctionResult}
  */
-function getWorkspace(xcode, args) {
+function getWorkspace(xcode, args, verbose = false) {
 	const privatePrefix = "/private";
 
 	try {
 		const documents = xcode.workspaceDocuments();
 		for (let document of documents) {
 			const filePath = document.file().toString();
+			if (verbose) {
+				console.log(`Workspace: ${filePath}`);
+			}
 			if (filePath === args.projectPath || filePath === args.workspacePath) {
 				return new FunctionResult(document);
 			}

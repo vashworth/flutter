@@ -820,6 +820,7 @@ class FakeXcodeDebug extends Fake implements XcodeDebug {
     String deviceBundlePath, {
     required TemplateRenderer templateRenderer,
     Directory? projectDestination,
+    bool verboseLogging = false,
   }) async {
     if (expectedBundlePath != null) {
       expect(expectedBundlePath, deviceBundlePath);

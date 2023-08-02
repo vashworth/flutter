@@ -6,6 +6,7 @@ import 'package:flutter_tools/src/base/io.dart';
 import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/user_messages.dart';
 import 'package:flutter_tools/src/base/version.dart';
+import 'package:flutter_tools/src/cache.dart';
 import 'package:flutter_tools/src/globals.dart' as globals;
 import 'package:flutter_tools/src/ios/xcode_debug.dart';
 import 'package:flutter_tools/src/ios/xcodeproj.dart';
@@ -51,6 +52,7 @@ void main() {
           xcode: xcode,
           fileSystem: fileSystem,
           userMessages: userMessages,
+          flutterRoot: flutterRoot,
         );
 
         expect(xcodeDebug.pathToXcodeApp, '/Applications/Xcode.app');
@@ -69,6 +71,7 @@ void main() {
           xcode: xcode,
           fileSystem: fileSystem,
           userMessages: userMessages,
+          flutterRoot: flutterRoot,
         );
 
         expect(() => xcodeDebug.pathToXcodeApp, throwsToolExit(message: userMessages.xcodeMissing));
@@ -95,6 +98,7 @@ void main() {
           xcode: xcode,
           fileSystem: fileSystem,
           userMessages: userMessages,
+          flutterRoot: flutterRoot,
         );
 
         expect(() => xcodeDebug.pathToXcodeApp, throwsToolExit(message: userMessages.xcodeMissing));
@@ -139,7 +143,97 @@ void main() {
         );
       });
 
-      testWithoutContext('succeeds in opening and debugging with launch options', () async {
+      testWithoutContext('succeeds in opening and debugging with launch options and verbose logging', () async {
+        fakeProcessManager.addCommands(<FakeCommand>[
+          FakeCommand(
+            command: <String>[
+              'xcrun',
+              'osascript',
+              '-l',
+              'JavaScript',
+              pathToXcodeAutomationScript,
+              'project-opened',
+              '--xcode-path',
+              pathToXcodeApp,
+              '--project-path',
+              project.xcodeProject.path,
+              '--workspace-path',
+              project.xcodeWorkspace.path,
+              '--verbose',
+            ],
+            stdout: '''
+  {"status":false,"errorMessage":"Xcode is not running","debugResult":null}
+  ''',
+          ),
+          FakeCommand(
+            command: <String>[
+              'open',
+              '-a',
+              pathToXcodeApp,
+              '-g',
+              '-j',
+              xcworkspace.path
+            ],
+          ),
+          FakeCommand(
+            command: <String>[
+              'xcrun',
+              'osascript',
+              '-l',
+              'JavaScript',
+              pathToXcodeAutomationScript,
+              'debug',
+              '--xcode-path',
+              pathToXcodeApp,
+              '--project-path',
+              project.xcodeProject.path,
+              '--workspace-path',
+              project.xcodeWorkspace.path,
+              '--device-id',
+              deviceId,
+              '--scheme',
+              project.scheme,
+              '--skip-building',
+              '--launch-args',
+              r'["--enable-dart-profiling","--trace-allowlist=\"foo,bar\""]',
+              '--verbose',
+            ],
+            stdout: '''
+  {"status":true,"errorMessage":null,"debugResult":{"completed":false,"status":"running","errorMessage":null}}
+  ''',
+          ),
+        ]);
+
+        final XcodeDebug xcodeDebug = XcodeDebug(
+          logger: logger,
+          processManager: fakeProcessManager,
+          xcode: xcode,
+          fileSystem: fileSystem,
+          userMessages: userMessages,
+          flutterRoot: flutterRoot,
+        );
+
+        project = XcodeDebugProject(
+          scheme: 'Runner',
+          xcodeProject: xcodeproj,
+          xcodeWorkspace: xcworkspace,
+          verboseLogging: true,
+        );
+
+        final bool status = await xcodeDebug.debugApp(
+          project: project,
+          deviceId: deviceId,
+          launchArguments: <String>['--enable-dart-profiling', '--trace-allowlist="foo,bar"'],
+        );
+
+        expect(logger.errorText, isEmpty);
+        expect(logger.traceText, contains('Error checking if project opened in Xcode'));
+        expect(fakeProcessManager, hasNoRemainingExpectations);
+        expect(xcodeDebug.startDebugSessionProcess, isNull);
+        expect(status, true);
+      });
+
+      testWithoutContext('succeeds in opening and debugging without launch options and verbose logging', () async {
         fakeProcessManager.addCommands(<FakeCommand>[
           FakeCommand(
             command: <String>[
@@ -190,7 +284,7 @@ void main() {
               project.scheme,
               '--skip-building',
               '--launch-args',
-              r'["--enable-dart-profiling","--trace-allowlist=\"foo,bar\""]'
+              '[]'
             ],
             stdout: '''
   {"status":true,"errorMessage":null,"debugResult":{"completed":false,"status":"running","errorMessage":null}}
@@ -210,7 +304,7 @@ void main() {
         final bool status = await xcodeDebug.debugApp(
           project: project,
           deviceId: deviceId,
-          launchArguments: <String>['--enable-dart-profiling', '--trace-allowlist="foo,bar"'],
+          launchArguments: <String>[],
         );
 
         expect(logger.errorText, isEmpty);
@@ -567,6 +661,7 @@ void main() {
           xcode: xcode,
           fileSystem: fileSystem,
           userMessages: userMessages,
+          flutterRoot: flutterRoot,
         );
 
         final XcodeAutomationScriptResponse? response = xcodeDebug.parseScriptResponse('not json');
@@ -583,6 +678,7 @@ void main() {
           xcode: xcode,
           fileSystem: fileSystem,
           userMessages: userMessages,
+          flutterRoot: flutterRoot,
         );
 
         final XcodeAutomationScriptResponse? response = xcodeDebug.parseScriptResponse('[]');
@@ -599,6 +695,7 @@ void main() {
           xcode: xcode,
           fileSystem: fileSystem,
           userMessages: userMessages,
+          flutterRoot: flutterRoot,
         );
 
         final XcodeAutomationScriptResponse? response = xcodeDebug.parseScriptResponse('{}');
@@ -796,8 +893,7 @@ void main() {
         ]);
 
         final bool status = await xcodeDebug.stopDebuggingApp(
-          xcodeProject: xcodeproj,
-          xcodeWorkspace: xcworkspace,
+          project: project,
           closeXcode: true,
           promptToSaveOnClose: true,
         );
@@ -841,8 +937,7 @@ void main() {
         ]);
 
         final bool status = await xcodeDebug.stopDebuggingApp(
-          xcodeProject: xcodeproj,
-          xcodeWorkspace: xcworkspace,
+          project: project,
           closeXcode: true,
           promptToSaveOnClose: true,
         );
@@ -874,6 +969,7 @@ void main() {
         xcode: xcode,
         fileSystem: globals.fs,
         userMessages: userMessages,
+        flutterRoot: Cache.flutterRoot!,
       );
 
       final Directory projectDirectory = globals.fs.systemTempDirectory.createTempSync('flutter_empty_xcode.');

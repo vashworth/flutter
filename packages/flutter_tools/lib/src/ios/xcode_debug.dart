@@ -28,13 +28,13 @@ class XcodeDebug {
     required Xcode xcode,
     required FileSystem fileSystem,
     required UserMessages userMessages,
-    String? flutterRoot,
+    required String flutterRoot,
   })  : _logger = logger,
         _processUtils = ProcessUtils(logger: logger, processManager: processManager),
         _xcode = xcode,
         _fileSystem = fileSystem,
         _userMessage = userMessages,
-        _flutterRoot = flutterRoot ?? Cache.flutterRoot!;
+        _flutterRoot = flutterRoot;
 
 
   final ProcessUtils _processUtils;
@@ -82,7 +82,7 @@ class XcodeDebug {
   }) async {
 
     // If project is not already opened in Xcode, open it.
-    if (!await _isProjectOpenInXcode(xcodeProject: project.xcodeProject, xcodeWorkspace: project.xcodeWorkspace)) {
+    if (!await _isProjectOpenInXcode(project: project)) {
       final bool openResult = await _openProjectInXcode(xcodeWorkspace: project.xcodeWorkspace);
       if (!openResult) {
         return openResult;
@@ -111,6 +111,7 @@ class XcodeDebug {
         '--skip-building',
         '--launch-args',
         json.encode(launchArguments),
+        if (project.verboseLogging) '--verbose',
       ],
     );
 
@@ -124,12 +125,13 @@ class XcodeDebug {
           stdout += line;
     });
 
+    // console.log from the script are found in the stderr
     String stderr = '';
     final StreamSubscription<String> stderrSubscription = startDebugSessionProcess!.stderr
         .transform<String>(utf8.decoder)
         .transform<String>(const LineSplitter())
         .listen((String line) {
-          _logger.printTrace('err: $line');
+          _logger.printTrace('stderr: $line');
           stderr += line;
     });
 
@@ -177,8 +179,7 @@ class XcodeDebug {
     if (currentDebuggingProject != null) {
       final XcodeDebugProject project = currentDebuggingProject!;
       await stopDebuggingApp(
-        xcodeWorkspace: project.xcodeWorkspace,
-        xcodeProject: project.xcodeProject,
+        project: project,
         closeXcode: project.isTemporaryProject,
       );
 
@@ -203,8 +204,7 @@ class XcodeDebug {
   }
 
   Future<bool> _isProjectOpenInXcode({
-    required Directory xcodeWorkspace,
-    required Directory xcodeProject,
+    required XcodeDebugProject project,
   }) async {
 
     final RunResult result = await _processUtils.run(
@@ -218,9 +218,10 @@ class XcodeDebug {
         '--xcode-path',
         pathToXcodeApp,
         '--project-path',
-        xcodeProject.path,
+        project.xcodeProject.path,
         '--workspace-path',
-        xcodeWorkspace.path,
+        project.xcodeWorkspace.path,
+        if (project.verboseLogging) '--verbose',
       ],
       throwOnError: true,
     );
@@ -284,8 +285,7 @@ class XcodeDebug {
   }
 
   Future<bool> stopDebuggingApp({
-    required Directory xcodeWorkspace,
-    required Directory xcodeProject,
+    required XcodeDebugProject project,
     bool closeXcode = false,
     bool promptToSaveOnClose = false,
   }) async {
@@ -300,11 +300,12 @@ class XcodeDebug {
         '--xcode-path',
         pathToXcodeApp,
         '--project-path',
-        xcodeProject.path,
+        project.xcodeProject.path,
         '--workspace-path',
-        xcodeWorkspace.path,
+        project.xcodeWorkspace.path,
         if (closeXcode) '--close-window',
-        if (promptToSaveOnClose) '--prompt-to-save'
+        if (promptToSaveOnClose) '--prompt-to-save',
+        if (project.verboseLogging) '--verbose',
       ],
       throwOnError: true,
     );
@@ -330,6 +331,7 @@ class XcodeDebug {
     required TemplateRenderer templateRenderer,
     @visibleForTesting
     Directory? projectDestination,
+    bool verboseLogging = false,
   }) async {
     final Directory tempXcodeProject = projectDestination ?? _fileSystem.systemTempDirectory.createTempSync('flutter_empty_xcode.');
 
@@ -354,6 +356,7 @@ class XcodeDebug {
       xcodeProject: tempXcodeProject.childDirectory('Runner.xcodeproj'),
       xcodeWorkspace: tempXcodeProject.childDirectory('Runner.xcworkspace'),
       isTemporaryProject: true,
+      verboseLogging: verboseLogging,
     );
   }
 }
@@ -412,6 +415,7 @@ class XcodeDebugProject {
     required this.xcodeWorkspace,
     required this.xcodeProject,
     this.isTemporaryProject = false,
+    this.verboseLogging = false,
   });
 
   final String scheme;
@@ -419,4 +423,7 @@ class XcodeDebugProject {
   final Directory xcodeProject;
   final bool isTemporaryProject;
 
+  /// When [verboseLogging] is true, the xcode_debug.js script will log
+  /// additional information.
+  final bool verboseLogging;
 }

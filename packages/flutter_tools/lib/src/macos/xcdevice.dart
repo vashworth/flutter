@@ -100,6 +100,7 @@ class XCDevice {
         xcode: xcode,
         fileSystem: fileSystem,
         userMessages: userMessages,
+        flutterRoot: Cache.flutterRoot!,
       ),
       _iProxy = iproxy,
       _xcode = xcode {
