@@ -14,7 +14,6 @@ import '../base/logger.dart';
 import '../base/process.dart';
 import '../base/template.dart';
 import '../base/user_messages.dart';
-import '../cache.dart';
 import '../convert.dart';
 import '../macos/xcode.dart';
 import '../template.dart';
@@ -170,11 +169,21 @@ class XcodeDebug {
     return true;
   }
 
+  /// Kills debug start process if it's still running.
+  /// If [force] is true, it will kill all Xcode processes.
+  /// Otherwise, it will stop the debug session in Xcode.
+  /// If the project is temporary, it will close the Xcode window of the project and then delete the project.
   Future<bool> exit({
+    bool force = false,
     @visibleForTesting
     bool skipDelay = false,
   }) async {
     final bool success = (startDebugSessionProcess == null) || startDebugSessionProcess!.kill();
+
+    if (force) {
+      currentDebuggingProject = null;
+      return _forceExitXcode();
+    }
 
     if (currentDebuggingProject != null) {
       final XcodeDebugProject project = currentDebuggingProject!;
@@ -201,6 +210,22 @@ class XcodeDebug {
     }
 
     return success;
+  }
+
+  Future<bool> _forceExitXcode() async {
+    final RunResult result = await _processUtils.run(
+      <String>[
+        'killall',
+        '-9',
+        'Xcode',
+      ],
+    );
+
+    if (result.exitCode != 0) {
+      _logger.printError('Error killing Xcode: ${result.exitCode}\n${result.stderr}');
+      return false;
+    }
+    return true;
   }
 
   Future<bool> _isProjectOpenInXcode({

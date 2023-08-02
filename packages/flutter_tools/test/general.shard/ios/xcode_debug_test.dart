@@ -708,14 +708,12 @@ void main() {
     group('exit', (){
       const String pathToXcodeApp = '/Applications/Xcode.app';
 
-      late Xcode xcode;
       late String pathToXcodeAutomationScript;
       late Directory projectDirectory;
       late Directory xcodeproj;
       late Directory xcworkspace;
 
       setUp(() {
-        xcode = setupXcode(fakeProcessManager: fakeProcessManager);
         pathToXcodeAutomationScript = '$flutterRoot/packages/flutter_tools/bin/xcode_debug.js';
         projectDirectory = fileSystem.directory('FlutterApp');
         xcodeproj = projectDirectory.childDirectory('Runner.xcodeproj');
@@ -724,6 +722,7 @@ void main() {
       });
 
       testWithoutContext('exits when waiting for debug session to start', () async {
+        final Xcode xcode = setupXcode(fakeProcessManager: fakeProcessManager);
         final XcodeDebugProject project = XcodeDebugProject(
           scheme: 'Runner',
           xcodeProject: xcodeproj,
@@ -775,6 +774,7 @@ void main() {
       });
 
       testWithoutContext('exits and deletes temporary directory', () async {
+        final Xcode xcode = setupXcode(fakeProcessManager: fakeProcessManager);
         xcodeproj.createSync(recursive: true);
         xcworkspace.createSync(recursive: true);
 
@@ -835,6 +835,46 @@ void main() {
         expect(logger.errorText, isEmpty);
         expect(fakeProcessManager, hasNoRemainingExpectations);
         expect(status, isTrue);
+      });
+
+      testWithoutContext('kill Xcode when force exit', () async {
+        final Xcode xcode = setupXcode(fakeProcessManager: fakeProcessManager, xcodeSelect: false);
+        final XcodeDebugProject project = XcodeDebugProject(
+          scheme: 'Runner',
+          xcodeProject: xcodeproj,
+          xcodeWorkspace: xcworkspace,
+        );
+        final XcodeDebug xcodeDebug = XcodeDebug(
+          logger: logger,
+          processManager: fakeProcessManager,
+          xcode: xcode,
+          fileSystem: fileSystem,
+          userMessages: userMessages,
+          flutterRoot: flutterRoot,
+        );
+        fakeProcessManager.addCommands(<FakeCommand>[
+          const FakeCommand(
+            command: <String>[
+              'killall',
+              '-9',
+              'Xcode',
+            ],
+          ),
+        ]);
+
+        xcodeDebug.startDebugSessionProcess = FakeProcess();
+        xcodeDebug.currentDebuggingProject = project;
+
+        expect(xcodeDebug.startDebugSessionProcess, isNotNull);
+        expect(xcodeDebug.currentDebuggingProject, isNotNull);
+
+        final bool exitStatus = await xcodeDebug.exit(force: true);
+
+        expect((xcodeDebug.startDebugSessionProcess! as FakeProcess).killed, isTrue);
+        expect(xcodeDebug.currentDebuggingProject, isNull);
+        expect(logger.errorText, isEmpty);
+        expect(fakeProcessManager, hasNoRemainingExpectations);
+        expect(exitStatus, isTrue);
       });
     });
 
@@ -1007,14 +1047,18 @@ void main() {
 
 Xcode setupXcode({
   required FakeProcessManager fakeProcessManager,
+  bool xcodeSelect = true,
 }) {
-  fakeProcessManager.addCommand(const FakeCommand(
-    command: <String>[
-      '/usr/bin/xcode-select',
-      '--print-path'
-    ],
-    stdout: '/Applications/Xcode.app/Contents/Developer'
-  ));
+  if (xcodeSelect) {
+    fakeProcessManager.addCommand(const FakeCommand(
+      command: <String>[
+        '/usr/bin/xcode-select',
+        '--print-path'
+      ],
+      stdout: '/Applications/Xcode.app/Contents/Developer'
+    ));
+  }
+
   final XcodeProjectInterpreter xcodeProjectInterpreter = XcodeProjectInterpreter.test(
     processManager: FakeProcessManager.any(),
     version: Version(14, 0, 0),

@@ -15,6 +15,7 @@ import '../base/io.dart';
 import '../base/logger.dart';
 import '../base/os.dart';
 import '../base/platform.dart';
+import '../base/process.dart';
 import '../base/utils.dart';
 import '../base/version.dart';
 import '../build_info.dart';
@@ -463,6 +464,8 @@ class IOSDevice extends Device {
     bool ipv6 = false,
     String? userIdentifier,
     @visibleForTesting Duration? discoveryTimeout,
+    @visibleForTesting
+    ShutdownHooks? shutdownHooks,
   }) async {
     String? packageId;
     if (isWirelesslyConnected &&
@@ -554,6 +557,7 @@ class IOSDevice extends Device {
           package: package,
           launchArguments: launchArguments,
           discoveryTimeout: discoveryTimeout,
+          shutdownHooks: shutdownHooks ?? globals.shutdownHooks,
         ) ? 0 : 1;
       } else if (iosDeployDebugger == null) {
         installationResult = await _iosDeploy.launchApp(
@@ -665,6 +669,7 @@ class IOSDevice extends Device {
     required DebuggingOptions debuggingOptions,
     required IOSApp package,
     required List<String> launchArguments,
+    required ShutdownHooks shutdownHooks,
     @visibleForTesting Duration? discoveryTimeout,
   }) async {
     if (!debuggingOptions.debuggingEnabled) {
@@ -729,6 +734,11 @@ class IOSDevice extends Device {
         launchArguments:launchArguments,
       );
       timer.cancel();
+
+      // Kill Xcode on shutdown when running from CI
+      if (debuggingOptions.usingCISystem) {
+        shutdownHooks.addShutdownHook(() => _xcodeDebug.exit(force: true));
+      }
 
       return debugSuccess;
     }

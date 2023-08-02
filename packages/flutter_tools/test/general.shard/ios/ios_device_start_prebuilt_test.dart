@@ -11,6 +11,7 @@ import 'package:flutter_tools/src/artifacts.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/platform.dart';
+import 'package:flutter_tools/src/base/process.dart';
 import 'package:flutter_tools/src/base/template.dart';
 import 'package:flutter_tools/src/build_info.dart';
 import 'package:flutter_tools/src/cache.dart';
@@ -711,6 +712,58 @@ void main() {
           completer.complete();
         });
       });
+
+      testUsingContext('succeeds with shutdown hook added when running from CI', () async {
+        final FileSystem fileSystem = MemoryFileSystem.test();
+        final FakeProcessManager processManager = FakeProcessManager.empty();
+
+        final Directory temporaryXcodeProjectDirectory = fileSystem.systemTempDirectory.childDirectory('flutter_empty_xcode.rand0');
+        final Directory bundleLocation = fileSystem.currentDirectory;
+        final IOSDevice device = setUpIOSDevice(
+          processManager: processManager,
+          fileSystem: fileSystem,
+          isCoreDevice: true,
+          coreDeviceControl: FakeIOSCoreDeviceControl(),
+          xcodeDebug: FakeXcodeDebug(
+            expectedProject: XcodeDebugProject(
+              scheme: 'Runner',
+              xcodeWorkspace: temporaryXcodeProjectDirectory.childDirectory('Runner.xcworkspace'),
+              xcodeProject: temporaryXcodeProjectDirectory.childDirectory('Runner.xcodeproj'),
+            ),
+            expectedDeviceId: '123',
+            expectedLaunchArguments: <String>['--enable-dart-profiling'],
+            expectedBundlePath: bundleLocation.path,
+          )
+        );
+        final IOSApp iosApp = PrebuiltIOSApp(
+          projectBundleId: 'app',
+          bundleName: 'Runner',
+          uncompressedBundle: bundleLocation,
+          applicationPackage: bundleLocation,
+        );
+        final FakeDeviceLogReader deviceLogReader = FakeDeviceLogReader();
+
+        device.portForwarder = const NoOpDevicePortForwarder();
+        device.setLogReader(iosApp, deviceLogReader);
+
+        // Start writing messages to the log reader.
+        Timer.run(() {
+          deviceLogReader.addLine('Foo');
+          deviceLogReader.addLine('The Dart VM service is listening on http://127.0.0.1:456');
+        });
+
+        final FakeShutDownHooks shutDownHooks = FakeShutDownHooks();
+
+        final LaunchResult launchResult = await device.startApp(iosApp,
+          prebuiltApplication: true,
+          debuggingOptions: DebuggingOptions.enabled(BuildInfo.debug, usingCISystem: true),
+          platformArgs: <String, dynamic>{},
+          shutdownHooks: shutDownHooks,
+        );
+
+        expect(launchResult.started, true);
+        expect(shutDownHooks.hooks.length, 1);
+      });
     });
   });
 }
@@ -856,6 +909,7 @@ class FakeXcodeDebug extends Fake implements XcodeDebug {
 
   @override
   Future<bool> exit({
+    bool force = false,
     bool skipDelay = false,
   }) async {
     return true;
@@ -863,3 +917,11 @@ class FakeXcodeDebug extends Fake implements XcodeDebug {
 }
 
 class FakeIOSCoreDeviceControl extends Fake implements IOSCoreDeviceControl {}
+
+class FakeShutDownHooks extends Fake implements ShutdownHooks {
+  List<ShutdownHook> hooks = <ShutdownHook>[];
+  @override
+  void addShutdownHook(ShutdownHook shutdownHook) {
+    hooks.add(shutdownHook);
+  }
+}
