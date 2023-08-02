@@ -332,7 +332,6 @@ class XcodeDebug {
     Directory? projectDestination,
   }) async {
     final Directory tempXcodeProject = projectDestination ?? _fileSystem.systemTempDirectory.createTempSync('flutter_empty_xcode.');
-    // final Directory tempXcodeProject = _fileSystem.directory("/Users/vashworth/Development/experiment/flutter/temporary");
 
     final Template template = await Template.fromName(
       _fileSystem.path.join('xcode', 'ios', 'custom_application_bundle'),

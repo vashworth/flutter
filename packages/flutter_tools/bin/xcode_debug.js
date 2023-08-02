@@ -130,8 +130,10 @@ class CommandArguments {
 				flag = entry;
 				value = args[index + 1];
 
-				// If next value in the array is also a flag, set the value to "true".
-				if (value != null && value.startsWith("--")) {
+				// If next value in the array is also a flag or the next value
+				// is null/undefined, treat the flag like a boolean flag and
+				// set the value to "true".
+				if ((value != null && value.startsWith("--")) || value == null) {
 					value = "true";
 				} else {
 					index++;
@@ -300,38 +302,6 @@ function getXcode(args) {
 }
 
 /**
- * Gets workspace opened in Xcode matching the projectPath or workspacePath
- *     from the command line arguments. If workspace is not found, return null
- *     with an error.
- *
- * @param {!Application} xcode Mac Scripting Application for Xcode
- * @param {!CommandArguments} args
- * @returns {!FunctionResult}
- */
-function getWorkspace(xcode, args) {
-	let matchingDocument = null;
-
-	try {
-		const documents = xcode.workspaceDocuments();
-		for (let document of documents) {
-			const filePath = document.file().toString();
-			if (filePath === args.projectPath || filePath === args.workspacePath) {
-				matchingDocument = document;
-				break;
-			}
-		}
-	} catch (e) {
-		return new FunctionResult(null, `Failed to get workspace: ${e}`);
-	}
-
-	if (matchingDocument == null) {
-		return new FunctionResult(null, `Failed to get workspace.`);
-	}
-
-	return new FunctionResult(matchingDocument);
-}
-
-/**
  * Sets active run destination to targeted device. Uses Xcode debug function
  *     from Mac Scripting for Xcode to install the app on the device and start
  *     a debugging session using the "run" or "run without building" scheme
@@ -435,23 +405,54 @@ function waitForWorkspaceToLoad(xcode, args) {
 		const maxWaitInSeconds = 10 * 60; // 10 minutes
 		const iterations = maxWaitInSeconds * (1 / checkFrequencyInSeconds);
 		for (let i = 0; i < iterations; i++) {
-			for (let window of xcode.windows()) {
-				const document = window.document();
-				if (document != null) {
-					const filePath = document.file().toString();
-					if (filePath === args.projectPath || filePath === args.workspacePath) {
-						if (document.loaded()) {
-							return new FunctionResult(null, null);
-						}
+			const workspaceResult = getWorkspace(xcode, args);
+				if (workspaceResult.error == null) {
+					const document = workspaceResult.result;
+					if (document.loaded()) {
+						return new FunctionResult(null, null);
 					}
 				}
-			}
 			delay(checkFrequencyInSeconds);
 		}
 		return new FunctionResult(null, "Timed out waiting for workspace to load");
 	} catch (e) {
 		return new FunctionResult(null, `Failed to wait for workspace to load: ${e}`);
 	}
+}
+
+/**
+ * Gets workspace opened in Xcode matching the projectPath or workspacePath
+ *     from the command line arguments. If workspace is not found, return null
+ *     with an error.
+ *
+ * @param {!Application} xcode Mac Scripting Application for Xcode
+ * @param {!CommandArguments} args
+ * @returns {!FunctionResult}
+ */
+function getWorkspace(xcode, args) {
+	const privatePrefix = "/private";
+
+	try {
+		const documents = xcode.workspaceDocuments();
+		for (let document of documents) {
+			const filePath = document.file().toString();
+			if (filePath === args.projectPath || filePath === args.workspacePath) {
+				return new FunctionResult(document);
+			}
+			// Sometimes when the project is in a temporary directory, it'll be
+			// prefixed with `/private` but the args will not. Remove the
+			// prefix before matching.
+			if (filePath.startsWith(privatePrefix)) {
+				const filePathWithoutPrefix = filePath.slice(privatePrefix.length);
+				if (filePathWithoutPrefix === args.projectPath || filePathWithoutPrefix === args.workspacePath) {
+					return new FunctionResult(document);
+				}
+			}
+		}
+	} catch (e) {
+		return new FunctionResult(null, `Failed to get workspace: ${e}`);
+	}
+	return new FunctionResult(null, `Failed to get workspace.`);
 }
 
 /**
