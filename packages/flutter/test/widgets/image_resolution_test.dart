@@ -13,22 +13,22 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 
 import '../image_data.dart';
 
 ByteData testByteData(double scale) => ByteData(8)..setFloat64(0, scale);
 double scaleOf(ByteData data) => data.getFloat64(0);
 
-final Map<Object?, Object?> testManifest = json.decode('''
-{
-  "assets/image.png" : [
-    {"asset": "assets/1.5x/image.png", "dpr": 1.5},
-    {"asset": "assets/2.0x/image.png", "dpr": 2.0},
-    {"asset": "assets/3.0x/image.png", "dpr": 3.0},
-    {"asset": "assets/4.0x/image.png", "dpr": 4.0}
-  ]
-}
-''') as Map<Object?, Object?>;
+final Map<Object?, Object?> testManifest = <Object?, Object?>{
+  'assets/image.png' : <Map<String, Object>>[
+    <String, String>{'asset': 'assets/image.png'},
+    <String, Object>{'asset': 'assets/1.5x/image.png', 'dpr': 1.5},
+    <String, Object>{'asset': 'assets/2.0x/image.png', 'dpr': 2.0},
+    <String, Object>{'asset': 'assets/3.0x/image.png', 'dpr': 3.0},
+    <String, Object>{'asset': 'assets/4.0x/image.png', 'dpr': 4.0}
+  ],
+};
 
 class TestAssetBundle extends CachingAssetBundle {
   TestAssetBundle({ required Map<Object?, Object?> manifest }) {
@@ -70,7 +70,7 @@ class FakeImageStreamCompleter extends ImageStreamCompleter {
 }
 
 class TestAssetImage extends AssetImage {
-  const TestAssetImage(super.name, this.images);
+  const TestAssetImage(super.assetName, this.images);
 
   final Map<double, ui.Image> images;
 
@@ -156,6 +156,7 @@ void main() {
   const String image = 'assets/image.png';
 
   final Map<double, ui.Image> images = <double, ui.Image>{};
+
   setUpAll(() async {
     for (final double scale in const <double>[0.5, 1.0, 1.5, 2.0, 4.0, 10.0]) {
       final int dimension = (48 * scale).floor();
@@ -163,7 +164,13 @@ void main() {
     }
   });
 
-  testWidgets('Image for device pixel ratio 1.0', (WidgetTester tester) async {
+  tearDownAll(() {
+    for (final ui.Image image in images.values) {
+      image.dispose();
+    }
+  });
+
+  testWidgetsWithLeakTracking('Image for device pixel ratio 1.0', (WidgetTester tester) async {
     const double ratio = 1.0;
     Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageAtRatio(image, key, ratio, false, images));
@@ -175,7 +182,7 @@ void main() {
     expect(getRenderImage(tester, key).scale, 1.0);
   });
 
-  testWidgets('Image for device pixel ratio 0.5', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image for device pixel ratio 0.5', (WidgetTester tester) async {
     const double ratio = 0.5;
     Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageAtRatio(image, key, ratio, false, images));
@@ -187,7 +194,7 @@ void main() {
     expect(getRenderImage(tester, key).scale, 1.0);
   });
 
-  testWidgets('Image for device pixel ratio 1.5', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image for device pixel ratio 1.5', (WidgetTester tester) async {
     const double ratio = 1.5;
     Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageAtRatio(image, key, ratio, false, images));
@@ -202,7 +209,7 @@ void main() {
   // A 1.75 DPR screen is typically a low-resolution screen, such that physical
   // pixels are visible to the user. For such screens we prefer to pick the
   // higher resolution image, if available.
-  testWidgets('Image for device pixel ratio 1.75', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image for device pixel ratio 1.75', (WidgetTester tester) async {
     const double ratio = 1.75;
     Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageAtRatio(image, key, ratio, false, images));
@@ -214,7 +221,7 @@ void main() {
     expect(getRenderImage(tester, key).scale, 2.0);
   });
 
-  testWidgets('Image for device pixel ratio 2.3', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image for device pixel ratio 2.3', (WidgetTester tester) async {
     const double ratio = 2.3;
     Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageAtRatio(image, key, ratio, false, images));
@@ -226,7 +233,7 @@ void main() {
     expect(getRenderImage(tester, key).scale, 2.0);
   });
 
-  testWidgets('Image for device pixel ratio 3.7', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image for device pixel ratio 3.7', (WidgetTester tester) async {
     const double ratio = 3.7;
     Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageAtRatio(image, key, ratio, false, images));
@@ -238,7 +245,7 @@ void main() {
     expect(getRenderImage(tester, key).scale, 4.0);
   });
 
-  testWidgets('Image for device pixel ratio 5.1', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image for device pixel ratio 5.1', (WidgetTester tester) async {
     const double ratio = 5.1;
     Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageAtRatio(image, key, ratio, false, images));
@@ -250,7 +257,7 @@ void main() {
     expect(getRenderImage(tester, key).scale, 4.0);
   });
 
-  testWidgets('Image for device pixel ratio 1.0, with a main asset and a 1.0x asset', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image for device pixel ratio 1.0, with a main asset and a 1.0x asset', (WidgetTester tester) async {
     // If both a main asset and a 1.0x asset are specified, then prefer
     // the 1.0x asset.
 
@@ -280,19 +287,19 @@ void main() {
     expect(getRenderImage(tester, key).image!.height, 480);
   });
 
-  testWidgets('Image cache resize upscale display 5', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image cache resize upscale display 5', (WidgetTester tester) async {
     final Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageCacheResized(image, key, 5, 5, 20, 20));
     expect(getRenderImage(tester, key).size, const Size(5.0, 5.0));
   });
 
-  testWidgets('Image cache resize upscale display 50', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image cache resize upscale display 50', (WidgetTester tester) async {
     final Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageCacheResized(image, key, 50, 50, 20, 20));
     expect(getRenderImage(tester, key).size, const Size(50.0, 50.0));
   });
 
-  testWidgets('Image cache resize downscale display 5', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('Image cache resize downscale display 5', (WidgetTester tester) async {
     final Key key = GlobalKey();
     await pumpTreeToLayout(tester, buildImageCacheResized(image, key, 5, 5, 1, 1));
     expect(getRenderImage(tester, key).size, const Size(5.0, 5.0));
@@ -302,14 +309,13 @@ void main() {
   // visible physical pixel size (see the test for 1.75 DPR above). However,
   // if higher resolution assets are not available we will pick the best
   // available.
-  testWidgets('Low-resolution assets', (WidgetTester tester) async {
-    final Map<Object?, Object?> manifest = json.decode('''
-      {
-        "assets/image.png" : [
-          {"asset": "assets/1.5x/image.png", "dpr": 1.5}
-        ]
-      }
-    ''') as Map<Object?, Object?>;
+  testWidgetsWithLeakTracking('Low-resolution assets', (WidgetTester tester) async {
+    const Map<Object?, Object?> manifest = <Object?, Object?>{
+      'assets/image.png': <Map<String, Object>>[
+        <String, Object>{'asset': 'assets/image.png'},
+        <String, Object>{'asset': 'assets/1.5x/image.png', 'dpr': 1.5},
+      ],
+    };
     final AssetBundle bundle = TestAssetBundle(manifest: manifest);
 
     Future<void> testRatio({required double ratio, required double expectedScale}) async {

@@ -72,8 +72,9 @@ class BuildWebCommand extends BuildSubCommand {
     );
     argParser.addOption('dart2js-optimization',
       help: 'Sets the optimization level used for Dart compilation to JavaScript. '
-          'Valid values range from O0 to O4.',
-          defaultsTo: JsCompilerConfig.kDart2jsDefaultOptimizationLevel
+          'Valid values range from O1 to O4.',
+      defaultsTo: JsCompilerConfig.kDart2jsDefaultOptimizationLevel,
+      allowed: const <String>['O1', 'O2', 'O3', 'O4'],
     );
     argParser.addFlag('dump-info', negatable: false,
       help: 'Passes "--dump-info" to the Javascript compiler which generates '
@@ -98,14 +99,18 @@ class BuildWebCommand extends BuildSubCommand {
     );
     argParser.addFlag(
       'omit-type-checks',
-      help: 'Omit type checks in Wasm output.',
+      help: 'Omit type checks in Wasm output.\n'
+          'Reduces code size and improves performance, but may affect runtime correctness. Use with care.',
       negatable: false,
       hide: !featureFlags.isFlutterWebWasmEnabled,
     );
-    argParser.addFlag(
+    argParser.addOption(
       'wasm-opt',
-      help: 'Run wasm-opt on the output wasm module.',
-      negatable: false,
+      help:
+          'Optimize output wasm using the Binaryen (https://github.com/WebAssembly/binaryen) tool.',
+      defaultsTo: WasmOptLevel.defaultValue.cliName,
+      allowed: WasmOptLevel.values.map<String>((WasmOptLevel e) => e.cliName),
+      allowedHelp: CliEnum.allowedHelp(WasmOptLevel.values),
       hide: !featureFlags.isFlutterWebWasmEnabled,
     );
   }
@@ -140,7 +145,7 @@ class BuildWebCommand extends BuildSubCommand {
       }
       compilerConfig = WasmCompilerConfig(
         omitTypeChecks: boolArg('omit-type-checks'),
-        runWasmOpt: boolArg('wasm-opt'),
+        wasmOpt: WasmOptLevel.values.byName(stringArg('wasm-opt')!),
       );
     } else {
       compilerConfig = JsCompilerConfig(

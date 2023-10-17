@@ -285,7 +285,7 @@ void main() {
       await tester.tap(find.text('test'), buttons: kSecondaryMouseButton);
 
       const String b = '$kSecondaryMouseButton';
-      for(int i = 0; i < logs.length; i++) {
+      for (int i = 0; i < logs.length; i++) {
         if (i == 0) {
           expect(logs[i], 'down $b');
         } else if (i != logs.length - 1) {
@@ -342,7 +342,7 @@ void main() {
       await tester.pumpAndSettle();
 
       const String b = '$kSecondaryMouseButton';
-      for(int i = 0; i < logs.length; i++) {
+      for (int i = 0; i < logs.length; i++) {
         if (i == 0) {
           expect(logs[i], 'down $b');
         } else if (i != logs.length - 1) {
@@ -374,7 +374,7 @@ void main() {
       await tester.drag(find.text('test'), const Offset(-150.0, 200.0), buttons: kSecondaryMouseButton);
 
       const String b = '$kSecondaryMouseButton';
-      for(int i = 0; i < logs.length; i++) {
+      for (int i = 0; i < logs.length; i++) {
         if (i == 0) {
           expect(logs[i], 'down $b');
         } else if (i != logs.length - 1) {
@@ -408,7 +408,7 @@ void main() {
 
       await tester.drag(find.text('test'), const Offset(-150.0, 200.0), kind: PointerDeviceKind.trackpad);
 
-      for(int i = 0; i < logs.length; i++) {
+      for (int i = 0; i < logs.length; i++) {
         if (i == 0) {
           expect(logs[i], 'panZoomStart');
         } else if (i != logs.length - 1) {
@@ -441,7 +441,7 @@ void main() {
       await tester.pumpAndSettle();
 
       const String b = '$kSecondaryMouseButton';
-      for(int i = 0; i < logs.length; i++) {
+      for (int i = 0; i < logs.length; i++) {
         if (i == 0) {
           expect(logs[i], 'down $b');
         } else if (i != logs.length - 1) {
@@ -506,7 +506,7 @@ void main() {
       await tester.pumpAndSettle();
 
       const String b = '$kSecondaryMouseButton';
-      for(int i = 0; i < logs.length; i++) {
+      for (int i = 0; i < logs.length; i++) {
         if (i == 0) {
           expect(logs[i], 'down $b');
         } else if (i != logs.length - 1) {
@@ -981,6 +981,38 @@ void main() {
         expect(
           tester.semantics.simulatedAccessibilityTraversal(),
           containsAllInOrder(expectedMatchers));
+      });
+
+      testWidgets('merging node should not be visited', (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MergeSemantics(
+              child: Column(
+                children: <Widget>[
+                  Semantics(
+                    container: true,
+                    child: const Text('1'),
+                  ),
+                  Semantics(
+                    container: true,
+                    child: const Text('2'),
+                  ),
+                  Semantics(
+                    container: true,
+                    child: const Text('3'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          tester.semantics.simulatedAccessibilityTraversal(),
+          orderedEquals(
+            <Matcher>[containsSemantics(label: '1\n2\n3')],
+          ),
+        );
       });
     });
   });

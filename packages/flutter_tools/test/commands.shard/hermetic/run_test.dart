@@ -1086,6 +1086,7 @@ void main() {
       '--use-test-fonts',
       '--trace-skia',
       '--trace-systrace',
+      '--trace-to-file=path/to/trace.binpb',
       '--verbose-system-logs',
       '--null-assertions',
       '--native-null-assertions',
@@ -1096,6 +1097,7 @@ void main() {
       '--enable-software-rendering',
       '--skia-deterministic-rendering',
       '--enable-embedder-api',
+      '--ci',
     ]), throwsToolExit());
 
     final DebuggingOptions options = await command.createDebuggingOptions(false);
@@ -1105,6 +1107,7 @@ void main() {
     expect(options.useTestFonts, true);
     expect(options.traceSkia, true);
     expect(options.traceSystrace, true);
+    expect(options.traceToFile, 'path/to/trace.binpb');
     expect(options.verboseSystemLogs, true);
     expect(options.nullAssertions, true);
     expect(options.nativeNullAssertions, true);
@@ -1114,6 +1117,7 @@ void main() {
     expect(options.impellerForceGL, true);
     expect(options.enableSoftwareRendering, true);
     expect(options.skiaDeterministicRendering, true);
+    expect(options.usingCISystem, true);
   }, overrides: <Type, Generator>{
     Cache: () => Cache.test(processManager: FakeProcessManager.any()),
     FileSystem: () => MemoryFileSystem.test(),
@@ -1146,10 +1150,8 @@ void main() {
 }
 
 class TestDeviceManager extends DeviceManager {
-  TestDeviceManager({required this.logger}) : super(logger: logger);
+  TestDeviceManager({required super.logger});
   List<Device> devices = <Device>[];
-
-  final Logger logger;
 
   @override
   List<DeviceDiscovery> get deviceDiscoverers {
@@ -1278,10 +1280,10 @@ class FakeDevice extends Fake implements Device {
     bool ipv6 = false,
     String? userIdentifier,
   }) async {
-    if (startAppSuccess == false) {
+    if (!startAppSuccess) {
       return LaunchResult.failed();
     }
-    if (startAppSuccess == true) {
+    if (startAppSuccess) {
       return LaunchResult.succeeded();
     }
     final String dartFlags = debuggingOptions.dartFlags;
@@ -1335,13 +1337,10 @@ class FakeIOSDevice extends Fake implements IOSDevice {
 
 class TestRunCommandForUsageValues extends RunCommand {
   TestRunCommandForUsageValues({
-   this.devices,
-  });
-
-  @override
-  // devices is not set within usageValues, so we override the field
-  // ignore: overridden_fields
-  List<Device>? devices;
+    List<Device>? devices,
+  }) {
+    this.devices = devices;
+  }
 
   @override
   Future<BuildInfo> getBuildInfo({ BuildMode? forcedBuildMode, File? forcedTargetFile }) async {

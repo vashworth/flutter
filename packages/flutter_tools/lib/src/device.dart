@@ -8,7 +8,6 @@ import 'dart:math' as math;
 import 'package:meta/meta.dart';
 
 import 'application_package.dart';
-import 'artifacts.dart';
 import 'base/context.dart';
 import 'base/dds.dart';
 import 'base/file_system.dart';
@@ -283,7 +282,7 @@ abstract class DeviceManager {
     bool includeDevicesUnsupportedByProject = false,
   }) {
     FlutterProject? flutterProject;
-    if (includeDevicesUnsupportedByProject == false) {
+    if (!includeDevicesUnsupportedByProject) {
       flutterProject = FlutterProject.current();
     }
     if (hasSpecifiedAllDevices) {
@@ -312,7 +311,7 @@ abstract class DeviceManager {
   Device? getSingleEphemeralDevice(List<Device> devices){
     if (!hasSpecifiedDeviceId) {
       try {
-        return devices.singleWhere((Device device) => device.ephemeral == true);
+        return devices.singleWhere((Device device) => device.ephemeral);
       } on StateError {
         return null;
       }
@@ -394,7 +393,7 @@ class DeviceDiscoverySupportFilter {
     if (_flutterProject == null) {
       return true;
     }
-    return device.isSupportedForProject(_flutterProject!);
+    return device.isSupportedForProject(_flutterProject);
   }
 }
 
@@ -504,12 +503,13 @@ abstract class PollingDeviceDiscovery extends DeviceDiscovery {
     if (_timer == null) {
       deviceNotifier ??= ItemListNotifier<Device>();
       // Make initial population the default, fast polling timeout.
-      _timer = _initTimer(null);
+      _timer = _initTimer(null, initialCall: true);
     }
   }
 
-  Timer _initTimer(Duration? pollingTimeout) {
-    return Timer(_pollingInterval, () async {
+  Timer _initTimer(Duration? pollingTimeout, {bool initialCall = false}) {
+    // Poll for devices immediately on the initial call for faster initial population.
+    return Timer(initialCall ? Duration.zero : _pollingInterval, () async {
       try {
         final List<Device> devices = await pollingGetDevices(timeout: pollingTimeout);
         deviceNotifier!.updateWithNewList(devices);
@@ -740,9 +740,6 @@ abstract class Device {
   /// Clear the device's logs.
   void clearLogs();
 
-  /// Optional device-specific artifact overrides.
-  OverrideArtifacts? get artifactOverrides => null;
-
   /// Start an app package on the current device.
   ///
   /// [platformArgs] allows callers to pass platform-specific arguments to the
@@ -848,8 +845,10 @@ abstract class Device {
     ];
   }
 
-  static Future<void> printDevices(List<Device> devices, Logger logger) async {
-    (await descriptions(devices)).forEach(logger.printStatus);
+  static Future<void> printDevices(List<Device> devices, Logger logger, { String prefix = '' }) async {
+    for (final String line in await descriptions(devices)) {
+      logger.printStatus('$prefix$line');
+    }
   }
 
   static List<String> devicesPlatformTypes(List<Device> devices) {
@@ -938,6 +937,7 @@ class DebuggingOptions {
     this.traceAllowlist,
     this.traceSkiaAllowlist,
     this.traceSystrace = false,
+    this.traceToFile,
     this.endlessTraceBuffer = false,
     this.dumpSkpOnShaderCompilation = false,
     this.cacheSkSL = false,
@@ -971,6 +971,7 @@ class DebuggingOptions {
     this.serveObservatory = false,
     this.enableDartProfiling = true,
     this.enableEmbedderApi = false,
+    this.usingCISystem = false,
    }) : debuggingEnabled = true;
 
   DebuggingOptions.disabled(this.buildInfo, {
@@ -993,6 +994,7 @@ class DebuggingOptions {
       this.uninstallFirst = false,
       this.enableDartProfiling = true,
       this.enableEmbedderApi = false,
+      this.usingCISystem = false,
     }) : debuggingEnabled = false,
       useTestFonts = false,
       startPaused = false,
@@ -1005,6 +1007,7 @@ class DebuggingOptions {
       traceSkia = false,
       traceSkiaAllowlist = null,
       traceSystrace = false,
+      traceToFile = null,
       endlessTraceBuffer = false,
       dumpSkpOnShaderCompilation = false,
       purgePersistentCache = false,
@@ -1036,6 +1039,7 @@ class DebuggingOptions {
     required this.traceAllowlist,
     required this.traceSkiaAllowlist,
     required this.traceSystrace,
+    required this.traceToFile,
     required this.endlessTraceBuffer,
     required this.dumpSkpOnShaderCompilation,
     required this.cacheSkSL,
@@ -1069,6 +1073,7 @@ class DebuggingOptions {
     required this.serveObservatory,
     required this.enableDartProfiling,
     required this.enableEmbedderApi,
+    required this.usingCISystem,
   });
 
   final bool debuggingEnabled;
@@ -1086,6 +1091,7 @@ class DebuggingOptions {
   final String? traceAllowlist;
   final String? traceSkiaAllowlist;
   final bool traceSystrace;
+  final String? traceToFile;
   final bool endlessTraceBuffer;
   final bool dumpSkpOnShaderCompilation;
   final bool cacheSkSL;
@@ -1109,6 +1115,7 @@ class DebuggingOptions {
   final bool serveObservatory;
   final bool enableDartProfiling;
   final bool enableEmbedderApi;
+  final bool usingCISystem;
 
   /// Whether the tool should try to uninstall a previously installed version of the app.
   ///
@@ -1152,6 +1159,7 @@ class DebuggingOptions {
     Map<String, Object?> platformArgs, {
     bool ipv6 = false,
     DeviceConnectionInterface interfaceType = DeviceConnectionInterface.attached,
+    bool isCoreDevice = false,
   }) {
     final String dartVmFlags = computeDartVmFlags(this);
     return <String>[
@@ -1165,12 +1173,16 @@ class DebuggingOptions {
       if (environmentType == EnvironmentType.simulator && dartVmFlags.isNotEmpty)
         '--dart-flags=$dartVmFlags',
       if (useTestFonts) '--use-test-fonts',
-      if (debuggingEnabled) ...<String>[
+      // Core Devices (iOS 17 devices) are debugged through Xcode so don't
+      // include these flags, which are used to check if the app was launched
+      // via Flutter CLI and `ios-deploy`.
+      if (debuggingEnabled && !isCoreDevice) ...<String>[
         '--enable-checked-mode',
         '--verify-entry-points',
       ],
       if (enableSoftwareRendering) '--enable-software-rendering',
       if (traceSystrace) '--trace-systrace',
+      if (traceToFile != null) '--trace-to-file="$traceToFile"',
       if (skiaDeterministicRendering) '--skia-deterministic-rendering',
       if (traceSkia) '--trace-skia',
       if (traceAllowlist != null) '--trace-allowlist="$traceAllowlist"',
@@ -1211,6 +1223,7 @@ class DebuggingOptions {
     'traceAllowlist': traceAllowlist,
     'traceSkiaAllowlist': traceSkiaAllowlist,
     'traceSystrace': traceSystrace,
+    'traceToFile': traceToFile,
     'endlessTraceBuffer': endlessTraceBuffer,
     'dumpSkpOnShaderCompilation': dumpSkpOnShaderCompilation,
     'cacheSkSL': cacheSkSL,
@@ -1243,6 +1256,7 @@ class DebuggingOptions {
     'serveObservatory': serveObservatory,
     'enableDartProfiling': enableDartProfiling,
     'enableEmbedderApi': enableEmbedderApi,
+    'usingCISystem': usingCISystem,
   };
 
   static DebuggingOptions fromJson(Map<String, Object?> json, BuildInfo buildInfo) =>
@@ -1261,6 +1275,7 @@ class DebuggingOptions {
       traceAllowlist: json['traceAllowlist'] as String?,
       traceSkiaAllowlist: json['traceSkiaAllowlist'] as String?,
       traceSystrace: json['traceSystrace']! as bool,
+      traceToFile: json['traceToFile'] as String?,
       endlessTraceBuffer: json['endlessTraceBuffer']! as bool,
       dumpSkpOnShaderCompilation: json['dumpSkpOnShaderCompilation']! as bool,
       cacheSkSL: json['cacheSkSL']! as bool,
@@ -1294,6 +1309,7 @@ class DebuggingOptions {
       serveObservatory: (json['serveObservatory'] as bool?) ?? false,
       enableDartProfiling: (json['enableDartProfiling'] as bool?) ?? true,
       enableEmbedderApi: (json['enableEmbedderApi'] as bool?) ?? false,
+      usingCISystem: (json['usingCISystem'] as bool?) ?? false,
     );
 }
 

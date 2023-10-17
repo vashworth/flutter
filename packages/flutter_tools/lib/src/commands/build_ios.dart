@@ -20,6 +20,7 @@ import '../globals.dart' as globals;
 import '../ios/application_package.dart';
 import '../ios/mac.dart';
 import '../ios/plist_parser.dart';
+import '../reporting/reporting.dart';
 import '../runner/flutter_command.dart';
 import 'build.dart';
 
@@ -376,11 +377,12 @@ class BuildIOSArchiveCommand extends _BuildIOSSubCommand {
 
     final Map<String, String?> xcodeProjectSettingsMap = <String, String?>{};
 
-    xcodeProjectSettingsMap['Version Number'] = globals.plistParser.getStringValueFromFile(plistPath, PlistParser.kCFBundleShortVersionStringKey);
-    xcodeProjectSettingsMap['Build Number'] = globals.plistParser.getStringValueFromFile(plistPath, PlistParser.kCFBundleVersionKey);
-    xcodeProjectSettingsMap['Display Name'] = globals.plistParser.getStringValueFromFile(plistPath, PlistParser.kCFBundleDisplayNameKey);
-    xcodeProjectSettingsMap['Deployment Target'] = globals.plistParser.getStringValueFromFile(plistPath, PlistParser.kMinimumOSVersionKey);
-    xcodeProjectSettingsMap['Bundle Identifier'] = globals.plistParser.getStringValueFromFile(plistPath, PlistParser.kCFBundleIdentifierKey);
+    xcodeProjectSettingsMap['Version Number'] = globals.plistParser.getValueFromFile<String>(plistPath, PlistParser.kCFBundleShortVersionStringKey);
+    xcodeProjectSettingsMap['Build Number'] = globals.plistParser.getValueFromFile<String>(plistPath, PlistParser.kCFBundleVersionKey);
+    xcodeProjectSettingsMap['Display Name'] = globals.plistParser.getValueFromFile<String>(plistPath, PlistParser.kCFBundleDisplayNameKey)
+      ?? globals.plistParser.getValueFromFile<String>(plistPath, PlistParser.kCFBundleNameKey);
+    xcodeProjectSettingsMap['Deployment Target'] = globals.plistParser.getValueFromFile<String>(plistPath, PlistParser.kMinimumOSVersionKey);
+    xcodeProjectSettingsMap['Bundle Identifier'] = globals.plistParser.getValueFromFile<String>(plistPath, PlistParser.kCFBundleIdentifierKey);
 
     final List<ValidationMessage> validationMessages = xcodeProjectSettingsMap.entries.map((MapEntry<String, String?> entry) {
       final String title = entry.key;
@@ -673,7 +675,7 @@ abstract class _BuildIOSSubCommand extends BuildSubCommand {
         appFilenamePattern: 'App'
       );
       // Only support 64bit iOS code size analysis.
-      final String arch = getNameForDarwinArch(DarwinArch.arm64);
+      final String arch = DarwinArch.arm64.name;
       final File aotSnapshot = globals.fs.directory(buildInfo.codeSizeDirectory)
         .childFile('snapshot.$arch.json');
       final File precompilerTrace = globals.fs.directory(buildInfo.codeSizeDirectory)
@@ -722,6 +724,21 @@ abstract class _BuildIOSSubCommand extends BuildSubCommand {
 
     if (result.output != null) {
       globals.printStatus('Built ${result.output}.');
+
+      // When an app is successfully built, record to analytics whether Impeller
+      // is enabled or disabled.
+      final BuildableIOSApp app = await buildableIOSApp;
+      final String plistPath = app.project.infoPlist.path;
+      final bool? impellerEnabled = globals.plistParser.getValueFromFile<bool>(
+        plistPath, PlistParser.kFLTEnableImpellerKey,
+      );
+      BuildEvent(
+        impellerEnabled == false
+          ? 'plist-impeller-disabled'
+          : 'plist-impeller-enabled',
+        type: 'ios',
+        flutterUsage: globals.flutterUsage,
+      ).send();
 
       return FlutterCommandResult.success();
     }

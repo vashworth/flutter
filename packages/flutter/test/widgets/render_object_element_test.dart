@@ -5,6 +5,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 
 @immutable
 class Pair<T> {
@@ -49,17 +50,6 @@ class SwapperWithProperOverrides extends Swapper {
 
   @override
   SwapperElement createElement() => SwapperElementWithProperOverrides(this);
-}
-
-class SwapperWithNoOverrides extends Swapper {
-  const SwapperWithNoOverrides({
-    super.key,
-    super.stable,
-    super.swapper,
-  });
-
-  @override
-  SwapperElement createElement() => SwapperElementWithNoOverrides(this);
 }
 
 abstract class SwapperElement extends RenderObjectElement {
@@ -147,13 +137,9 @@ class SwapperElementWithProperOverrides extends SwapperElement {
   }
 }
 
-class SwapperElementWithNoOverrides extends SwapperElement {
-  SwapperElementWithNoOverrides(super.widget);
-}
-
 class RenderSwapper extends RenderBox {
-  RenderBox? _stable;
   RenderBox? get stable => _stable;
+  RenderBox? _stable;
   set stable(RenderBox? child) {
     if (child == _stable) {
       return;
@@ -168,8 +154,8 @@ class RenderSwapper extends RenderBox {
   }
 
   bool? _swapperIsOnTop;
-  RenderBox? _swapper;
   RenderBox? get swapper => _swapper;
+  RenderBox? _swapper;
   void setSwapper(RenderBox? child, bool isOnTop) {
     if (isOnTop != _swapperIsOnTop) {
       _swapperIsOnTop = isOnTop;
@@ -189,11 +175,11 @@ class RenderSwapper extends RenderBox {
 
   @override
   void visitChildren(RenderObjectVisitor visitor) {
-    if (_stable != null) {
-      visitor(_stable!);
+    if (stable != null) {
+      visitor(stable!);
     }
-    if (_swapper != null) {
-      visitor(_swapper!);
+    if (swapper != null) {
+      visitor(swapper!);
     }
   }
 
@@ -225,14 +211,14 @@ class RenderSwapper extends RenderBox {
       minHeight: constraints.minHeight / 2,
       maxHeight: constraints.maxHeight / 2,
     );
-    if (_stable != null) {
-      final BoxParentData stableParentData = _stable!.parentData! as BoxParentData;
-      _stable!.layout(childConstraints);
+    if (stable != null) {
+      final BoxParentData stableParentData = stable!.parentData! as BoxParentData;
+      stable!.layout(childConstraints);
       stableParentData.offset = _swapperIsOnTop! ? bottomOffset : topOffset;
     }
-    if (_swapper != null) {
-      final BoxParentData swapperParentData = _swapper!.parentData! as BoxParentData;
-      _swapper!.layout(childConstraints);
+    if (swapper != null) {
+      final BoxParentData swapperParentData = swapper!.parentData! as BoxParentData;
+      swapper!.layout(childConstraints);
       swapperParentData.offset = _swapperIsOnTop! ? topOffset : bottomOffset;
     }
   }
@@ -254,7 +240,7 @@ class RenderSwapper extends RenderBox {
 BoxParentData parentDataFor(RenderObject renderObject) => renderObject.parentData! as BoxParentData;
 
 void main() {
-  testWidgets('RenderObjectElement *RenderObjectChild methods get called with correct arguments', (WidgetTester tester) async {
+  testWidgetsWithLeakTracking('RenderObjectElement *RenderObjectChild methods get called with correct arguments', (WidgetTester tester) async {
     const Key redKey = ValueKey<String>('red');
     const Key blueKey = ValueKey<String>('blue');
     Widget widget() {

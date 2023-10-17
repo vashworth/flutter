@@ -21,6 +21,7 @@ import 'scrollable.dart';
 import 'scrollable_helpers.dart';
 import 'sliver.dart';
 import 'sliver_prototype_extent_list.dart';
+import 'sliver_varied_extent_list.dart';
 import 'ticker_provider.dart';
 import 'transitions.dart';
 
@@ -118,6 +119,7 @@ class ReorderableList extends StatefulWidget {
     this.onReorderStart,
     this.onReorderEnd,
     this.itemExtent,
+    this.itemExtentBuilder,
     this.prototypeItem,
     this.proxyDecorator,
     this.padding,
@@ -135,10 +137,12 @@ class ReorderableList extends StatefulWidget {
     this.clipBehavior = Clip.hardEdge,
     this.autoScrollerVelocityScalar,
   }) : assert(itemCount >= 0),
-       assert(
-         itemExtent == null || prototypeItem == null,
-         'You can only pass itemExtent or prototypeItem, not both',
-       );
+        assert(
+          (itemExtent == null && prototypeItem == null) ||
+          (itemExtent == null && itemExtentBuilder == null) ||
+          (prototypeItem == null && itemExtentBuilder == null),
+          'You can only pass one of itemExtent, prototypeItem and itemExtentBuilder.',
+        );
 
   /// {@template flutter.widgets.reorderable_list.itemBuilder}
   /// Called, as needed, to build list item widgets.
@@ -253,10 +257,15 @@ class ReorderableList extends StatefulWidget {
   /// {@macro flutter.widgets.list_view.itemExtent}
   final double? itemExtent;
 
+  /// {@macro flutter.widgets.list_view.itemExtentBuilder}
+  final ItemExtentBuilder? itemExtentBuilder;
+
   /// {@macro flutter.widgets.list_view.prototypeItem}
   final Widget? prototypeItem;
 
   /// {@macro flutter.widgets.EdgeDraggingAutoScroller.velocityScalar}
+  ///
+  /// {@macro flutter.widgets.SliverReorderableList.autoScrollerVelocityScalar.default}
   final double? autoScrollerVelocityScalar;
 
   /// The state from the closest instance of this class that encloses the given
@@ -448,14 +457,21 @@ class SliverReorderableList extends StatefulWidget {
     this.onReorderStart,
     this.onReorderEnd,
     this.itemExtent,
+    this.itemExtentBuilder,
     this.prototypeItem,
     this.proxyDecorator,
-    this.autoScrollerVelocityScalar,
-  }) : assert(itemCount >= 0),
+    double? autoScrollerVelocityScalar,
+  }) : autoScrollerVelocityScalar = autoScrollerVelocityScalar ?? _kDefaultAutoScrollVelocityScalar,
+       assert(itemCount >= 0),
        assert(
-         itemExtent == null || prototypeItem == null,
-         'You can only pass itemExtent or prototypeItem, not both',
+         (itemExtent == null && prototypeItem == null) ||
+         (itemExtent == null && itemExtentBuilder == null) ||
+         (prototypeItem == null && itemExtentBuilder == null),
+         'You can only pass one of itemExtent, prototypeItem and itemExtentBuilder.',
        );
+
+  // An eyeballed value for a smooth scrolling experience.
+  static const double _kDefaultAutoScrollVelocityScalar = 50;
 
   /// {@macro flutter.widgets.reorderable_list.itemBuilder}
   final IndexedWidgetBuilder itemBuilder;
@@ -481,11 +497,18 @@ class SliverReorderableList extends StatefulWidget {
   /// {@macro flutter.widgets.list_view.itemExtent}
   final double? itemExtent;
 
+  /// {@macro flutter.widgets.list_view.itemExtentBuilder}
+  final ItemExtentBuilder? itemExtentBuilder;
+
   /// {@macro flutter.widgets.list_view.prototypeItem}
   final Widget? prototypeItem;
 
   /// {@macro flutter.widgets.EdgeDraggingAutoScroller.velocityScalar}
-  final double? autoScrollerVelocityScalar;
+  ///
+  /// {@template flutter.widgets.SliverReorderableList.autoScrollerVelocityScalar.default}
+  /// Defaults to 50 if not set or set to null.
+  /// {@endtemplate}
+  final double autoScrollerVelocityScalar;
 
   @override
   SliverReorderableListState createState() => SliverReorderableListState();
@@ -775,6 +798,25 @@ class SliverReorderableListState extends State<SliverReorderableList> with Ticke
   }
 
   void _dragEnd(_DragInfo item) {
+    // No changes required if last child is being inserted into the last position.
+    if ((_insertIndex! + 1 == _items.length) && _reverse) {
+      final RenderBox lastItemRenderBox =  _items[_items.length - 1]!.context.findRenderObject()! as RenderBox;
+      final Offset lastItemOffset =  lastItemRenderBox.localToGlobal(Offset.zero);
+
+      // When drag starts, the corresponding element is removed from
+      // the list, and moves inside of [ReorderableListState.CustomScrollView],
+      // which gives [CustomScrollView] a variable height.
+      //
+      // So when the element is moved, delta would change accordingly,
+      // and since it's the last element,
+      // we animate it back to it's position and add it back to the list.
+      final double delta = item.itemSize.height;
+
+      setState(() {
+        _finalDropPosition = Offset(lastItemOffset.dx, lastItemOffset.dy  - delta);
+      });
+      return;
+    }
     setState(() {
       if (_insertIndex == item.index) {
         _finalDropPosition = _itemOffsetAt(_insertIndex! + (_reverse ? 1 : 0));
@@ -822,6 +864,7 @@ class SliverReorderableListState extends State<SliverReorderableList> with Ticke
       _recognizer?.dispose();
       _recognizer = null;
       _overlayEntry?.remove();
+      _overlayEntry?.dispose();
       _overlayEntry = null;
       _finalDropPosition = null;
     }
@@ -1024,6 +1067,11 @@ class SliverReorderableListState extends State<SliverReorderableList> with Ticke
       return SliverFixedExtentList(
         delegate: childrenDelegate,
         itemExtent: widget.itemExtent!,
+      );
+    } else if (widget.itemExtentBuilder != null) {
+      return SliverVariedExtentList(
+        delegate: childrenDelegate,
+        itemExtentBuilder: widget.itemExtentBuilder!,
       );
     } else if (widget.prototypeItem != null) {
       return SliverPrototypeExtentList(

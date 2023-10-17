@@ -62,8 +62,6 @@ import 'theme_data.dart';
 ///  * <https://m3.material.io/components/buttons>
 class ElevatedButton extends ButtonStyleButton {
   /// Create an ElevatedButton.
-  ///
-  /// The [autofocus] and [clipBehavior] arguments must not be null.
   const ElevatedButton({
     super.key,
     required super.onPressed,
@@ -83,8 +81,6 @@ class ElevatedButton extends ButtonStyleButton {
   ///
   /// The icon and label are arranged in a row and padded by 12 logical pixels
   /// at the start, and 16 at the end, with an 8 pixel gap in between.
-  ///
-  /// The [icon] and [label] arguments must not be null.
   factory ElevatedButton.icon({
     Key? key,
     required VoidCallback? onPressed,
@@ -398,7 +394,7 @@ EdgeInsetsGeometry _scaledPadding(BuildContext context) {
      EdgeInsets.symmetric(horizontal: padding1x),
      EdgeInsets.symmetric(horizontal: padding1x / 2),
      EdgeInsets.symmetric(horizontal: padding1x / 2 / 2),
-    MediaQuery.textScaleFactorOf(context),
+    MediaQuery.textScalerOf(context).textScaleFactor,
   );
 }
 
@@ -426,10 +422,13 @@ class _ElevatedButtonDefaultOverlay extends MaterialStateProperty<Color?> with D
 
   @override
   Color? resolve(Set<MaterialState> states) {
+    if (states.contains(MaterialState.pressed)) {
+      return overlay.withOpacity(0.24);
+    }
     if (states.contains(MaterialState.hovered)) {
       return overlay.withOpacity(0.08);
     }
-    if (states.contains(MaterialState.focused) || states.contains(MaterialState.pressed)) {
+    if (states.contains(MaterialState.focused)) {
       return overlay.withOpacity(0.24);
     }
     return null;
@@ -447,14 +446,14 @@ class _ElevatedButtonDefaultElevation extends MaterialStateProperty<double> with
     if (states.contains(MaterialState.disabled)) {
       return 0;
     }
+    if (states.contains(MaterialState.pressed)) {
+      return elevation + 6;
+    }
     if (states.contains(MaterialState.hovered)) {
       return elevation + 2;
     }
     if (states.contains(MaterialState.focused)) {
       return elevation + 2;
-    }
-    if (states.contains(MaterialState.pressed)) {
-      return elevation + 6;
     }
     return elevation;
   }
@@ -503,12 +502,12 @@ class _ElevatedButtonWithIcon extends ElevatedButton {
       const EdgeInsetsDirectional.fromSTEB(16, 0, 24, 0),
       const EdgeInsetsDirectional.fromSTEB(8, 0, 12, 0),
       const EdgeInsetsDirectional.fromSTEB(4, 0, 6, 0),
-      MediaQuery.textScaleFactorOf(context),
+      MediaQuery.textScalerOf(context).textScaleFactor,
     ) : ButtonStyleButton.scaledPadding(
       const EdgeInsetsDirectional.fromSTEB(12, 0, 16, 0),
       const EdgeInsets.symmetric(horizontal: 8),
       const EdgeInsetsDirectional.fromSTEB(8, 0, 4, 0),
-      MediaQuery.textScaleFactorOf(context),
+      MediaQuery.textScalerOf(context).textScaleFactor,
     );
     return super.defaultStyleOf(context).copyWith(
       padding: MaterialStatePropertyAll<EdgeInsetsGeometry>(scaledPadding),
@@ -524,7 +523,7 @@ class _ElevatedButtonWithIconChild extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double scale = MediaQuery.textScaleFactorOf(context);
+    final double scale = MediaQuery.textScalerOf(context).textScaleFactor;
     final double gap = scale <= 1 ? 8 : lerpDouble(8, 4, math.min(scale - 1, 1))!;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -539,8 +538,6 @@ class _ElevatedButtonWithIconChild extends StatelessWidget {
 // "END GENERATED" comments are generated from data in the Material
 // Design token database by the script:
 //   dev/tools/gen_defaults/bin/gen_defaults.dart.
-
-// Token database version: v0_162
 
 class _ElevatedButtonDefaultsM3 extends ButtonStyle {
   _ElevatedButtonDefaultsM3(this.context)
@@ -578,13 +575,13 @@ class _ElevatedButtonDefaultsM3 extends ButtonStyle {
   @override
   MaterialStateProperty<Color?>? get overlayColor =>
     MaterialStateProperty.resolveWith((Set<MaterialState> states) {
+      if (states.contains(MaterialState.pressed)) {
+        return _colors.primary.withOpacity(0.12);
+      }
       if (states.contains(MaterialState.hovered)) {
         return _colors.primary.withOpacity(0.08);
       }
       if (states.contains(MaterialState.focused)) {
-        return _colors.primary.withOpacity(0.12);
-      }
-      if (states.contains(MaterialState.pressed)) {
         return _colors.primary.withOpacity(0.12);
       }
       return null;
@@ -604,13 +601,13 @@ class _ElevatedButtonDefaultsM3 extends ButtonStyle {
       if (states.contains(MaterialState.disabled)) {
         return 0.0;
       }
+      if (states.contains(MaterialState.pressed)) {
+        return 1.0;
+      }
       if (states.contains(MaterialState.hovered)) {
         return 3.0;
       }
       if (states.contains(MaterialState.focused)) {
-        return 1.0;
-      }
-      if (states.contains(MaterialState.pressed)) {
         return 1.0;
       }
       return 1.0;

@@ -29,14 +29,20 @@ import 'platform_plugins.dart';
 import 'plugins.dart';
 import 'project.dart';
 
-void _renderTemplateToFile(String template, Object? context, File file, TemplateRenderer templateRenderer) {
+Future<void> _renderTemplateToFile(
+  String template,
+  Object? context,
+  File file,
+  TemplateRenderer templateRenderer,
+) async {
   final String renderedTemplate = templateRenderer
     .renderString(template, context);
-  file.createSync(recursive: true);
-  file.writeAsStringSync(renderedTemplate);
+  await file.create(recursive: true);
+  await file.writeAsString(renderedTemplate);
 }
 
-Plugin? _pluginFromPackage(String name, Uri packageRoot, Set<String> appDependencies, {FileSystem? fileSystem}) {
+Future<Plugin?> _pluginFromPackage(String name, Uri packageRoot, Set<String> appDependencies,
+    {FileSystem? fileSystem}) async {
   final FileSystem fs = fileSystem ?? globals.fs;
   final File pubspecFile = fs.file(packageRoot.resolve('pubspec.yaml'));
   if (!pubspecFile.existsSync()) {
@@ -45,7 +51,7 @@ Plugin? _pluginFromPackage(String name, Uri packageRoot, Set<String> appDependen
   Object? pubspec;
 
   try {
-    pubspec = loadYaml(pubspecFile.readAsStringSync());
+    pubspec = loadYaml(await pubspecFile.readAsString());
   } on YamlException catch (err) {
     globals.printTrace('Failed to parse plugin manifest for $name: $err');
     // Do nothing, potentially not a plugin.
@@ -88,7 +94,7 @@ Future<List<Plugin>> findPlugins(FlutterProject project, { bool throwOnError = t
   );
   for (final Package package in packageConfig.packages) {
     final Uri packageRoot = package.packageUriRoot.resolve('..');
-    final Plugin? plugin = _pluginFromPackage(
+    final Plugin? plugin = await _pluginFromPackage(
       package.name,
       packageRoot,
       project.manifest.dependencies,
@@ -332,7 +338,7 @@ public final class GeneratedPluginRegistrant {
   {{#supportsEmbeddingV2}}
     try {
       flutterEngine.getPlugins().add(new {{package}}.{{class}}());
-    } catch(Exception e) {
+    } catch (Exception e) {
       Log.e(TAG, "Error registering plugin {{name}}, {{package}}.{{class}}", e);
     }
   {{/supportsEmbeddingV2}}
@@ -340,7 +346,7 @@ public final class GeneratedPluginRegistrant {
     {{#supportsEmbeddingV1}}
     try {
       {{package}}.{{class}}.registerWith(shimPluginRegistry.registrarFor("{{package}}.{{class}}"));
-    } catch(Exception e) {
+    } catch (Exception e) {
       Log.e(TAG, "Error registering plugin {{name}}, {{package}}.{{class}}", e);
     }
     {{/supportsEmbeddingV1}}
@@ -448,7 +454,7 @@ Future<void> _writeAndroidPluginRegistrant(FlutterProject project, List<Plugin> 
       templateContent = _androidPluginRegistryTemplateOldEmbedding;
   }
   globals.printTrace('Generating $registryPath');
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     templateContent,
     templateContext,
     globals.fs.file(registryPath),
@@ -777,20 +783,20 @@ Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plug
   };
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;
-    _renderTemplateToFile(
+    await _renderTemplateToFile(
       _pluginRegistrantPodspecTemplate,
       context,
       registryDirectory.childFile('FlutterPluginRegistrant.podspec'),
       globals.templateRenderer,
     );
   }
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _objcPluginRegistryHeaderTemplate,
     context,
     project.ios.pluginRegistrantHeader,
     globals.templateRenderer,
   );
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _objcPluginRegistryImplementationTemplate,
     context,
     project.ios.pluginRegistrantImplementation,
@@ -832,13 +838,13 @@ Future<void> _writeLinuxPluginFiles(FlutterProject project, List<Plugin> plugins
 }
 
 Future<void> _writeLinuxPluginRegistrant(Directory destination, Map<String, Object> templateContext) async {
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _linuxPluginRegistryHeaderTemplate,
     templateContext,
     destination.childFile('generated_plugin_registrant.h'),
     globals.templateRenderer,
   );
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _linuxPluginRegistryImplementationTemplate,
     templateContext,
     destination.childFile('generated_plugin_registrant.cc'),
@@ -847,7 +853,7 @@ Future<void> _writeLinuxPluginRegistrant(Directory destination, Map<String, Obje
 }
 
 Future<void> _writePluginCmakefile(File destinationFile, Map<String, Object> templateContext, TemplateRenderer templateRenderer) async {
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _pluginCmakefileTemplate,
     templateContext,
     destinationFile,
@@ -863,7 +869,7 @@ Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> pl
     'framework': 'FlutterMacOS',
     'methodChannelPlugins': macosMethodChannelPlugins,
   };
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _swiftPluginRegistryTemplate,
     context,
     project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
@@ -934,13 +940,13 @@ Future<void> writeWindowsPluginFiles(FlutterProject project, List<Plugin> plugin
 }
 
 Future<void> _writeCppPluginRegistrant(Directory destination, Map<String, Object> templateContext, TemplateRenderer templateRenderer) async {
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _cppPluginRegistryHeaderTemplate,
     templateContext,
     destination.childFile('generated_plugin_registrant.h'),
     templateRenderer,
   );
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     _cppPluginRegistryImplementationTemplate,
     templateContext,
     destination.childFile('generated_plugin_registrant.cc'),
@@ -958,7 +964,7 @@ Future<void> _writeWebPluginRegistrant(FlutterProject project, List<Plugin> plug
 
   final String template = webPlugins.isEmpty ? _noopDartPluginRegistryTemplate : _dartPluginRegistryTemplate;
 
-  _renderTemplateToFile(
+  await _renderTemplateToFile(
     template,
     context,
     pluginFile,
@@ -973,7 +979,7 @@ Future<void> _writeWebPluginRegistrant(FlutterProject project, List<Plugin> plug
 /// be created only if missing.
 ///
 /// This uses [project.flutterPluginsDependenciesFile], so it should only be
-/// run after refreshPluginList has been run since the last plugin change.
+/// run after [refreshPluginsList] has been run since the last plugin change.
 void createPluginSymlinks(FlutterProject project, {bool force = false, @visibleForTesting FeatureFlags? featureFlagsOverride}) {
   final FeatureFlags localFeatureFlags = featureFlagsOverride ?? featureFlags;
   Map<String, Object?>? platformPlugins;
@@ -1031,6 +1037,14 @@ void handleSymlinkException(FileSystemException e, {
             'to open settings.'
           : 'You must build from a terminal run as administrator.';
       throwToolExit('Building with plugins requires symlink support.\n\n$instructions');
+    }
+    // ERROR_INVALID_FUNCTION, trying to link across drives, which is not supported
+    if (e.osError?.errorCode == 1) {
+      throwToolExit(
+        'Creating symlink from $source to $destination failed with '
+        'ERROR_INVALID_FUNCTION. Try moving your Flutter project to the same '
+        'drive as your Flutter SDK.',
+      );
     }
   }
 }
@@ -1488,8 +1502,8 @@ Future<void> generateMainDartWithPluginRegistrant(
   final File newMainDart = rootProject.dartPluginRegistrant;
   if (resolutions.isEmpty) {
     try {
-      if (newMainDart.existsSync()) {
-        newMainDart.deleteSync();
+      if (await newMainDart.exists()) {
+        await newMainDart.delete();
       }
     } on FileSystemException catch (error) {
       globals.printWarning(
@@ -1505,7 +1519,7 @@ Future<void> generateMainDartWithPluginRegistrant(
     (templateContext[resolution.platform] as List<Object?>?)?.add(resolution.toMap());
   }
   try {
-    _renderTemplateToFile(
+    await _renderTemplateToFile(
       _dartPluginRegistryForNonWebTemplate,
       templateContext,
       newMainDart,

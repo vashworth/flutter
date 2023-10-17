@@ -113,7 +113,7 @@ void main() {
             arguments: <String>['--no-pub'],
           );
         }, throwsToolExit(
-          message: 'No Android SDK found. Try setting the ANDROID_SDK_ROOT environment variable',
+          message: 'No Android SDK found. Try setting the ANDROID_HOME environment variable',
         ));
       },
       overrides: <Type, Generator>{
@@ -230,7 +230,4 @@ class FakeAndroidSdk extends Fake implements AndroidSdk {
 
   @override
   final Directory directory;
-
-  @override
-  String? get javaHome => 'java';
 }

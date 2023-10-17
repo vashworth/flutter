@@ -1060,10 +1060,10 @@ dependencies:
         const String newPluginName = 'flutterEngine.getPlugins().add(new plugin1.UseNewEmbedding());';
         const String oldPluginName = 'abcplugin1.UseOldEmbedding.registerWith(shimPluginRegistry.registrarFor("abcplugin1.UseOldEmbedding"));';
         final String content = registrant.readAsStringSync();
-        for(final String plugin in <String>[newPluginName,oldPluginName]) {
+        for (final String plugin in <String>[newPluginName,oldPluginName]) {
           expect(content, contains(plugin));
           expect(content.split(plugin).first.trim().endsWith('try {'), isTrue);
-          expect(content.split(plugin).last.trim().startsWith('} catch(Exception e) {'), isTrue);
+          expect(content.split(plugin).last.trim().startsWith('} catch (Exception e) {'), isTrue);
         }
       }, overrides: <Type, Generator>{
         FileSystem: () => fs,
@@ -1687,6 +1687,24 @@ flutter:
           destination: ephemeralPackagePath,
         ),
         throwsToolExit(message: 'administrator'),
+      );
+    });
+
+    testWithoutContext('Symlink failures instruct developers to have their project on the same drive as their SDK', () async {
+      final Platform platform = FakePlatform(operatingSystem: 'windows');
+      final FakeOperatingSystemUtils os = FakeOperatingSystemUtils('Microsoft Windows [Version 10.0.14972]');
+
+      const FileSystemException e = FileSystemException('', '', OSError('', 1));
+
+      expect(
+        () => handleSymlinkException(
+          e,
+          platform: platform,
+          os: os,
+          source: pubCachePath,
+          destination: ephemeralPackagePath,
+        ),
+        throwsToolExit(message: 'Try moving your Flutter project to the same drive as your Flutter SDK'),
       );
     });
 
