@@ -148,7 +148,7 @@ platform_properties:
           {"dependency": "chrome_and_driver", "version": "version:117.0"},
           {"dependency": "open_jdk", "version": "version:11"}
         ]
-      os: Mac-12
+      os: Mac-12|Mac-13
       cpu: x86
       device_type: "msm8952"
   mac_arm64_android:
@@ -158,7 +158,7 @@ platform_properties:
           {"dependency": "android_sdk", "version": "version:33v6"},
           {"dependency": "open_jdk", "version": "version:11"}
         ]
-      os: Mac-12
+      os: Mac-12|Mac-13
       cpu: arm64
       device_type: "msm8952"
   mac_ios:
@@ -168,7 +168,7 @@ platform_properties:
           {"dependency": "gems", "version": "v3.3.14"},
           {"dependency": "apple_signing", "version": "version:to_2024"}
         ]
-      os: Mac-12
+      os: Mac-12|Mac-13
       cpu: x86
       device_os: iOS-16
       $flutter/osx_sdk : >-
@@ -182,7 +182,7 @@ platform_properties:
           {"dependency": "gems", "version": "v3.3.14"},
           {"dependency": "apple_signing", "version": "none"}
         ]
-      os: Mac-12
+      os: Mac-12|Mac-13
       cpu: arm64
       device_os: iOS-16
       $flutter/osx_sdk : >-
