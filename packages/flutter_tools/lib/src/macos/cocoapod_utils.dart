@@ -5,8 +5,10 @@
 import '../base/fingerprint.dart';
 import '../build_info.dart';
 import '../cache.dart';
+import '../features.dart';
 import '../flutter_plugins.dart';
 import '../globals.dart' as globals;
+import '../platform_plugins.dart';
 import '../project.dart';
 
 /// For a given build, determines whether dependencies have changed since the
@@ -14,10 +16,24 @@ import '../project.dart';
 Future<void> processPodsIfNeeded(
   XcodeBasedProject xcodeProject,
   String buildDirectory,
-  BuildMode buildMode) async {
+  BuildMode buildMode,
+) async {
   final FlutterProject project = xcodeProject.parent;
+  final bool isMacOSPlatform = project.macos.existsSync();
+
+  if (featureFlags.isSwiftPackageManagerEnabled) {
+    final bool useCocoapods = await globals.cocoaPods!.usesCocoapodPlugins(
+      project: project,
+      platform: isMacOSPlatform ? SupportedPlatform.macos : SupportedPlatform.ios,
+      fileSystem: globals.fs,
+    );
+    if (!useCocoapods) {
+      return;
+    }
+  }
+
   // Ensure that the plugin list is up to date, since hasPlugins relies on it.
-  await refreshPluginsList(project, macOSPlatform: project.macos.existsSync());
+  await refreshPluginsList(project, macOSPlatform: isMacOSPlatform);
   if (!(hasPlugins(project) || (project.isModule && xcodeProject.podfile.existsSync()))) {
     return;
   }

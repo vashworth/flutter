@@ -211,6 +211,7 @@ class Template {
       if (match != null) {
         final String platform = match.group(1)!;
         final String? language = context['${platform}Language'] as String?;
+        // TODO: SPM create project, create plugin template
         if (language != match.group(2)) {
           return null;
         }

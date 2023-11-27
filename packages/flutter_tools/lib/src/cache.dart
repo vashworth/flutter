@@ -945,53 +945,6 @@ abstract class EngineCachedArtifact extends CachedArtifact {
       final String friendlyName = urlPath.replaceAll('/artifacts.zip', '').replaceAll('.zip', '');
       await artifactUpdater.downloadZipArchive('Downloading $friendlyName tools...', Uri.parse(url + urlPath), dir);
 
-      // TODO(vashworth): insert Package.swift, handled in tool?
-      if (cacheDir.startsWith('ios')) {
-        final Directory flutterEnginePackage = dir.childDirectory('FlutterFramework');
-        if (!flutterEnginePackage.existsSync()) {
-          flutterEnginePackage.createSync();
-        }
-
-        final Link linkToFlutterFramework = flutterEnginePackage.childLink('Flutter.xcframework');
-        final File origFlutterFramework = fileSystem.file(fileSystem.path.join(dir.path, 'Flutter.xcframework'));
-        if (!linkToFlutterFramework.existsSync()) {
-          linkToFlutterFramework.createSync(origFlutterFramework.path);
-        }
-
-        final File packageSwift = fileSystem.file(fileSystem.path.join(flutterEnginePackage.path, 'Package.swift'));
-        if (!packageSwift.existsSync()) {
-          packageSwift.writeAsStringSync('''
-// swift-tools-version: 5.7
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
-import PackageDescription
-
-let package = Package(
-    name: "FlutterFramework",
-    products: [
-        // Products define the executables and libraries a package produces, and make them visible to other packages.
-        .library(
-            name: "FlutterFramework",
-            targets: ["Flutter"]),
-    ],
-    dependencies: [
-        // Dependencies declare other packages that this package depends on.
-    ],
-    targets: [
-        // Targets are the basic building blocks of a package. A target can define a module or a test suite.
-        // Targets can depend on other targets in this package, and on products in packages this package depends on.
-        .binaryTarget(
-            // Binary Target name should match the name of the module defined by xcframework
-            name: "Flutter",
-            path: "Flutter.xcframework"
-        ),
-    ]
-)
-''');
-        }
-      }
-
-
       _makeFilesExecutable(dir, operatingSystemUtils);
 
       final File frameworkZip = fileSystem.file(fileSystem.path.join(dir.path, 'FlutterMacOS.framework.zip'));

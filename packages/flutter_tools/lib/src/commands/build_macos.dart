@@ -21,6 +21,7 @@ class BuildMacosCommand extends BuildSubCommand {
   }) : super(verboseHelp: verboseHelp) {
     addCommonDesktopBuildOptions(verboseHelp: verboseHelp);
     usesFlavorOption();
+    usesSwiftPackageManagerOptions(verboseHelp: verboseHelp);
     argParser
       .addFlag('config-only',
         help: 'Update the project configuration without performing a build. '

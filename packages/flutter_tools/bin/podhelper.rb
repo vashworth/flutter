@@ -275,7 +275,11 @@ def flutter_install_plugin_pods(application_path = nil, relative_symlink_dir, pl
   system('mkdir', '-p', symlink_plugins_dir)
 
   plugins_file = File.join(application_path, '..', '.flutter-plugins-dependencies')
-  plugin_pods = flutter_parse_plugins_file(plugins_file, platform)
+  dependencies_hash = flutter_parse_plugins_file(plugins_file)
+  plugin_pods = flutter_get_plugins_list(dependencies_hash, platform)
+  swift_package_manager_enabled = dependencies_hash.has_key?('swift_package_manager_enabled') &&
+    dependencies_hash['swift_package_manager_enabled'] == true;
+
   plugin_pods.each do |plugin_hash|
     plugin_name = plugin_hash['name']
     plugin_path = plugin_hash['path']
@@ -292,25 +296,25 @@ def flutter_install_plugin_pods(application_path = nil, relative_symlink_dir, pl
     # Keep pod path relative so it can be checked into Podfile.lock.
     relative = flutter_relative_path_from_podfile(symlink)
 
-    # TODO(vashworth): Should we skip if there's no podspec or if there is a swift package?
-    # Leaning towards if there's a swift package so that they can support both cocoapods and swift, but is that necessary?
+    # DONE: SPM
+    next if swift_package_manager_enabled && File.exists?(File.join(relative, platform_directory, plugin_name, "Package.swift"))
 
-    next if File.exists?(File.join(relative, platform_directory, plugin_name, "Package.swift"))
-    # next unless File.exists?(File.join(relative, platform_directory, plugin_name + ".podspec"))
+    next unless File.exists?(File.join(relative, platform_directory, plugin_name + ".podspec"))
 
     pod plugin_name, path: File.join(relative, platform_directory)
   end
 end
 
-# .flutter-plugins-dependencies format documented at
-# https://flutter.dev/go/plugins-list-migration
-def flutter_parse_plugins_file(file, platform)
+def flutter_parse_plugins_file(file)
   file_path = File.expand_path(file)
   return [] unless File.exist? file_path
 
   dependencies_file = File.read(file)
   dependencies_hash = JSON.parse(dependencies_file)
+  dependencies_hash
+end
 
+def flutter_get_plugins_list(dependencies_hash, platform)
   # dependencies_hash.dig('plugins', 'ios') not available until Ruby 2.3
   return [] unless dependencies_hash.has_key?('plugins')
   return [] unless dependencies_hash['plugins'].has_key?(platform)

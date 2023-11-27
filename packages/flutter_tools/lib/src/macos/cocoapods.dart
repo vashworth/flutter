@@ -17,11 +17,14 @@ import '../base/project_migrator.dart';
 import '../base/version.dart';
 import '../build_info.dart';
 import '../cache.dart';
+import '../features.dart';
+import '../flutter_plugins.dart';
 import '../ios/xcodeproj.dart';
 import '../migrations/cocoapods_script_symlink.dart';
 import '../migrations/cocoapods_toolchain_directory_migration.dart';
+import '../plugins.dart';
+import '../project.dart';
 import '../reporting/reporting.dart';
-import '../xcode_project.dart';
 
 const String noCocoaPodsConsequence = '''
   CocoaPods is used to retrieve the iOS and macOS platform side's plugin code that responds to your plugin usage on the Dart side.
@@ -156,15 +159,131 @@ class CocoaPods {
     }
   }
 
+  final Map<SupportedPlatform, List<DarwinDependencyManager>> _dependencyManagersInUsePerPlatform = <SupportedPlatform, List<DarwinDependencyManager>>{};
+  final Map<SupportedPlatform, List<Plugin>> _pluginsPerPlatform = <SupportedPlatform, List<Plugin>>{};
+
+  Future<void> _populatePlugins({
+    required SupportedPlatform platform,
+    required FlutterProject project,
+    List<Plugin>? plugins,
+  }) async {
+    if (_pluginsPerPlatform[platform] != null) {
+      return;
+    }
+
+    List<Plugin> pluginsToCheck;
+    if (plugins == null) {
+      pluginsToCheck = await findPlugins(project);
+    } else {
+      pluginsToCheck = plugins;
+    }
+
+    _pluginsPerPlatform[platform] = pluginsToCheck.where((Plugin plugin) => plugin.platforms[platform.name] != null).toList();
+  }
+
+  Future<bool> doesPluginHavePodspec({
+    required SupportedPlatform platform,
+    required FlutterProject project,
+    required String pluginName,
+    required FileSystem fileSystem,
+  }) async {
+    await _populatePlugins(platform: platform, project: project);
+    final Plugin? matched = _pluginsPerPlatform[platform]!.where((Plugin plugin) => plugin.name.toLowerCase() == pluginName.toLowerCase()).firstOrNull;
+    if (matched == null) {
+      return false;
+    } else {
+      final String? podspecPath = matched.pluginPodspecPath(platform.name);
+      return podspecPath != null && fileSystem.file(podspecPath).existsSync();
+    }
+  }
+
+  Future<bool> doesPluginHaveSwiftPackage({
+    required SupportedPlatform platform,
+    required FlutterProject project,
+    required String pluginName,
+    required FileSystem fileSystem,
+  }) async {
+    await _populatePlugins(platform: platform, project: project);
+    final Plugin? matched = _pluginsPerPlatform[platform]!.where((Plugin plugin) => plugin.name.toLowerCase() == pluginName.toLowerCase()).firstOrNull;
+    if (matched == null) {
+      return false;
+    } else {
+      final String? swiftPackagePath = matched.pluginSwiftPackagePath(platform.name);
+      return swiftPackagePath != null && fileSystem.file(swiftPackagePath).existsSync();
+    }
+  }
+
+  Future<void> _checkDependencyManagersUsed({
+    required SupportedPlatform platform,
+    required FlutterProject project,
+    List<Plugin>? plugins,
+    required FileSystem fileSystem,
+  }) async {
+    if (_dependencyManagersInUsePerPlatform[platform] == null) {
+      _dependencyManagersInUsePerPlatform[platform] = <DarwinDependencyManager>[];
+    }
+
+    await _populatePlugins(platform: platform, project: project, plugins: plugins);
+
+    bool foundSwiftPackageManagerUsage = false;
+    bool foundCocoapodsUsage = false;
+
+    for (final Plugin plugin in _pluginsPerPlatform[platform]!) {
+      if (foundSwiftPackageManagerUsage && foundCocoapodsUsage) {
+        break;
+      }
+      final String? swiftPackagePath = plugin.pluginSwiftPackagePath(platform.name);
+      if (featureFlags.isSwiftPackageManagerEnabled && swiftPackagePath != null && fileSystem.file(swiftPackagePath).existsSync()) {
+        if (!foundSwiftPackageManagerUsage) {
+          foundSwiftPackageManagerUsage = true;
+          _dependencyManagersInUsePerPlatform[platform]!.add(DarwinDependencyManager.SwiftPackageManager);
+        }
+      } else if (!foundCocoapodsUsage) {
+        foundCocoapodsUsage = true;
+        _dependencyManagersInUsePerPlatform[platform]!.add(DarwinDependencyManager.CocoaPods);
+      }
+    }
+  }
+
+  Future<bool> usesCocoapodPlugins({
+    required FlutterProject project,
+    List<Plugin>? plugins,
+    required SupportedPlatform platform,
+    required FileSystem fileSystem,
+  }) async {
+    if (!featureFlags.isSwiftPackageManagerEnabled) {
+      return true;
+    }
+    if (_dependencyManagersInUsePerPlatform[platform] != null) {
+      return _dependencyManagersInUsePerPlatform[platform]!.contains(DarwinDependencyManager.CocoaPods);
+    }
+    await _checkDependencyManagersUsed(project: project, platform: platform, plugins: plugins, fileSystem: fileSystem);
+    return _dependencyManagersInUsePerPlatform[platform]!.contains(DarwinDependencyManager.CocoaPods);
+  }
+
+  Future<bool> usesSwiftPackageManager({
+    required FlutterProject project,
+    List<Plugin>? plugins,
+    required SupportedPlatform platform,
+    required FileSystem fileSystem,
+  }) async {
+    if (!featureFlags.isSwiftPackageManagerEnabled) {
+      return false;
+    }
+    if (_dependencyManagersInUsePerPlatform[platform] != null) {
+      return _dependencyManagersInUsePerPlatform[platform]!.contains(DarwinDependencyManager.SwiftPackageManager);
+    }
+    await _checkDependencyManagersUsed(project: project, platform: platform, plugins: plugins, fileSystem: fileSystem);
+    return _dependencyManagersInUsePerPlatform[platform]!.contains(DarwinDependencyManager.SwiftPackageManager);
+  }
+
   Future<bool> processPods({
     required XcodeBasedProject xcodeProject,
     required BuildMode buildMode,
     bool dependenciesChanged = true,
   }) async {
     if (!xcodeProject.podfile.existsSync()) {
-      // TODO(vashworth)
-      return false;
-      // throwToolExit('Podfile missing');
+      throwToolExit('Podfile missing');
     }
     _warnIfPodfileOutOfDate(xcodeProject);
     bool podsProcessed = false;
@@ -440,3 +559,5 @@ class CocoaPods {
     }
   }
 }
+
+enum DarwinDependencyManager { CocoaPods, SwiftPackageManager }

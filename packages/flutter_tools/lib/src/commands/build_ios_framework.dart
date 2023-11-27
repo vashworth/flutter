@@ -48,6 +48,7 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     usesExtraDartFlagOptions(verboseHelp: verboseHelp);
     addNullSafetyModeOptions(hide: !verboseHelp);
     addEnableExperimentation(hide: !verboseHelp);
+    usesSwiftPackageManagerOptions(verboseHelp: verboseHelp);
 
     argParser
       ..addFlag('debug',
@@ -263,6 +264,7 @@ class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
           buildInfo, modeDirectory, iPhoneBuildOutput, simulatorBuildOutput);
 
       // Build and copy plugins.
+      // TODO: SPM - add2app
       await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);
       if (hasPlugins(project)) {
         await _producePlugins(buildInfo.mode, xcodeBuildConfiguration, iPhoneBuildOutput, simulatorBuildOutput, modeDirectory);

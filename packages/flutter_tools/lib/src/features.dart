@@ -53,6 +53,8 @@ abstract class FeatureFlags {
   /// Whether native assets compilation and bundling is enabled.
   bool get isNativeAssetsEnabled => false;
 
+  bool get isSwiftPackageManagerEnabled => false;
+
   /// Whether a particular feature is enabled for the current channel.
   ///
   /// Prefer using one of the specific getters above instead of this API.
@@ -72,6 +74,7 @@ const List<Feature> allFeatures = <Feature>[
   flutterWebWasm,
   cliAnimation,
   nativeAssets,
+  swiftPackageManager,
 ];
 
 /// All current Flutter feature flags that can be configured.
@@ -167,6 +170,16 @@ const Feature nativeAssets = Feature(
   name: 'native assets compilation and bundling',
   configSetting: 'enable-native-assets',
   environmentOverride: 'FLUTTER_NATIVE_ASSETS',
+  master: FeatureChannelSetting(
+    available: true,
+  ),
+);
+
+/// Enable native assets compilation and bundling.
+const Feature swiftPackageManager = Feature(
+  name: 'support for Swift Package Manager on MacOS',
+  configSetting: 'enable-swift-package-manager',
+  environmentOverride: 'SWIFT_PACKAGE_MANAGER',
   master: FeatureChannelSetting(
     available: true,
   ),

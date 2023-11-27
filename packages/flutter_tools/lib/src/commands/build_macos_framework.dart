@@ -89,6 +89,7 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
       await _produceAppFramework(buildInfo, modeDirectory);
 
       // Build and copy plugins.
+      // TODO: SPM - add2app
       final Directory buildOutput = modeDirectory.childDirectory('macos');
       await processPodsIfNeeded(project.macos, getMacOSBuildDirectory(), buildInfo.mode);
       if (hasPlugins(project)) {

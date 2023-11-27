@@ -20,6 +20,7 @@ import '../globals.dart' as globals;
 import '../ios/application_package.dart';
 import '../ios/mac.dart';
 import '../ios/plist_parser.dart';
+import '../project.dart';
 import '../reporting/reporting.dart';
 import '../runner/flutter_command.dart';
 import 'build.dart';
@@ -578,6 +579,7 @@ abstract class _BuildIOSSubCommand extends BuildSubCommand {
     addBundleSkSLPathOption(hide: !verboseHelp);
     addNullSafetyModeOptions(hide: !verboseHelp);
     usesAnalyzeSizeFlag();
+    usesSwiftPackageManagerOptions(verboseHelp: verboseHelp);
     argParser.addFlag('codesign',
       defaultsTo: true,
       help: 'Codesign the application bundle (only available on device builds).',
@@ -662,7 +664,14 @@ abstract class _BuildIOSSubCommand extends BuildSubCommand {
     xcodeBuildResult = result;
 
     if (!result.success) {
-      await diagnoseXcodeBuildFailure(result, globals.flutterUsage, globals.logger);
+      await diagnoseXcodeBuildFailure(
+        result,
+        globals.flutterUsage,
+        project: app.project.parent,
+        platform: SupportedPlatform.ios,
+        logger: globals.logger,
+        fileSystem: globals.fs,
+      );
       final String presentParticiple = xcodeBuildAction == XcodeBuildAction.build ? 'building' : 'archiving';
       throwToolExit('Encountered error while $presentParticiple for $logTarget.');
     }

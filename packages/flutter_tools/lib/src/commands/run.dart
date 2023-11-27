@@ -198,6 +198,7 @@ abstract class RunCommandBase extends FlutterCommand with DeviceBasedDevelopment
     addEnableVulkanValidationFlag(verboseHelp: verboseHelp);
     addImpellerForceGLFlag(verboseHelp: verboseHelp);
     addEnableEmbedderApiFlag(verboseHelp: verboseHelp);
+    usesSwiftPackageManagerOptions(verboseHelp: verboseHelp);
   }
 
   bool get traceStartup => boolArg('trace-startup');

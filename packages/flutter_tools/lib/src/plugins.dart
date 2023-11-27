@@ -397,6 +397,35 @@ class Plugin {
   /// Whether this plugin is a direct dependency of the app.
   /// If [false], the plugin is a dependency of another plugin.
   final bool isDirectDependency;
+
+  String? pluginSwiftPackagePath(String platform) {
+    final PluginPlatform? platformPlugin = platforms[platform];
+    if ((platform != IOSPlugin.kConfigKey && platform != MacOSPlugin.kConfigKey) || platformPlugin == null) {
+      return null;
+    }
+
+    // # iOS and macOS code can be shared in "darwin" directory, otherwise
+    // # respectively in "ios" or "macos" directories.
+    if (platformPlugin is DarwinPlugin && (platformPlugin as DarwinPlugin).sharedDarwinSource) {
+      platform = 'darwin';
+    }
+    return '$path$platform/$name/Package.swift';
+  }
+
+  String? pluginPodspecPath(String platform) {
+    // next unless File.exists?(File.join(relative, platform_directory, plugin_name + ".podspec"))
+    final PluginPlatform? platformPlugin = platforms[platform];
+    if ((platform != IOSPlugin.kConfigKey && platform != MacOSPlugin.kConfigKey) || platformPlugin == null) {
+      return null;
+    }
+
+    // # iOS and macOS code can be shared in "darwin" directory, otherwise
+    // # respectively in "ios" or "macos" directories.
+    if (platformPlugin is DarwinPlugin && (platformPlugin as DarwinPlugin).sharedDarwinSource) {
+      platform = 'darwin';
+    }
+    return '$path$platform/$name.podspec';
+  }
 }
 
 /// Metadata associated with the resolution of a platform interface of a plugin.

@@ -95,6 +95,8 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform  {
   /// tooling (`flutter build`, etc) to convert into flags.
   File get generatedEnvironmentVariableExportScript;
 
+  Directory get podsDirectory => hostAppRoot.childDirectory('Pods');
+
   /// The CocoaPods 'Podfile'.
   File get podfile => hostAppRoot.childFile('Podfile');
 
@@ -102,15 +104,14 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform  {
   File get podfileLock => hostAppRoot.childFile('Podfile.lock');
 
   /// The CocoaPods 'Manifest.lock'.
-  File get podManifestLock => hostAppRoot.childDirectory('Pods').childFile('Manifest.lock');
+  File get podManifestLock => podsDirectory.childFile('Manifest.lock');
 
   /// The CocoaPods generated 'Pods-Runner-frameworks.sh'.
   File get podRunnerFrameworksScript => podRunnerTargetSupportFiles
       .childFile('Pods-Runner-frameworks.sh');
 
   /// The CocoaPods generated directory 'Pods-Runner'.
-  Directory get podRunnerTargetSupportFiles => hostAppRoot
-      .childDirectory('Pods')
+  Directory get podRunnerTargetSupportFiles => podsDirectory
       .childDirectory('Target Support Files')
       .childDirectory('Pods-Runner');
 }
@@ -576,6 +577,8 @@ class IosProject extends XcodeBasedProject {
     if (!pubspecChanged && !toolingChanged) {
       return;
     }
+
+    // TODO: SPM - add2app?
 
     ErrorHandlingFileSystem.deleteIfExists(ephemeralModuleDirectory, recursive: true);
     await _overwriteFromTemplate(

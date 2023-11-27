@@ -415,6 +415,15 @@ abstract class FlutterCommand extends Command<void> {
     _usesPortOption = true;
   }
 
+  void usesSwiftPackageManagerOptions({ required bool verboseHelp }) {
+    argParser.addOption('disable-swift-package-manager',
+        help: 'Only use Cocoapods as the iOS/macOS dependency manager. '
+              'Does not disable Swift Package Manager globally. To disable '
+              'globally, run "flutter config --no-enable-swift-package-manager".',
+        hide: !featureFlags.isSwiftPackageManagerEnabled || !verboseHelp,
+    );
+  }
+
   /// Add option values for output directory of artifacts
   void usesOutputDir() {
     // TODO(eliasyishak): this feature has been added to [BuildWebCommand] and

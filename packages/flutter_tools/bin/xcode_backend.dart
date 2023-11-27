@@ -272,6 +272,7 @@ class Context {
       return;
     }
 
+    // TODO: SPM - INFOPLIST_PREPROCESS
     String? builtProductsPlist;
     if (environment['INFOPLIST_PREPROCESS'] == 'YES' && environment['TARGET_TEMP_DIR'] != '') {
       builtProductsPlist = '${environment['TARGET_TEMP_DIR']}/Preprocessed-Info.plist';

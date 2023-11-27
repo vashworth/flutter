@@ -17,13 +17,16 @@ import '../base/utils.dart';
 import '../build_info.dart';
 import '../cache.dart';
 import '../device.dart';
+import '../features.dart';
 import '../flutter_manifest.dart';
 import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
+import '../macos/swift_packages.dart';
 import '../macos/xcode.dart';
 import '../migrations/xcode_project_object_version_migration.dart';
 import '../migrations/xcode_script_build_phase_migration.dart';
 import '../migrations/xcode_thin_binary_build_phase_input_paths_migration.dart';
+import '../platform_plugins.dart';
 import '../project.dart';
 import '../reporting/reporting.dart';
 import 'application_package.dart';
@@ -242,8 +245,16 @@ Future<XcodeBuildResult> buildXcodeProject({
     targetOverride: targetOverride,
     buildInfo: buildInfo,
   );
-  // Runs podhelper
-  // TODO(vashworth): only run if needed
+
+  if (featureFlags.isSwiftPackageManagerEnabled) {
+    SwiftPackageManager.setupFlutterFramework(
+      SupportedPlatform.ios,
+      project.ios,
+      buildInfo.mode,
+      artifacts: globals.artifacts!,
+      fileSystem: globals.fs,
+    );
+  }
   await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);
   if (configOnly) {
     return XcodeBuildResult(success: true);
@@ -576,7 +587,14 @@ return result.exitCode != 0 &&
     result.stdout.contains(kConcurrentRunFailureMessage2);
 }
 
-Future<void> diagnoseXcodeBuildFailure(XcodeBuildResult result, Usage flutterUsage, Logger logger) async {
+Future<void> diagnoseXcodeBuildFailure(
+  XcodeBuildResult result,
+  Usage flutterUsage, {
+  required FlutterProject project,
+  required SupportedPlatform platform,
+  required Logger logger,
+  required FileSystem fileSystem,
+}) async {
   final XcodeBuildExecution? xcodeBuildExecution = result.xcodeBuildExecution;
   if (xcodeBuildExecution != null
       && xcodeBuildExecution.environmentType == EnvironmentType.physical
@@ -589,8 +607,17 @@ Future<void> diagnoseXcodeBuildFailure(XcodeBuildResult result, Usage flutterUsa
     ).send();
   }
 
+  // DONE: SPM parse error
+
   // Handle errors.
-  final bool issueDetected = _handleIssues(result.xcResult, logger, xcodeBuildExecution);
+  final bool issueDetected = await _handleIssues(
+    result,
+    xcodeBuildExecution,
+    project: project,
+    platform: platform,
+    logger: logger,
+    fileSystem: fileSystem,
+  );
 
   if (!issueDetected && xcodeBuildExecution != null) {
     // Fallback to use stdout to detect and print issues.
@@ -691,7 +718,11 @@ bool upgradePbxProjWithFlutterAssets(IosProject project, Logger logger) {
   return true;
 }
 
-_XCResultIssueHandlingResult _handleXCResultIssue({required XCResultIssue issue, required Logger logger}) {
+_XCResultIssueHandlingResult _handleXCResultIssue({
+  required XCResultIssue issue,
+  required XcodeBuildResult result,
+  required Logger logger,
+}) {
   // Issue summary from xcresult.
   final StringBuffer issueSummaryBuffer = StringBuffer();
   issueSummaryBuffer.write(issue.subType ?? 'Unknown');
@@ -724,20 +755,62 @@ _XCResultIssueHandlingResult _handleXCResultIssue({required XCResultIssue issue,
     if (missingPlatform != null) {
       return _XCResultIssueHandlingResult(requiresProvisioningProfile: false, hasProvisioningProfileIssue: false, missingPlatform: missingPlatform);
     }
+  } else if (message.toLowerCase().contains('redefinition of module')) {
+    final String? redefinedModule = _parseModuleRedefinition(message);
+    return _XCResultIssueHandlingResult(
+      requiresProvisioningProfile: false,
+      hasProvisioningProfileIssue: false,
+      hasModuleRedefinitionIssue: true,
+      redefinedModule: redefinedModule,
+    );
+  } else if (message.toLowerCase().contains('not found')) {
+    final String? missingModule = _parseMissingModule(message);
+    if (missingModule != null) {
+      return _XCResultIssueHandlingResult(
+        requiresProvisioningProfile: false,
+        hasProvisioningProfileIssue: false,
+        hasMissingModuleIssue: true,
+        missingModule: missingModule,
+      );
+    }
+  } else if (message.toLowerCase().contains('duplicate symbols')) {
+    String? duplicateModule;
+    if (result.stdout != null) {
+      duplicateModule = _parseDuplicateSymbols(result.stdout!);
+    }
+    return _XCResultIssueHandlingResult(
+      requiresProvisioningProfile: false,
+      hasProvisioningProfileIssue: false,
+      hasModuleRedefinitionIssue: true,
+      redefinedModule: duplicateModule,
+    );
   }
+
   return _XCResultIssueHandlingResult(requiresProvisioningProfile: false, hasProvisioningProfileIssue: false);
 }
 
 // Returns `true` if at least one issue is detected.
-bool _handleIssues(XCResult? xcResult, Logger logger, XcodeBuildExecution? xcodeBuildExecution) {
+Future<bool> _handleIssues(
+  XcodeBuildResult result,
+  XcodeBuildExecution? xcodeBuildExecution, {
+  required FlutterProject project,
+  required SupportedPlatform platform,
+  required Logger logger,
+  required FileSystem fileSystem,
+}) async {
   bool requiresProvisioningProfile = false;
   bool hasProvisioningProfileIssue = false;
   bool issueDetected = false;
   String? missingPlatform;
+  bool hasModuleRedefinitionIssue = false;
+  String? redefinedModule;
+  bool hasMissingModuleIssue = false;
+  String? missingModule;
 
+  final XCResult? xcResult = result.xcResult;
   if (xcResult != null && xcResult.parseSuccess) {
     for (final XCResultIssue issue in xcResult.issues) {
-      final _XCResultIssueHandlingResult handlingResult = _handleXCResultIssue(issue: issue, logger: logger);
+      final _XCResultIssueHandlingResult handlingResult = _handleXCResultIssue(issue: issue, result: result, logger: logger);
       if (handlingResult.hasProvisioningProfileIssue) {
         hasProvisioningProfileIssue = true;
       }
@@ -745,6 +818,15 @@ bool _handleIssues(XCResult? xcResult, Logger logger, XcodeBuildExecution? xcode
         requiresProvisioningProfile = true;
       }
       missingPlatform = handlingResult.missingPlatform;
+      if (handlingResult.hasModuleRedefinitionIssue) {
+        hasModuleRedefinitionIssue = true;
+        redefinedModule = handlingResult.redefinedModule;
+      }
+      if (handlingResult.hasMissingModuleIssue) {
+        hasMissingModuleIssue = true;
+        missingModule = handlingResult.missingModule;
+      }
+
       issueDetected = true;
     }
   } else if (xcResult != null) {
@@ -766,6 +848,20 @@ bool _handleIssues(XCResult? xcResult, Logger logger, XcodeBuildExecution? xcode
     logger.printError("Also try selecting 'Product > Build' to fix the problem.");
   } else if (missingPlatform != null) {
     logger.printError(missingPlatformInstructions(missingPlatform), emphasis: true);
+  } else if (hasModuleRedefinitionIssue) {
+    final bool usesCocoapods = await globals.cocoaPods!.usesCocoapodPlugins(project: project, platform: platform, fileSystem: fileSystem);
+    final bool usesSwiftPackageManager = await globals.cocoaPods!.usesSwiftPackageManager(project: project, platform: platform, fileSystem: fileSystem);
+    if (usesCocoapods && usesSwiftPackageManager && redefinedModule != null) {
+      logger.printError('Your project uses both CocoaPods and Swift Package Manager, which can cause the above error. It may be caused by there being both a CocoaPod and Swift Package Manager dependency for $redefinedModule. Try disabling Swift Package Manager using --disable-swift-package-manager.');
+    }
+  } else if (hasMissingModuleIssue && missingModule != null) {
+    final bool usesCocoapods = await globals.cocoaPods!.usesCocoapodPlugins(project: project, platform: platform, fileSystem: fileSystem);
+    final bool usesSwiftPackageManager = await globals.cocoaPods!.usesSwiftPackageManager(project: project, platform: platform, fileSystem: fileSystem);
+    final bool hasPodspec = await globals.cocoaPods!.doesPluginHavePodspec(platform: platform, project: project, pluginName: missingModule, fileSystem: fileSystem);
+    final bool hasSwiftPackage = await globals.cocoaPods!.doesPluginHaveSwiftPackage(platform: platform, project: project, pluginName: missingModule, fileSystem: fileSystem);
+    if (usesCocoapods && !usesSwiftPackageManager && !hasPodspec && hasSwiftPackage) {
+      logger.printError('Your project uses CocoaPods as a dependency manager, but the plugin $missingModule only supports Swift Package Manager. Try enabling Swift Package Manager with "flutter config --enable-swift-package-manager".');
+    }
   }
 
   return issueDetected;
@@ -820,6 +916,39 @@ String? _parseMissingPlatform(String message) {
   return null;
 }
 
+String? _parseModuleRedefinition(String message) {
+  final RegExp pattern = RegExp(r"Redefinition of module '(.*?)'");
+  final RegExpMatch? match = pattern.firstMatch(message);
+  if (match != null) {
+    final String? version = match.group(1);
+    return version;
+  }
+  return null;
+}
+
+String? _parseMissingModule(String message) {
+  final RegExp pattern = RegExp(r"Module '(.*?)' not found");
+  final RegExpMatch? match = pattern.firstMatch(message);
+  if (match != null) {
+    final String? version = match.group(1);
+    return version;
+  }
+  return null;
+}
+
+String? _parseDuplicateSymbols(String message) {
+  final RegExp pattern = RegExp(r'duplicate symbol [\s|\S]*?\/(.*)\.o');
+  final RegExpMatch? match = pattern.firstMatch(message);
+  if (match != null) {
+    final String? version = match.group(1);
+    if (version != null) {
+      return version.split('/').last;
+    }
+    return version;
+  }
+  return null;
+}
+
 // The result of [_handleXCResultIssue].
 class _XCResultIssueHandlingResult {
 
@@ -827,6 +956,10 @@ class _XCResultIssueHandlingResult {
     required this.requiresProvisioningProfile,
     required this.hasProvisioningProfileIssue,
     this.missingPlatform,
+    this.hasModuleRedefinitionIssue = false,
+    this.redefinedModule,
+    this.hasMissingModuleIssue = false,
+    this.missingModule,
   });
 
   // An issue indicates that user didn't provide the provisioning profile.
@@ -836,6 +969,12 @@ class _XCResultIssueHandlingResult {
   final bool hasProvisioningProfileIssue;
 
   final String? missingPlatform;
+
+  final bool hasModuleRedefinitionIssue;
+  final String? redefinedModule;
+
+  final bool hasMissingModuleIssue;
+  final String? missingModule;
 }
 
 const String _kResultBundlePath = 'temporary_xcresult_bundle';
