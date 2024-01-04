@@ -364,6 +364,15 @@
         "templates/xcode/ios/custom_application_bundle/Runner.xcodeproj.tmpl/project.xcworkspace/contents.xcworkspacedata",
         "templates/xcode/ios/custom_application_bundle/Runner.xcodeproj.tmpl/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
         "templates/xcode/ios/custom_application_bundle/Runner.xcodeproj.tmpl/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings",
-        "templates/xcode/ios/custom_application_bundle/Runner.xcodeproj.tmpl/xcshareddata/xcschemes/Runner.xcscheme.tmpl"
+        "templates/xcode/ios/custom_application_bundle/Runner.xcodeproj.tmpl/xcshareddata/xcschemes/Runner.xcscheme.tmpl",
+
+        "templates/swift_package_manager/Package.swift.tmpl",
+        "templates/app_spm/ios-objc.tmpl/Runner.xcodeproj/project.pbxproj.tmpl",
+        "templates/app_spm/ios-swift.tmpl/Runner.xcodeproj/project.pbxproj.tmpl",
+        "templates/app_spm/ios.tmpl/Flutter/Packages/FlutterPackage/Package.swift",
+        "templates/app_spm/ios.tmpl/Flutter/Packages/FlutterPackage/Sources/FlutterPackage.swift",
+        "templates/app_spm/macos.tmpl/Flutter/Packages/FlutterPackage/Package.swift",
+        "templates/app_spm/macos.tmpl/Flutter/Packages/FlutterPackage/Sources/FlutterPackage.swift",
+        "templates/app_spm/macos.tmpl/Runner.xcodeproj/project.pbxproj.tmpl"
     ]
 }

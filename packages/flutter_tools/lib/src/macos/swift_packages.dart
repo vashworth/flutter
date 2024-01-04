@@ -14,11 +14,9 @@ import '../base/template.dart';
 import '../build_info.dart';
 import '../ios/xcodeproj.dart';
 import '../migrations/flutter_package_migration.dart';
-import '../platform_plugins.dart';
 import '../plugins.dart';
 import '../project.dart';
 import '../template.dart';
-import '../xcode_project.dart';
 
 class SwiftPackageManager {
   SwiftPackageManager({
@@ -86,22 +84,28 @@ class SwiftPackageManager {
       templateRenderer: _templateRenderer,
     );
 
+    final String flutterFramework = platform == SupportedPlatform.ios ? 'Flutter' : 'FlutterMacOS';
+
     if (packageDependencies.isNotEmpty || flutterPackage.swiftPackage.existsSync()) {
       final SwiftPackageContext packageContext = SwiftPackageContext(
         name: 'FlutterPackage',
+        platforms: <SwiftPackageSupportedPlatform>[
+          if (platform == SupportedPlatform.ios) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.ios, version: '11.0'),
+          if (platform == SupportedPlatform.macos) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.macos, version: '10.14'),
+        ],
         products: <SwiftPackageProduct>[
           SwiftPackageProduct(name: 'FlutterPackage', targets: <String>['FlutterPackage']),
         ],
         dependencies: packageDependencies,
         targets: <SwiftPackageTarget>[
-          SwiftPackageTarget.binaryTarget(
-            name: 'Flutter',
-            path: 'Flutter.xcframework',
+          if (packageDependencies.isNotEmpty) SwiftPackageTarget.binaryTarget(
+            name: flutterFramework,
+            path: '$flutterFramework.xcframework',
           ),
           SwiftPackageTarget(
             name: 'FlutterPackage',
             dependencies: <SwiftPackageTargetDependency>[
-              SwiftPackageTargetDependency(name: 'Flutter'),
+              if (packageDependencies.isNotEmpty) SwiftPackageTargetDependency(name: flutterFramework),
               ...packageProducts,
             ],
           ),
@@ -120,13 +124,15 @@ class SwiftPackageManager {
         fileSystem: _fileSystem,
       );
 
-      await migrateProject(project);
+      await migrateProject(project, platform);
     }
   }
 
-  Future<void> migrateProject(XcodeBasedProject project, {bool undoMigration = false}) async {
+  Future<void> migrateProject(XcodeBasedProject project, SupportedPlatform platform, {bool undoMigration = false}) async {
     final FlutterPackageMigration flutterPackageMigration = FlutterPackageMigration(
       project,
+      platform,
+      xcodeProjectInterpreter: _xcodeProjectInterpreter,
       logger: _logger,
       fileSystem: _fileSystem,
       processManager: _processManager,
@@ -169,13 +175,18 @@ class SwiftPackageManager {
     final Directory flutterPackageDir = fileSystem.directory(flutterPackagesPath);
 
     // TODO: SPM - macos
-    final String engineCacheFlutterFramework = artifacts.getArtifactPath(
+    String engineCacheFlutterFramework = artifacts.getArtifactPath(
       platform == SupportedPlatform.ios ? Artifact.flutterXcframework : Artifact.flutterMacOSFramework,
       platform: platform == SupportedPlatform.ios ? TargetPlatform.ios : TargetPlatform.darwin,
       mode: buildMode,
     );
 
-    final Link frameworkSymlink = flutterPackageDir.childLink('Flutter.xcframework');
+    Link frameworkSymlink = flutterPackageDir.childLink('Flutter.xcframework');
+
+    if (platform == SupportedPlatform.macos) {
+      engineCacheFlutterFramework = '/Users/vashworth/Development/flutter/bin/cache/artifacts/engine/darwin-x64/FlutterMacOS.xcframework';
+      frameworkSymlink = flutterPackageDir.childLink('FlutterMacOS.xcframework');
+    }
 
     if (!frameworkSymlink.existsSync()) {
       frameworkSymlink.createSync(engineCacheFlutterFramework);
@@ -240,7 +251,7 @@ class SwiftPackage {
 class SwiftPackageContext {
   SwiftPackageContext({
     required this.name,
-    // this.platforms,
+    required this.platforms,
     required this.products,
     required this.dependencies,
     required this.targets,
@@ -251,7 +262,7 @@ class SwiftPackageContext {
 
   // defaultLocalization: LanguageTag? = nil,
 
-  // final List<SwiftPackageSupportedPlatform>? platforms;
+  final List<SwiftPackageSupportedPlatform> platforms;
 
   // pkgConfig: String? = nil,
 
@@ -277,7 +288,7 @@ class SwiftPackageContext {
       'packageName': _stringifyName(),
       'swiftToolsVersion': '5.7',
       'defaultLocalization': '',
-      'platforms': '',
+      'platforms': _stringifyPlatforms(),
       'pkgConfig': '',
       'providers': '',
       'products': _stringifyProducts(),
@@ -292,6 +303,25 @@ class SwiftPackageContext {
 
   String _stringifyName() {
     return '${_singleIndent}name: "$name",\n';
+  }
+
+  String _stringifyPlatforms() {
+    // platforms: [
+    //     .macOS("10.14"),
+    //     .iOS(.v11),
+    // ],
+    final List<String> platformStrings = <String>[];
+    for (final SwiftPackageSupportedPlatform platform in platforms) {
+      final String platformString = '$_singleIndent$_singleIndent${platform.platform.name}("${platform.version}")';
+      platformStrings.add(platformString);
+    }
+    return <String>[
+'''
+${_singleIndent}platforms: [
+${platformStrings.join(",\n")}
+$_singleIndent],
+'''
+    ].join();
   }
 
   String _stringifyProducts() {
@@ -397,32 +427,32 @@ $_singleIndent]''';
 //   final String name;
 // }
 
-// class SwiftPackageSupportedPlatform {
-//   SwiftPackageSupportedPlatform({
-//     required this.platform,
-//     this.version,
-//   });
+class SwiftPackageSupportedPlatform {
+  SwiftPackageSupportedPlatform({
+    required this.platform,
+    this.version,
+  });
 
-//   final SwiftPackagePlatform platform;
-//   final String? version;
-//   // First available in PackageDescription 5.0
-//   // Configures the minimum deployment target version for the iOS platform using a custom version string.
-//   // platforms: [.iOS(.v12)],
-//   // platforms: [.iOS],
-//   // platforms: [.macOS(.v10_15), .iOS(.v13)],
-//   // platforms: [.iOS("8.0.1")],
-// }
+  final SwiftPackagePlatform platform;
+  final String? version;
+  // First available in PackageDescription 5.0
+  // Configures the minimum deployment target version for the iOS platform using a custom version string.
+  // platforms: [.iOS(.v12)],
+  // platforms: [.iOS],
+  // platforms: [.macOS(.v10_15), .iOS(.v13)],
+  // platforms: [.iOS("8.0.1")],
+}
 
-// enum SwiftPackagePlatform {
-//   ios(name: '.iOS'),
-//   macos(name: '.macOS'),
-//   tvos(name: '.tvOS'),
-//   watchos(name: '.watchOS');
+enum SwiftPackagePlatform {
+  ios(name: '.iOS'),
+  macos(name: '.macOS'),
+  tvos(name: '.tvOS'),
+  watchos(name: '.watchOS');
 
-//   const SwiftPackagePlatform({required this.name});
+  const SwiftPackagePlatform({required this.name});
 
-//   final String name;
-// }
+  final String name;
+}
 
 class SwiftPackageProduct {
   SwiftPackageProduct({

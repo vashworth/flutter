@@ -1211,22 +1211,22 @@ Future<void> injectPlugins(
       if (iosPlatform) {
         await spm.generate(plugins, SupportedPlatform.ios, project.ios);
         if (!useCocoapodsForIOS && (project.ios.podfile.existsSync() || project.ios.podsDirectory.existsSync())) {
-          globals.printStatus('All of the plugins you are using are swift packages. You may consider removing Cococapod files.');
+          globals.printStatus('All of the plugins you are using are swift packages. You may consider removing Cococapod files. To remove Cocoapods, in the ios directory run `pod deintegrate` and delete the Podfile.');
         }
       }
       if (macOSPlatform) {
         await spm.generate(plugins, SupportedPlatform.macos, project.macos);
         if (!useCocoapodsForMacOS && (project.macos.podfile.existsSync() || project.macos.podsDirectory.existsSync())) {
-          globals.printStatus('All of the plugins you are using are swift packages. You may consider removing Cococapod files.');
+          globals.printStatus('All of the plugins you are using are swift packages. You may consider removing Cococapod files. To remove Cocoapods, in the macos directory run `pod deintegrate` and delete the Podfile.');
         }
       }
     } else {
       // If SPM is not enabled but project has already been migrated, make sure Swift Packages aren't used in build.
       if (iosPlatform && globals.fs.directory(SwiftPackageManager.flutterPackagesPath(project.ios)).existsSync()) {
-        await spm.migrateProject(project.ios, undoMigration: true);
+        await spm.migrateProject(project.ios, SupportedPlatform.ios, undoMigration: true);
       }
       if (macOSPlatform && globals.fs.directory(SwiftPackageManager.flutterPackagesPath(project.macos)).existsSync()) {
-        await spm.migrateProject(project.macos, undoMigration: true);
+        await spm.migrateProject(project.macos, SupportedPlatform.macos, undoMigration: true);
       }
     }
 

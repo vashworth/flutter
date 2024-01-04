@@ -27,7 +27,8 @@ Future<void> processPodsIfNeeded(
       platform: isMacOSPlatform ? SupportedPlatform.macos : SupportedPlatform.ios,
       fileSystem: globals.fs,
     );
-    if (!useCocoapods) {
+    // If there aren't any Cocoapod plugins and no Podfile, skip processing pods.
+    if (!useCocoapods && !xcodeProject.podfile.existsSync()) {
       return;
     }
   }

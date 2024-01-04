@@ -27,6 +27,7 @@ Flutter/Packages/
 Flutter/flutter_export_environment.sh
 ServiceDefinitions.json
 Runner/GeneratedPluginRegistrant.*
+Flutter/Packages/FlutterPackage
 
 # Exceptions to above rules.
 !default.mode1v3

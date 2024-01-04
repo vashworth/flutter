@@ -246,6 +246,7 @@ Future<XcodeBuildResult> buildXcodeProject({
     buildInfo: buildInfo,
   );
 
+  // SPM
   if (featureFlags.isSwiftPackageManagerEnabled) {
     SwiftPackageManager.setupFlutterFramework(
       SupportedPlatform.ios,
@@ -852,7 +853,7 @@ Future<bool> _handleIssues(
     final bool usesCocoapods = await globals.cocoaPods!.usesCocoapodPlugins(project: project, platform: platform, fileSystem: fileSystem);
     final bool usesSwiftPackageManager = await globals.cocoaPods!.usesSwiftPackageManager(project: project, platform: platform, fileSystem: fileSystem);
     if (usesCocoapods && usesSwiftPackageManager && redefinedModule != null) {
-      logger.printError('Your project uses both CocoaPods and Swift Package Manager, which can cause the above error. It may be caused by there being both a CocoaPod and Swift Package Manager dependency for $redefinedModule. Try disabling Swift Package Manager using --disable-swift-package-manager.');
+      logger.printError('Your project uses both CocoaPods and Swift Package Manager, which can cause the above error. It may be caused by there being both a CocoaPod and Swift Package Manager dependency for $redefinedModule. Try disabling Swift Package Manager using "flutter config --no-enable-swift-package-manager".');
     }
   } else if (hasMissingModuleIssue && missingModule != null) {
     final bool usesCocoapods = await globals.cocoaPods!.usesCocoapodPlugins(project: project, platform: platform, fileSystem: fileSystem);

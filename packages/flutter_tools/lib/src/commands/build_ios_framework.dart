@@ -48,7 +48,6 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     usesExtraDartFlagOptions(verboseHelp: verboseHelp);
     addNullSafetyModeOptions(hide: !verboseHelp);
     addEnableExperimentation(hide: !verboseHelp);
-    usesSwiftPackageManagerOptions(verboseHelp: verboseHelp);
 
     argParser
       ..addFlag('debug',

@@ -348,8 +348,13 @@ class CreateCommand extends CreateBase {
     final PubContext pubContext;
     switch (template) {
       case FlutterProjectType.app:
+        final List<String> templates = <String>['app', 'app_test_widget'];
+        if ((includeIos || includeMacos) && featureFlags.isSwiftPackageManagerEnabled) {
+          templates.add('app_spm');
+        }
+        // TODO: SPM plugin, module
         generatedFileCount += await generateApp(
-          <String>['app', 'app_test_widget'],
+          templates,
           relativeDir,
           templateContext,
           overwrite: overwrite,
