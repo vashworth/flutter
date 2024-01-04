@@ -61,6 +61,7 @@ class FlutterFeatureFlags implements FeatureFlags {
   @override
   bool get isSwiftPackageManagerEnabled => isEnabled(swiftPackageManager);
 
+  @override
   bool get isPreviewDeviceEnabled => isEnabled(previewDevice);
 
   @override
