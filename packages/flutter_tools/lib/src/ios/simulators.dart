@@ -574,6 +574,7 @@ class IOSSimulator extends Device {
         platform: SupportedPlatform.ios,
         logger: globals.logger,
         fileSystem: globals.fs,
+        analytics: globals.analytics,
       );
       throwToolExit('Could not build the application for the simulator.');
     }

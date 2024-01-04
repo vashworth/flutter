@@ -710,7 +710,7 @@ mixin LocalHistoryRoute<T> on Route<T> {
           if (isActive) {
             changedInternalState();
           }
-        });
+        }, debugLabel: 'LocalHistoryRoute.changedInternalState');
       } else {
         changedInternalState();
       }
@@ -1672,7 +1672,7 @@ abstract class ModalRoute<T> extends TransitionRoute<T> with LocalHistoryRoute<T
             return;
           }
           notification.dispatch(subtreeContext);
-        });
+        }, debugLabel: 'ModalRoute.dispatchNotification');
     }
   }
 
@@ -1847,7 +1847,7 @@ abstract class ModalRoute<T> extends TransitionRoute<T> with LocalHistoryRoute<T
   Iterable<OverlayEntry> createOverlayEntries() {
     return <OverlayEntry>[
       _modalBarrier = OverlayEntry(builder: _buildModalBarrier),
-      _modalScope = OverlayEntry(builder: _buildModalScope, maintainState: maintainState),
+      _modalScope = OverlayEntry(builder: _buildModalScope, maintainState: maintainState, canSizeOverlay: opaque),
     ];
   }
 

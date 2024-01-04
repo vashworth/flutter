@@ -92,7 +92,7 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
       // TODO: SPM - add2app
       final Directory buildOutput = modeDirectory.childDirectory('macos');
       await processPodsIfNeeded(project.macos, getMacOSBuildDirectory(), buildInfo.mode);
-      if (hasPlugins(project)) {
+      if (boolArg('plugins') && hasPlugins(project)) {
         await _producePlugins(xcodeBuildConfiguration, buildOutput, modeDirectory);
       }
 
@@ -227,6 +227,7 @@ end
         processManager: globals.processManager,
         platform: globals.platform,
         usage: globals.flutterUsage,
+        analytics: globals.analytics,
         engineVersion: globals.artifacts!.isLocalEngine ? null : globals.flutterVersion.engineRevision,
         generateDartPluginRegistry: true,
       );
