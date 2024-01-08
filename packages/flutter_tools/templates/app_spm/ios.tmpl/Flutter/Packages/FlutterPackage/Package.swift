@@ -9,7 +9,7 @@ import PackageDescription
 let package = Package(
     name: "FlutterPackage",
     platforms: [
-        .iOS("11.0")
+        .iOS("12.0")
     ],
     products: [
         .library(name: "FlutterPackage", targets: ["FlutterPackage"])

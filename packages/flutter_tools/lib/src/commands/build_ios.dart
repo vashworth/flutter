@@ -678,7 +678,7 @@ abstract class _BuildIOSSubCommand extends BuildSubCommand {
     if (!result.success) {
       await diagnoseXcodeBuildFailure(
         result,
-        globals.flutterUsage,
+        flutterUsage: globals.flutterUsage,
         project: app.project.parent,
         platform: SupportedPlatform.ios,
         logger: globals.logger,

@@ -356,20 +356,17 @@ class CreateCommand extends CreateBase {
     final Directory relativeDir = globals.fs.directory(projectDirPath);
     int generatedFileCount = 0;
     final PubContext pubContext;
+    // TODO: SPM, module
     switch (template) {
       case FlutterProjectType.app:
-        final List<String> templates = <String>['app', 'app_test_widget'];
-        if ((includeIos || includeMacos) && featureFlags.isSwiftPackageManagerEnabled) {
-          templates.add('app_spm');
-        }
-        // TODO: SPM plugin, module
         generatedFileCount += await generateApp(
-          templates,
+          <String>['app', 'app_test_widget'],
           relativeDir,
           templateContext,
           overwrite: overwrite,
           printStatusWhenWriting: !creatingNewProject,
           projectType: template,
+          spm: (includeIos || includeMacos) && featureFlags.isSwiftPackageManagerEnabled,
         );
         pubContext = PubContext.create;
       case FlutterProjectType.skeleton:
@@ -598,7 +595,6 @@ Your $application code is in $relativeAppMain.
       // re-generate files for existing platforms
       templateContext[existingPlatform] = true;
     }
-
     final bool willAddPlatforms = platformsToAdd.isNotEmpty;
     templateContext['no_platforms'] = !willAddPlatforms;
     int generatedCount = 0;
@@ -606,12 +602,26 @@ Your $application code is in $relativeAppMain.
         ? stringArg('description')
         : 'A new Flutter plugin project.';
     templateContext['description'] = description;
+
+    final List<String> templates = <String>['plugin', 'plugin_shared'];
+    final List<String> excluded = <String>[];
+    if ((templateContext['ios'] == true || templateContext['macos'] == true) && featureFlags.isSwiftPackageManagerEnabled) {
+      templates.add('plugin_spm');
+      excluded.addAll(<String>[
+        'ios-objc.tmpl/Classes/pluginClass.h.tmpl',
+        'ios-objc.tmpl/Classes/pluginClass.m.tmpl',
+        'ios-swift.tmpl/Classes/pluginClass.swift.tmpl',
+        'ios.tmpl/Assets/.gitkeep',
+      ]);
+    }
+
     generatedCount += await renderMerged(
-      <String>['plugin', 'plugin_shared'],
+      templates,
       directory,
       templateContext,
       overwrite: overwrite,
       printStatusWhenWriting: printStatusWhenWriting,
+      excludedPaths: excluded,
     );
 
     final FlutterProject project = FlutterProject.fromDirectory(directory);
@@ -642,6 +652,7 @@ Your $application code is in $relativeAppMain.
       pluginExampleApp: true,
       printStatusWhenWriting: printStatusWhenWriting,
       projectType: projectType,
+      spm: (templateContext['ios'] == true || templateContext['macos'] == true) && featureFlags.isSwiftPackageManagerEnabled,
     );
     return generatedCount;
   }

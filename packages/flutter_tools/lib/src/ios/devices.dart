@@ -507,7 +507,7 @@ class IOSDevice extends Device {
         _logger.printError('Could not build the precompiled application for the device.');
         await diagnoseXcodeBuildFailure(
           buildResult,
-          globals.flutterUsage,
+          flutterUsage: globals.flutterUsage,
           project: package.project.parent,
           platform: SupportedPlatform.ios,
           logger: globals.logger,

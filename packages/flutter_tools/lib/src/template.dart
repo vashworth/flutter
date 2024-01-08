@@ -191,6 +191,7 @@ class Template {
     Map<String, Object?> context, {
     bool overwriteExisting = true,
     bool printStatusWhenWriting = true,
+    List<String> excludedPaths = const <String>[],
   }) {
     try {
       destination.createSync(recursive: true);
@@ -207,11 +208,13 @@ class Template {
     ///
     /// Returns null if the given raw destination path has been filtered.
     String? renderPath(String relativeDestinationPath) {
+      if (excludedPaths.contains(relativeDestinationPath)) {
+        return null;
+      }
       final Match? match = _kTemplateLanguageVariant.matchAsPrefix(relativeDestinationPath);
       if (match != null) {
         final String platform = match.group(1)!;
         final String? language = context['${platform}Language'] as String?;
-        // TODO: SPM create project, create plugin template
         if (language != match.group(2)) {
           return null;
         }

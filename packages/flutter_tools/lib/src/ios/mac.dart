@@ -18,7 +18,6 @@ import '../base/utils.dart';
 import '../build_info.dart';
 import '../cache.dart';
 import '../device.dart';
-import '../features.dart';
 import '../flutter_manifest.dart';
 import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
@@ -27,7 +26,6 @@ import '../macos/xcode.dart';
 import '../migrations/xcode_project_object_version_migration.dart';
 import '../migrations/xcode_script_build_phase_migration.dart';
 import '../migrations/xcode_thin_binary_build_phase_input_paths_migration.dart';
-import '../platform_plugins.dart';
 import '../project.dart';
 import '../reporting/reporting.dart';
 import 'application_package.dart';
@@ -248,8 +246,8 @@ Future<XcodeBuildResult> buildXcodeProject({
     buildInfo: buildInfo,
   );
 
-  // SPM
-  if (featureFlags.isSwiftPackageManagerEnabled) {
+  // TODO: SPM
+  if (project.usingSwiftPackageManager) {
     SwiftPackageManager.setupFlutterFramework(
       SupportedPlatform.ios,
       project.ios,
@@ -603,13 +601,13 @@ return result.exitCode != 0 &&
 }
 
 Future<void> diagnoseXcodeBuildFailure(
-  XcodeBuildResult result,
-  Usage flutterUsage, {
+  XcodeBuildResult result, {
   required FlutterProject project,
   required SupportedPlatform platform,
   required Logger logger,
   required FileSystem fileSystem,
   required Analytics analytics,
+  required Usage flutterUsage,
 }) async {
   final XcodeBuildExecution? xcodeBuildExecution = result.xcodeBuildExecution;
   if (xcodeBuildExecution != null
@@ -878,14 +876,14 @@ Future<bool> _handleIssues(
   } else if (missingPlatform != null) {
     logger.printError(missingPlatformInstructions(missingPlatform), emphasis: true);
   } else if (hasModuleRedefinitionIssue) {
-    final bool usesCocoapods = await globals.cocoaPods!.usesCocoapodPlugins(project: project, platform: platform, fileSystem: fileSystem);
-    final bool usesSwiftPackageManager = await globals.cocoaPods!.usesSwiftPackageManager(project: project, platform: platform, fileSystem: fileSystem);
+    final bool usesCocoapods = project.ios.podfile.existsSync();
+    final bool usesSwiftPackageManager = project.usingSwiftPackageManager;
     if (usesCocoapods && usesSwiftPackageManager && redefinedModule != null) {
       logger.printError('Your project uses both CocoaPods and Swift Package Manager, which can cause the above error. It may be caused by there being both a CocoaPod and Swift Package Manager dependency for $redefinedModule. Try disabling Swift Package Manager using "flutter config --no-enable-swift-package-manager".');
     }
   } else if (hasMissingModuleIssue && missingModule != null) {
-    final bool usesCocoapods = await globals.cocoaPods!.usesCocoapodPlugins(project: project, platform: platform, fileSystem: fileSystem);
-    final bool usesSwiftPackageManager = await globals.cocoaPods!.usesSwiftPackageManager(project: project, platform: platform, fileSystem: fileSystem);
+    final bool usesCocoapods = project.ios.podfile.existsSync();
+    final bool usesSwiftPackageManager = project.usingSwiftPackageManager;
     final bool hasPodspec = await globals.cocoaPods!.doesPluginHavePodspec(platform: platform, project: project, pluginName: missingModule, fileSystem: fileSystem);
     final bool hasSwiftPackage = await globals.cocoaPods!.doesPluginHaveSwiftPackage(platform: platform, project: project, pluginName: missingModule, fileSystem: fileSystem);
     if (usesCocoapods && !usesSwiftPackageManager && !hasPodspec && hasSwiftPackage) {

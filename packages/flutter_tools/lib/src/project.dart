@@ -408,6 +408,13 @@ class FlutterProject {
     }
   }
 
+  bool get usingSwiftPackageManager {
+    if (!manifest.disabledSwiftPackageManager && (ios.existsSync() || macos.existsSync())) {
+      return featureFlags.isSwiftPackageManagerEnabled;
+    }
+    return false;
+  }
+
   /// Returns a json encoded string containing the [appName], [version], and [buildNumber] that is used to generate version.json
   String getVersionInfo()  {
     final String? buildName = manifest.buildName;

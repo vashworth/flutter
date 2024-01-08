@@ -17,6 +17,7 @@ import '../migrations/flutter_package_migration.dart';
 import '../plugins.dart';
 import '../project.dart';
 import '../template.dart';
+import 'cocoapods.dart';
 
 class SwiftPackageManager {
   SwiftPackageManager({
@@ -90,7 +91,7 @@ class SwiftPackageManager {
       final SwiftPackageContext packageContext = SwiftPackageContext(
         name: 'FlutterPackage',
         platforms: <SwiftPackageSupportedPlatform>[
-          if (platform == SupportedPlatform.ios) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.ios, version: '11.0'),
+          if (platform == SupportedPlatform.ios) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.ios, version: '12.0'),
           if (platform == SupportedPlatform.macos) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.macos, version: '10.14'),
         ],
         products: <SwiftPackageProduct>[
@@ -128,7 +129,7 @@ class SwiftPackageManager {
     }
   }
 
-  Future<void> migrateProject(XcodeBasedProject project, SupportedPlatform platform, {bool undoMigration = false}) async {
+  Future<void> migrateProject(XcodeBasedProject project, SupportedPlatform platform) async {
     final FlutterPackageMigration flutterPackageMigration = FlutterPackageMigration(
       project,
       platform,
@@ -136,7 +137,6 @@ class SwiftPackageManager {
       logger: _logger,
       fileSystem: _fileSystem,
       processManager: _processManager,
-      undoMigration: undoMigration,
     );
 
     try {
@@ -538,4 +538,105 @@ class SwiftPackageTargetDependency {
 
   final String name;
   final String? package;
+}
+
+class DarwinPluginPackageManagement {
+
+  DarwinPluginPackageManagement({
+    required this.fileSystem,
+    required this.logger,
+    required this.cocoapods,
+  });
+
+  final FileSystem fileSystem;
+  final CocoaPods cocoapods;
+  final Logger logger;
+
+  Map<SupportedPlatform, int> pluginCount = <SupportedPlatform, int>{};
+  Map<SupportedPlatform, int> swiftPackagePluginCount = <SupportedPlatform, int>{};
+  Map<SupportedPlatform, int> cocoapodPluginCount = <SupportedPlatform, int>{};
+
+  Future<bool> usingCocoaPodsPlugin({
+    required List<Plugin> plugins,
+    required FlutterProject project,
+    required SupportedPlatform platform,
+  }) async {
+    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
+      throwToolExit('Unable to check CocoaPods usage for ${platform.name} project');
+    }
+    if (pluginCount[platform] == null) {
+      await _evaluatePlugins(plugins: plugins, project: project, platform: platform);
+    }
+    if (project.usingSwiftPackageManager) {
+      if (pluginCount[platform] == swiftPackagePluginCount[platform]) {
+        return false;
+      }
+    }
+    if (cocoapodPluginCount[platform]! > 0) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _evaluatePlugins({
+    required List<Plugin> plugins,
+    required FlutterProject project,
+    required SupportedPlatform platform,
+  }) async {
+    int platformPluginCount = 0;
+    int swiftPackageCount = 0;
+    int cocoapodCount = 0;
+    for (final Plugin plugin in plugins) {
+      if (plugin.platforms[platform.name] == null) {
+        continue;
+      }
+      final String? swiftPackagePath = plugin.pluginSwiftPackagePath(platform.name);
+      final bool pluginSwiftPackageManagerCompatible = swiftPackagePath != null && fileSystem.file(swiftPackagePath).existsSync();
+      final String? podspecPath = plugin.pluginPodspecPath(platform.name);
+      final bool pluginCocoapodCompatible = podspecPath != null && fileSystem.file(podspecPath).existsSync();
+
+      // If a plugin is missing both a Package.swift and Podspec, it won't be
+      // included by either Swift Package Manager or Cocoapods. This can happen
+      // when a plugin doesn't have native platform code.
+      // For example, image_picker_macos only uses dart code.
+      if (!pluginSwiftPackageManagerCompatible && !pluginCocoapodCompatible) {
+        continue;
+      }
+
+      platformPluginCount += 1;
+
+      if (pluginSwiftPackageManagerCompatible) {
+        swiftPackageCount += 1;
+      }
+
+      if (pluginCocoapodCompatible) {
+        cocoapodCount += 1;
+      } else if (!project.usingSwiftPackageManager && pluginSwiftPackageManagerCompatible) {
+        // If not using Swift Package Manager and plugin does not have podspec but does have swift package, warn it will not be used
+        logger.printWarning('Plugin ${plugin.name} is only Swift Package Manager compatible. Try enabling Swift Package Manager.');
+      }
+    }
+
+    if (project.usingSwiftPackageManager) {
+      if (platformPluginCount == swiftPackageCount) {
+        final XcodeBasedProject xcodeProject = platform == SupportedPlatform.ios ? project.ios : project.macos;
+        final File podfileTemplate = await cocoapods.getPodfileTemplate(xcodeProject, xcodeProject.xcodeProject);
+        final bool podfileExists = xcodeProject.podfile.existsSync();
+
+        // If all plugins are SPM and generic podfile but pod stuff still exists, recommend pod deintegration
+        // If all plugins are SPM and custom podfile, recommend migrating
+
+        // TODO: SPM - messages
+        if (podfileExists && xcodeProject.podfile.readAsStringSync() == podfileTemplate.readAsStringSync()) {
+          logger.printStatus('All of the plugins you are using for ${platform.name} are Swift Packages. You may consider removing Cococapod files. To remove Cocoapods, in the macos directory run `pod deintegrate` and delete the Podfile.');
+        } else if (podfileExists) {
+          logger.printStatus('All of the plugins you are using for ${platform.name} are Swift Packages, but you may be using other Cocoapods. You may consider migrating to Swift Package Manager.');
+        }
+      }
+    }
+
+    pluginCount[platform] = platformPluginCount;
+    swiftPackagePluginCount[platform] = swiftPackageCount;
+    cocoapodPluginCount[platform] = cocoapodCount;
+  }
 }

@@ -26,20 +26,17 @@ class FlutterPackageMigration extends ProjectMigrator {
     required Logger logger,
     required FileSystem fileSystem,
     required ProcessManager processManager,
-    bool undoMigration = false,
   })  : _xcodeProjectInfoFile = project.xcodeProjectInfoFile,
         _platform = platform,
         _xcodeProjectInterpreter = xcodeProjectInterpreter,
         _fileSystem = fileSystem,
         _processManager = processManager,
-        _undoMigration = undoMigration,
         super(logger);
 
   final XcodeProjectInterpreter _xcodeProjectInterpreter;
   final FileSystem _fileSystem;
   final ProcessManager _processManager;
   final File _xcodeProjectInfoFile;
-  final bool _undoMigration;
   final SupportedPlatform _platform;
 
   static const String _flutterPackageBuildFileIdentifier = '78A318202AECB46A00862997';
@@ -80,17 +77,6 @@ class FlutterPackageMigration extends ProjectMigrator {
     processManager: _processManager,
   );
 
-  void undo() {
-    final String originalProjectContents = _xcodeProjectInfoFile.readAsStringSync();
-    String newProjectContents = originalProjectContents;
-    newProjectContents = newProjectContents.replaceAll('				$_flutterPackageBuildFileIdentifier /* FlutterPackage in Frameworks */,', '');
-    newProjectContents = newProjectContents.replaceAll('				$_flutterPackageProductDependencyIdentifer /* FlutterPackage */,', '');
-    if (originalProjectContents != newProjectContents) {
-      logger.printStatus('Removing Swift Package Manager integration');
-      _xcodeProjectInfoFile.writeAsStringSync(newProjectContents);
-    }
-  }
-
   @override
   void migrate() {
     try {
@@ -105,11 +91,6 @@ class FlutterPackageMigration extends ProjectMigrator {
       // If Xcode not installed or less than 15, skip this migration.
       if (version == null || version < Version(15, 0, 0)) {
         xcode15 = true;
-      }
-
-      if (_undoMigration) {
-        undo();
-        return;
       }
 
       // Parse project.pbxproj into JSON

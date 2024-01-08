@@ -136,6 +136,10 @@ class FlutterManifest {
     return _flutterDescriptor['uses-material-design'] as bool? ?? false;
   }
 
+  bool get disabledSwiftPackageManager {
+    return _flutterDescriptor['disable-swift-package-manager'] as bool? ?? false;
+  }
+
   /// True if this Flutter module should use AndroidX dependencies.
   ///
   /// If false the deprecated Android Support library will be used.
@@ -481,6 +485,10 @@ void _validateFlutter(YamlMap? yaml, List<String> errors) {
     }
     switch (yamlKey) {
       case 'uses-material-design':
+        if (yamlValue is! bool) {
+          errors.add('Expected "$yamlKey" to be a bool, but got $yamlValue (${yamlValue.runtimeType}).');
+        }
+      case 'disable-swift-package-manager':
         if (yamlValue is! bool) {
           errors.add('Expected "$yamlKey" to be a bool, but got $yamlValue (${yamlValue.runtimeType}).');
         }

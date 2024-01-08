@@ -471,6 +471,7 @@ abstract class CreateBase extends FlutterCommand {
     Map<String, Object?> context, {
     bool overwrite = false,
     bool printStatusWhenWriting = true,
+    List<String> excludedPaths = const <String>[],
   }) async {
     final Template template = await Template.merged(
       names,
@@ -485,6 +486,7 @@ abstract class CreateBase extends FlutterCommand {
       context,
       overwriteExisting: overwrite,
       printStatusWhenWriting: printStatusWhenWriting,
+      excludedPaths: excludedPaths,
     );
   }
 
@@ -501,10 +503,16 @@ abstract class CreateBase extends FlutterCommand {
     bool printStatusWhenWriting = true,
     bool generateMetadata = true,
     FlutterProjectType? projectType,
+    bool spm = false,
   }) async {
     int generatedCount = 0;
     generatedCount += await renderMerged(
-      <String>[...templateNames, 'app_shared'],
+      <String>[
+        ...templateNames,
+        'app_shared',
+        if (spm) 'app_spm',
+        if (spm && pluginExampleApp) 'app_example_spm'
+      ],
       directory,
       templateContext,
       overwrite: overwrite,

@@ -460,11 +460,12 @@ abstract class FlutterCommand extends Command<void> {
   // TODO: SPM
   // void usesSwiftPackageManagerOptions({ required bool verboseHelp }) {
   //   argParser.addFlag('disable-swift-package-manager',
-  //       help: 'Only use Cocoapods as the iOS/macOS dependency manager. '
-  //             'Does not disable Swift Package Manager globally. To disable '
-  //             'globally, run "flutter config --no-enable-swift-package-manager".',
-  //       negatable: false,
-  //       hide: !featureFlags.isSwiftPackageManagerEnabled || !verboseHelp,
+  //   aliases: <String>['disable-spm'],
+  //     help: 'Do not use Swift Package Manager as the iOS/macOS dependency manager for plugins. '
+  //           'Does not disable Swift Package Manager globally. To disable '
+  //           'globally, run "flutter config --no-enable-swift-package-manager".',
+  //     negatable: false,
+  //     hide: !featureFlags.isSwiftPackageManagerEnabled || !verboseHelp,
   //   );
   // }
 

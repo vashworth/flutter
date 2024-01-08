@@ -11,14 +11,12 @@ import '../base/logger.dart';
 import '../base/project_migrator.dart';
 import '../build_info.dart';
 import '../convert.dart';
-import '../features.dart';
 import '../globals.dart' as globals;
 import '../ios/xcode_build_settings.dart';
 import '../ios/xcodeproj.dart';
 import '../migrations/xcode_project_object_version_migration.dart';
 import '../migrations/xcode_script_build_phase_migration.dart';
 import '../migrations/xcode_thin_binary_build_phase_input_paths_migration.dart';
-import '../platform_plugins.dart';
 import '../project.dart';
 import 'cocoapod_utils.dart';
 import 'migrations/flutter_application_migration.dart';
@@ -100,7 +98,8 @@ Future<void> buildMacOS({
     useMacOSConfig: true,
   );
 
-  if (featureFlags.isSwiftPackageManagerEnabled) {
+  // TODO: SPM
+  if (flutterProject.usingSwiftPackageManager) {
     SwiftPackageManager.setupFlutterFramework(
       SupportedPlatform.macos,
       flutterProject.macos,

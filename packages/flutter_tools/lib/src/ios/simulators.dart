@@ -569,7 +569,7 @@ class IOSSimulator extends Device {
     if (!buildResult.success) {
       await diagnoseXcodeBuildFailure(
         buildResult,
-        globals.flutterUsage,
+        flutterUsage: globals.flutterUsage,
         project: app.project.parent,
         platform: SupportedPlatform.ios,
         logger: globals.logger,
