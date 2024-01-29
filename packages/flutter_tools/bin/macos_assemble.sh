@@ -162,6 +162,8 @@ EmbedFrameworks() {
   # which could be a local build or an arch/type specific build.
 
   # Copy Xcode behavior and don't copy over headers or modules.
+  # TODO: SPM - This sometimes fails, maybe only when using SPM and Cocoapods?
+  # rsync error: received SIGINT, SIGTERM, or SIGHUP (code 20)
   RunCommand rsync -av --delete --filter "- .DS_Store" --filter "- Headers" --filter "- Modules" "${BUILT_PRODUCTS_DIR}/FlutterMacOS.framework" "${xcode_frameworks_dir}/"
 
   # Sign the binaries we moved.

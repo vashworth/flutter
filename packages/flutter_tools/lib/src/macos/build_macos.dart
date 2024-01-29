@@ -98,7 +98,6 @@ Future<void> buildMacOS({
     useMacOSConfig: true,
   );
 
-  // TODO: SPM
   if (flutterProject.usingSwiftPackageManager) {
     SwiftPackageManager.setupFlutterFramework(
       SupportedPlatform.macos,
@@ -106,6 +105,7 @@ Future<void> buildMacOS({
       buildInfo.mode,
       artifacts: globals.artifacts!,
       fileSystem: globals.fs,
+      processManager: globals.processManager,
     );
   }
   await processPodsIfNeeded(flutterProject.macos, getMacOSBuildDirectory(), buildInfo.mode);

@@ -195,22 +195,6 @@ class CocoaPods {
     }
   }
 
-  Future<bool> usingCocoaPodsPlugin({
-    required List<Plugin> plugins,
-    required FlutterProject project,
-    required SupportedPlatform platform,
-    required FileSystem fileSystem,
-  }) async {
-    for (final Plugin plugin in plugins) {
-      if (plugin.platforms[platform.name] == null) {
-        continue;
-      }
-      final String? swiftPackagePath = plugin.pluginSwiftPackagePath(platform.name);
-      if (project.usingSwiftPackageManager && swiftPackagePath != null && fileSystem.file(swiftPackagePath).existsSync()) {
-      }
-    }
-    return true;
-  }
 
   Future<bool> processPods({
     required XcodeBasedProject xcodeProject,

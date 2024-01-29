@@ -17,8 +17,8 @@ import '../migrations/flutter_package_migration.dart';
 import '../plugins.dart';
 import '../project.dart';
 import '../template.dart';
-import 'cocoapods.dart';
 
+// TODO: SPM - comment
 class SwiftPackageManager {
   SwiftPackageManager({
     required Artifacts artifacts,
@@ -45,12 +45,16 @@ class SwiftPackageManager {
     return '${project.hostAppRoot.path}/Flutter/Packages/FlutterPackage';
   }
 
+  static Directory flutterPackage(XcodeBasedProject project, FileSystem fileSystem) {
+    return fileSystem.directory(flutterPackagesPath(project));
+  }
+
   Future<void> generate(List<Plugin> plugins, SupportedPlatform platform, XcodeBasedProject project) async {
     if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
       throwToolExit('The platform ${platform.name} is not compatible with Swift Package Manager. Only iOS and macOS is allowed.');
     }
     final List<SwiftPackagePackageDependency> packageDependencies = <SwiftPackagePackageDependency>[];
-    final List<SwiftPackageTargetDependency> packageProducts = <SwiftPackageTargetDependency>[];
+    final List<SwiftPackageTargetDependency> targetProducts = <SwiftPackageTargetDependency>[];
 
     for (final Plugin plugin in plugins) {
       final String? pluginSwiftPackagePath = plugin.pluginSwiftPackagePath(platform.name);
@@ -58,21 +62,14 @@ class SwiftPackageManager {
         _logger.printTrace('Skipping ${plugin.name} for ${platform.name}. Not compatible with SPM.');
         continue;
       }
-      final SwiftPackage pluginSwiftPackage = SwiftPackage(
-        swiftPackagePath: pluginSwiftPackagePath,
-        fileSystem: _fileSystem,
-        logger: _logger,
-        templateRenderer: _templateRenderer,
-      );
-      if (await pluginSwiftPackage.swiftPackage.exists()) {
-        // plugin already has a Package.swift
-        // Add plugin as dependency
+      if (_fileSystem.file(pluginSwiftPackagePath).existsSync()) {
+        // If plugin has a Package.swift, add plugin as a dependency
         packageDependencies.add(
           SwiftPackagePackageDependency(name: plugin.name, path: _fileSystem.file(pluginSwiftPackagePath).parent.path),
         );
-        packageProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
+        targetProducts.add(SwiftPackageTargetDependency(name: plugin.name, package: plugin.name));
       } else {
-        _logger.printStatus('Using a non-spm plugin: ${plugin.name}');
+        _logger.printTrace('Using a non-spm plugin: ${plugin.name}');
       }
     }
 
@@ -87,7 +84,21 @@ class SwiftPackageManager {
 
     final String flutterFramework = platform == SupportedPlatform.ios ? 'Flutter' : 'FlutterMacOS';
 
-    if (packageDependencies.isNotEmpty || flutterPackage.swiftPackage.existsSync()) {
+    if (packageDependencies.isNotEmpty || projectMigrated(project)) {
+      final List<SwiftPackageTarget> packageTargets = <SwiftPackageTarget>[
+        if (packageDependencies.isNotEmpty) SwiftPackageTarget.binaryTarget(
+            name: flutterFramework,
+            path: '$flutterFramework.xcframework',
+          ),
+          SwiftPackageTarget(
+            name: 'FlutterPackage',
+            dependencies: <SwiftPackageTargetDependency>[
+              if (packageDependencies.isNotEmpty) SwiftPackageTargetDependency(name: flutterFramework),
+              ...targetProducts,
+            ],
+          ),
+      ];
+
       final SwiftPackageContext packageContext = SwiftPackageContext(
         name: 'FlutterPackage',
         platforms: <SwiftPackageSupportedPlatform>[
@@ -98,35 +109,34 @@ class SwiftPackageManager {
           SwiftPackageProduct(name: 'FlutterPackage', targets: <String>['FlutterPackage']),
         ],
         dependencies: packageDependencies,
-        targets: <SwiftPackageTarget>[
-          if (packageDependencies.isNotEmpty) SwiftPackageTarget.binaryTarget(
-            name: flutterFramework,
-            path: '$flutterFramework.xcframework',
-          ),
-          SwiftPackageTarget(
-            name: 'FlutterPackage',
-            dependencies: <SwiftPackageTargetDependency>[
-              if (packageDependencies.isNotEmpty) SwiftPackageTargetDependency(name: flutterFramework),
-              ...packageProducts,
-            ],
-          ),
-        ],
+        targets: packageTargets,
       );
 
       // Create FlutterPackage, which adds dependencies to the Flutter Framework and plugins.
       await flutterPackage.createSwiftPackage(packageContext);
 
-      // You need to setup the framework symlink so xcodebuild commands like showSettings will still work
+      // You need to setup the framework symlink so xcodebuild commands like
+      // showSettings will still work. The BuildMode is not known yet, so set
+      // to debug for now. The correct framework will be symlinked when the
+      // project is built.
       setupFlutterFramework(
         platform,
         project,
         BuildMode.debug,
         artifacts: _artifacts,
         fileSystem: _fileSystem,
+        processManager: _processManager,
       );
 
       await migrateProject(project, platform);
     }
+  }
+
+  static bool projectMigrated(XcodeBasedProject project) {
+    if (project.xcodeProjectInfoFile.existsSync() && project.xcodeProjectInfoFile.readAsStringSync().contains(FlutterPackageMigration.flutterPackageFileReferenceIdentifier)) {
+      return true;
+    }
+    return false;
   }
 
   Future<void> migrateProject(XcodeBasedProject project, SupportedPlatform platform) async {
@@ -167,25 +177,41 @@ class SwiftPackageManager {
     BuildMode buildMode, {
     required Artifacts artifacts,
     required FileSystem fileSystem,
+    required ProcessManager processManager,
   }) {
     if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
       throwToolExit('The platform ${platform.name} is not compatible with Swift Package Manager. Only iOS and macOS is allowed.');
     }
-    final String flutterPackagesPath = '${project.hostAppRoot.path}/Flutter/Packages/FlutterPackage';
-    final Directory flutterPackageDir = fileSystem.directory(flutterPackagesPath);
+    final Directory flutterPackageDir = flutterPackage(project, fileSystem);
 
-    // TODO: SPM - macos
-    String engineCacheFlutterFramework = artifacts.getArtifactPath(
-      platform == SupportedPlatform.ios ? Artifact.flutterXcframework : Artifact.flutterMacOSFramework,
-      platform: platform == SupportedPlatform.ios ? TargetPlatform.ios : TargetPlatform.darwin,
-      mode: buildMode,
-    );
-
-    Link frameworkSymlink = flutterPackageDir.childLink('Flutter.xcframework');
+    String engineCacheFlutterFramework;
+    Link frameworkSymlink;
 
     if (platform == SupportedPlatform.macos) {
-      engineCacheFlutterFramework = '/Users/vashworth/Development/flutter/bin/cache/artifacts/engine/darwin-x64/FlutterMacOS.xcframework';
+      // TODO: SPM - macos, use artifact instead of creating on the fly
+      engineCacheFlutterFramework = artifacts.getArtifactPath(
+        Artifact.flutterMacOSFramework,
+        platform: TargetPlatform.darwin,
+        mode: buildMode,
+      );
+      final String xcframeworkPath = fileSystem.file(engineCacheFlutterFramework).parent.childDirectory('FlutterMacOS.xcframework').path;
+      processManager.runSync(<String>[
+        'xcrun',
+        'xcodebuild',
+        '-create-xcframework',
+        '-framework',
+        engineCacheFlutterFramework,
+        xcframeworkPath,
+      ]);
+      engineCacheFlutterFramework = xcframeworkPath;
       frameworkSymlink = flutterPackageDir.childLink('FlutterMacOS.xcframework');
+    } else {
+      engineCacheFlutterFramework = artifacts.getArtifactPath(
+        Artifact.flutterXcframework,
+        platform: TargetPlatform.ios,
+        mode: buildMode,
+      );
+      frameworkSymlink = flutterPackageDir.childLink('Flutter.xcframework');
     }
 
     if (!frameworkSymlink.existsSync()) {
@@ -244,6 +270,7 @@ class SwiftPackage {
       swiftPackage.parent,
       packageContext.templateContext,
       overwriteExisting: overwriteExisting,
+      printStatusWhenWriting: false,
     );
   }
 }
@@ -255,48 +282,30 @@ class SwiftPackageContext {
     required this.products,
     required this.dependencies,
     required this.targets,
-    // this.swiftLanguageVersions,
   });
 
   final String name;
 
-  // defaultLocalization: LanguageTag? = nil,
-
   final List<SwiftPackageSupportedPlatform> platforms;
-
-  // pkgConfig: String? = nil,
-
-  // providers: [SystemPackageProvider]? = nil,
 
   final List<SwiftPackageProduct> products;
 
   final List<SwiftPackagePackageDependency> dependencies;
 
-  // targets: [Target] = [],
   final List<SwiftPackageTarget> targets;
 
-  // final List<SwiftLanguageVersion>? swiftLanguageVersions;
-
-  // cLanguageStandard: CLanguageStandard? = nil,
-  // cxxLanguageStandard: CXXLanguageStandard? = nil
-
   static const String _singleIndent = '    ';
+  static const String _doubleIndent = '$_singleIndent$_singleIndent';
 
   Map<String, String> get templateContext {
 
     final Map<String, String> context = <String, String>{
       'packageName': _stringifyName(),
       'swiftToolsVersion': '5.7',
-      'defaultLocalization': '',
       'platforms': _stringifyPlatforms(),
-      'pkgConfig': '',
-      'providers': '',
       'products': _stringifyProducts(),
       'dependencies': _stringifyDependencies(),
       'targets': _stringifyTargets(),
-      'swiftLanguageVersions': '',
-      'cLanguageStandard': '',
-      'cxxLanguageStandard': '',
     };
     return context;
   }
@@ -308,50 +317,48 @@ class SwiftPackageContext {
   String _stringifyPlatforms() {
     // platforms: [
     //     .macOS("10.14"),
-    //     .iOS(.v11),
+    //     .iOS("12.0"),
     // ],
     final List<String> platformStrings = <String>[];
     for (final SwiftPackageSupportedPlatform platform in platforms) {
-      final String platformString = '$_singleIndent$_singleIndent${platform.platform.name}("${platform.version}")';
+      final String platformString = '$_doubleIndent${platform.platform.name}("${platform.version}")';
       platformStrings.add(platformString);
     }
-    return <String>[
-'''
+    return '''
 ${_singleIndent}platforms: [
 ${platformStrings.join(",\n")}
 $_singleIndent],
-'''
-    ].join();
+''';
   }
 
   String _stringifyProducts() {
+    // products: [
+    //     .library(name: "FlutterPackage", targets: ["FlutterPackage"])
+    // ],
     final List<String> libraries = <String>[];
     for (final SwiftPackageProduct product in products) {
-      String typeString = '';
-      // if (product.libraryType != null) {
-      //   typeString = ', type: ${product.libraryType!.name}';
-      // }
       String targetsString = '';
       if (product.targets.isNotEmpty) {
         targetsString = ', targets: ["${product.targets.join('", ')}"]';
       }
-      final String library = '$_singleIndent$_singleIndent.library(name: "${product.name}"$typeString$targetsString)';
+      final String library = '$_doubleIndent.library(name: "${product.name}"$targetsString)';
       libraries.add(library);
     }
 
-    return <String>[
-'''
+    return '''
 ${_singleIndent}products: [
 ${libraries.join(",\n")}
 $_singleIndent],
-'''
-    ].join();
+''';
   }
 
   String _stringifyDependencies() {
+    // dependencies: [
+    //     .package(name: "image_picker_ios", path: "/path/to/packages/image_picker/image_picker_ios/ios/image_picker_ios"),
+    // ],
     final List<String> packages = <String>[];
     for (final SwiftPackagePackageDependency dependency in dependencies) {
-      final String package = '$_singleIndent$_singleIndent.package(name: "${dependency.name}", path: "${dependency.path}")';
+      final String package = '$_doubleIndent.package(name: "${dependency.name}", path: "${dependency.path}")';
       packages.add(package);
     }
 
@@ -363,19 +370,28 @@ $_singleIndent],
   }
 
   String _stringifyTargets() {
-    const String targetIndent = '$_singleIndent$_singleIndent';
-    const String targetDetailsIndent = '$_singleIndent$_singleIndent$_singleIndent';
-    const String dependencyIndent = '$_singleIndent$_singleIndent$_singleIndent$_singleIndent';
+    // targets: [
+    //     .binaryTarget(
+    //         name: "Flutter",
+    //         path: "Flutter.xcframework"
+    //     ),
+    //     .target(
+    //         name: "FlutterPackage",
+    //         dependencies: [
+    //             "Flutter",
+    //             .product(name: "image_picker_ios", package: "image_picker_ios")
+    //         ]
+    //     ),
+    // ]
+    const String targetIndent = _doubleIndent;
+    const String targetDetailsIndent = '$_doubleIndent$_singleIndent';
+    const String dependencyIndent = '$_doubleIndent$_doubleIndent';
     final List<String> targetList = <String>[];
     for (final SwiftPackageTarget target in targets) {
       final String targetType = target.binaryTarget ? 'binaryTarget' : 'target';
-
-
       final String name = 'name: "${target.name}"';
 
       final List<String> targetDetails = <String>[name];
-
-
       if (target.path != null) {
         final String path = 'path: "${target.path}"';
         targetDetails.add(path);
@@ -399,9 +415,6 @@ $targetDetailsIndent]''';
         targetDetails.add(dependencies);
       }
 
-      // ${targetDetailsIndent}
-
-
       targetList.add('''
 $targetIndent.$targetType(
 $targetDetailsIndent${targetDetails.join(",\n$targetDetailsIndent")}
@@ -415,18 +428,6 @@ $_singleIndent]''';
   }
 }
 
-// enum SwiftLanguageVersion {
-//   v3(name: '.v3'),
-//   v4(name: '.v4'),
-//   v4_2(name: '.v4_2'),
-//   v5(name: '.v5'),
-//   custom(name: '.version({{customVersion}})');
-
-//   const SwiftLanguageVersion({required this.name});
-
-//   final String name;
-// }
-
 class SwiftPackageSupportedPlatform {
   SwiftPackageSupportedPlatform({
     required this.platform,
@@ -435,12 +436,6 @@ class SwiftPackageSupportedPlatform {
 
   final SwiftPackagePlatform platform;
   final String? version;
-  // First available in PackageDescription 5.0
-  // Configures the minimum deployment target version for the iOS platform using a custom version string.
-  // platforms: [.iOS(.v12)],
-  // platforms: [.iOS],
-  // platforms: [.macOS(.v10_15), .iOS(.v13)],
-  // platforms: [.iOS("8.0.1")],
 }
 
 enum SwiftPackagePlatform {
@@ -456,34 +451,13 @@ enum SwiftPackagePlatform {
 
 class SwiftPackageProduct {
   SwiftPackageProduct({
-    // this.productType,
     required this.name,
-    // this.libraryType,
     required this.targets,
   });
 
-  // final SwiftPackageProductType productType;
   final String name;
-  // final SwiftPackageLibraryType? libraryType;
   final List<String> targets;
 }
-
-// enum SwiftPackageProductType {
-//   library(name: '.library');
-
-//   const SwiftPackageProductType({required this.name});
-
-//   final String name;
-// }
-
-// enum SwiftPackageLibraryType {
-//   static(name: '.static'),
-//   dynamic(name: '.dynamic');
-
-//   const SwiftPackageLibraryType({required this.name});
-
-//   final String name;
-// }
 
 class SwiftPackagePackageDependency {
   SwiftPackagePackageDependency({
@@ -501,7 +475,6 @@ class SwiftPackageTarget {
     this.path,
     this.exclude,
     this.sources,
-    // this.resources,
     this.publicHeadersPath,
     this.dependencies,
     this.binaryTarget = false,
@@ -512,7 +485,6 @@ class SwiftPackageTarget {
     this.path,
     this.exclude,
     this.sources,
-    // this.resources,
     this.publicHeadersPath,
     this.dependencies,
     this.binaryTarget = true,
@@ -522,12 +494,9 @@ class SwiftPackageTarget {
   final String? path;
   final List<String>? exclude;
   final List<String>? sources;
-  // final List<String>? resources;
   final String? publicHeadersPath;
   final List<SwiftPackageTargetDependency>? dependencies;
   final bool binaryTarget;
-
-  // TODO: resources
 }
 
 class SwiftPackageTargetDependency {
@@ -538,105 +507,4 @@ class SwiftPackageTargetDependency {
 
   final String name;
   final String? package;
-}
-
-class DarwinPluginPackageManagement {
-
-  DarwinPluginPackageManagement({
-    required this.fileSystem,
-    required this.logger,
-    required this.cocoapods,
-  });
-
-  final FileSystem fileSystem;
-  final CocoaPods cocoapods;
-  final Logger logger;
-
-  Map<SupportedPlatform, int> pluginCount = <SupportedPlatform, int>{};
-  Map<SupportedPlatform, int> swiftPackagePluginCount = <SupportedPlatform, int>{};
-  Map<SupportedPlatform, int> cocoapodPluginCount = <SupportedPlatform, int>{};
-
-  Future<bool> usingCocoaPodsPlugin({
-    required List<Plugin> plugins,
-    required FlutterProject project,
-    required SupportedPlatform platform,
-  }) async {
-    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
-      throwToolExit('Unable to check CocoaPods usage for ${platform.name} project');
-    }
-    if (pluginCount[platform] == null) {
-      await _evaluatePlugins(plugins: plugins, project: project, platform: platform);
-    }
-    if (project.usingSwiftPackageManager) {
-      if (pluginCount[platform] == swiftPackagePluginCount[platform]) {
-        return false;
-      }
-    }
-    if (cocoapodPluginCount[platform]! > 0) {
-      return true;
-    }
-    return false;
-  }
-
-  Future<void> _evaluatePlugins({
-    required List<Plugin> plugins,
-    required FlutterProject project,
-    required SupportedPlatform platform,
-  }) async {
-    int platformPluginCount = 0;
-    int swiftPackageCount = 0;
-    int cocoapodCount = 0;
-    for (final Plugin plugin in plugins) {
-      if (plugin.platforms[platform.name] == null) {
-        continue;
-      }
-      final String? swiftPackagePath = plugin.pluginSwiftPackagePath(platform.name);
-      final bool pluginSwiftPackageManagerCompatible = swiftPackagePath != null && fileSystem.file(swiftPackagePath).existsSync();
-      final String? podspecPath = plugin.pluginPodspecPath(platform.name);
-      final bool pluginCocoapodCompatible = podspecPath != null && fileSystem.file(podspecPath).existsSync();
-
-      // If a plugin is missing both a Package.swift and Podspec, it won't be
-      // included by either Swift Package Manager or Cocoapods. This can happen
-      // when a plugin doesn't have native platform code.
-      // For example, image_picker_macos only uses dart code.
-      if (!pluginSwiftPackageManagerCompatible && !pluginCocoapodCompatible) {
-        continue;
-      }
-
-      platformPluginCount += 1;
-
-      if (pluginSwiftPackageManagerCompatible) {
-        swiftPackageCount += 1;
-      }
-
-      if (pluginCocoapodCompatible) {
-        cocoapodCount += 1;
-      } else if (!project.usingSwiftPackageManager && pluginSwiftPackageManagerCompatible) {
-        // If not using Swift Package Manager and plugin does not have podspec but does have swift package, warn it will not be used
-        logger.printWarning('Plugin ${plugin.name} is only Swift Package Manager compatible. Try enabling Swift Package Manager.');
-      }
-    }
-
-    if (project.usingSwiftPackageManager) {
-      if (platformPluginCount == swiftPackageCount) {
-        final XcodeBasedProject xcodeProject = platform == SupportedPlatform.ios ? project.ios : project.macos;
-        final File podfileTemplate = await cocoapods.getPodfileTemplate(xcodeProject, xcodeProject.xcodeProject);
-        final bool podfileExists = xcodeProject.podfile.existsSync();
-
-        // If all plugins are SPM and generic podfile but pod stuff still exists, recommend pod deintegration
-        // If all plugins are SPM and custom podfile, recommend migrating
-
-        // TODO: SPM - messages
-        if (podfileExists && xcodeProject.podfile.readAsStringSync() == podfileTemplate.readAsStringSync()) {
-          logger.printStatus('All of the plugins you are using for ${platform.name} are Swift Packages. You may consider removing Cococapod files. To remove Cocoapods, in the macos directory run `pod deintegrate` and delete the Podfile.');
-        } else if (podfileExists) {
-          logger.printStatus('All of the plugins you are using for ${platform.name} are Swift Packages, but you may be using other Cocoapods. You may consider migrating to Swift Package Manager.');
-        }
-      }
-    }
-
-    pluginCount[platform] = platformPluginCount;
-    swiftPackagePluginCount[platform] = swiftPackageCount;
-    cocoapodPluginCount[platform] = cocoapodCount;
-  }
 }

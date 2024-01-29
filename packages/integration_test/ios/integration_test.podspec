@@ -15,11 +15,11 @@ LICENSE
    }
   s.author           = { 'Flutter Team' => 'flutter-dev@googlegroups.com' }
   s.source           = { :http => 'https://github.com/flutter/flutter/tree/master/packages/integration_test' }
-  s.source_files = 'Classes/**/*'
-  s.public_header_files = 'Classes/**/*.h'
+  s.source_files = 'integration_test/Sources/integration_test/**/*.{h,m}'
+  s.public_header_files = 'integration_test/Sources/integration_test/**/*.h'
   s.dependency 'Flutter'
   s.ios.framework  = 'UIKit'
 
-  s.platform = :ios, '11.0'
+  s.platform = :ios, '12.0'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
 end

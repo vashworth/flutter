@@ -322,6 +322,7 @@ class CreateCommand extends CreateBase {
       projectDescription: stringArg('description'),
       flutterRoot: flutterRoot,
       withPlatformChannelPluginHook: generateMethodChannelsPlugin,
+      withSwiftPackageManager: featureFlags.isSwiftPackageManagerEnabled,
       withFfiPluginHook: generateFfiPlugin,
       withFfiPackage: generateFfiPackage,
       withEmptyMain: emptyArgument,
@@ -607,11 +608,14 @@ Your $application code is in $relativeAppMain.
     final List<String> excluded = <String>[];
     if ((templateContext['ios'] == true || templateContext['macos'] == true) && featureFlags.isSwiftPackageManagerEnabled) {
       templates.add('plugin_spm');
+
+      // Exclude Cocoapod-style files from templates/plugin
       excluded.addAll(<String>[
         'ios-objc.tmpl/Classes/pluginClass.h.tmpl',
         'ios-objc.tmpl/Classes/pluginClass.m.tmpl',
         'ios-swift.tmpl/Classes/pluginClass.swift.tmpl',
         'ios.tmpl/Assets/.gitkeep',
+        'macos.tmpl/Classes/pluginClass.swift.tmpl',
       ]);
     }
 

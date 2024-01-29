@@ -246,7 +246,6 @@ Future<XcodeBuildResult> buildXcodeProject({
     buildInfo: buildInfo,
   );
 
-  // TODO: SPM
   if (project.usingSwiftPackageManager) {
     SwiftPackageManager.setupFlutterFramework(
       SupportedPlatform.ios,
@@ -254,6 +253,7 @@ Future<XcodeBuildResult> buildXcodeProject({
       buildInfo.mode,
       artifacts: globals.artifacts!,
       fileSystem: globals.fs,
+      processManager: globals.processManager,
     );
   }
   await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);
@@ -876,6 +876,7 @@ Future<bool> _handleIssues(
   } else if (missingPlatform != null) {
     logger.printError(missingPlatformInstructions(missingPlatform), emphasis: true);
   } else if (hasModuleRedefinitionIssue) {
+    // TODO: SPM - make messages better, disable via pubspec?
     final bool usesCocoapods = project.ios.podfile.existsSync();
     final bool usesSwiftPackageManager = project.usingSwiftPackageManager;
     if (usesCocoapods && usesSwiftPackageManager && redefinedModule != null) {

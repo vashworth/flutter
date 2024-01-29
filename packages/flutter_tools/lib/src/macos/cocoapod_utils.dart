@@ -8,6 +8,7 @@ import '../cache.dart';
 import '../flutter_plugins.dart';
 import '../globals.dart' as globals;
 import '../project.dart';
+import 'swift_packages.dart';
 
 /// For a given build, determines whether dependencies have changed since the
 /// last call to processPods, then calls processPods with that information.
@@ -21,6 +22,8 @@ Future<void> processPodsIfNeeded(
 
   if (project.usingSwiftPackageManager && !xcodeProject.podfile.existsSync()) {
     // If there isn't a Podfile, skip processing pods.
+
+    // TODO: SPM - if cocoapods was just removed
     return;
   }
 
@@ -36,6 +39,7 @@ Future<void> processPodsIfNeeded(
     paths: <String>[
       xcodeProject.xcodeProjectInfoFile.path,
       xcodeProject.podfile.path,
+      SwiftPackageManager.flutterPackagesPath(xcodeProject),
       globals.fs.path.join(
         Cache.flutterRoot!,
         'packages',

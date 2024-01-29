@@ -22,7 +22,7 @@ import 'dart/language_version.dart';
 import 'dart/package_map.dart';
 import 'features.dart';
 import 'globals.dart' as globals;
-import 'macos/swift_packages.dart';
+import 'macos/darwin_dependency_management_setup.dart';
 import 'platform_plugins.dart';
 import 'plugins.dart';
 import 'project.dart';
@@ -1202,61 +1202,29 @@ Future<void> injectPlugins(
     await writeWindowsPluginFiles(project, plugins, globals.templateRenderer, allowedPlugins: allowedPlugins);
   }
 
-  if (!(iosPlatform || macOSPlatform)) {
-    return;
-  }
-
-  // DONE: SPM
-  if (!project.isModule) {
-    // TODO: SPM - If local plugin, add test migration?
-    // final bool isLocalPlugin = plugins.where((Plugin plugin) => project.directory.path.contains(plugin.path)).isNotEmpty;
-
-    final SwiftPackageManager spm = SwiftPackageManager(
+  if (!project.isModule && (iosPlatform || macOSPlatform)) {
+    final DarwinDependencyManagementSetup darwinDependencyManagerSetup = DarwinDependencyManagementSetup(
       artifacts: globals.artifacts!,
       fileSystem: globals.fs,
+      cocoapods: globals.cocoaPods!,
       logger: globals.logger,
       processManager: globals.processManager,
       templateRenderer: globals.templateRenderer,
       xcodeProjectInterpreter: globals.xcodeProjectInterpreter!,
+      project: project,
+      plugins: plugins,
     );
-
-    if (project.usingSwiftPackageManager) {
-      if (iosPlatform) {
-        await spm.generate(plugins, SupportedPlatform.ios, project.ios);
-      }
-      if (macOSPlatform) {
-        await spm.generate(plugins, SupportedPlatform.macos, project.macos);
-      }
-    } else {
-      // If SPM is not enabled but the project is already migrated to use SPM,
-      // pass no plugins to the SPM generator. This will update SPM to still
-      // exist but not have any dependencies.
-      if (iosPlatform && globals.fs.directory(SwiftPackageManager.flutterPackagesPath(project.ios)).existsSync()) {
-        await spm.generate(<Plugin>[], SupportedPlatform.ios, project.ios);
-      }
-      if (macOSPlatform && globals.fs.directory(SwiftPackageManager.flutterPackagesPath(project.macos)).existsSync()) {
-        await spm.generate(<Plugin>[], SupportedPlatform.macos, project.macos);
-      }
+    if (iosPlatform) {
+      await darwinDependencyManagerSetup.setup(
+        platform: SupportedPlatform.ios,
+        xcodeProject: project.ios,
+      );
     }
-
-    final DarwinPluginPackageManagement packageManagement = DarwinPluginPackageManagement(cocoapods: globals.cocoaPods!, fileSystem: globals.fs, logger: globals.logger);
-    final bool useCocoapodsForIOS = await packageManagement.usingCocoaPodsPlugin(plugins: plugins, project: project, platform: SupportedPlatform.ios);
-    final bool useCocoapodsForMacOS = await packageManagement.usingCocoaPodsPlugin(plugins: plugins, project: project, platform: SupportedPlatform.macos);
-
-    // Only setup Cocoapods when using SPM if not all plugins are SPM or they have a Podfile
-    final List<XcodeBasedProject> darwinProjects = <XcodeBasedProject>[
-      if (iosPlatform && (useCocoapodsForIOS || project.ios.podfile.existsSync())) project.ios,
-      if (macOSPlatform && (useCocoapodsForMacOS || project.macos.podfile.existsSync())) project.macos,
-    ];
-    for (final XcodeBasedProject subproject in darwinProjects) {
-      if (plugins.isNotEmpty) {
-        await globals.cocoaPods?.setupPodfile(subproject);
-      }
-      /// The user may have a custom maintained Podfile that they're running `pod install`
-      /// on themselves.
-      else if (subproject.podfile.existsSync() && subproject.podfileLock.existsSync()) {
-        globals.cocoaPods?.addPodsDependencyToFlutterXcconfig(subproject);
-      }
+    if (macOSPlatform) {
+      await darwinDependencyManagerSetup.setup(
+        platform: SupportedPlatform.macos,
+        xcodeProject: project.macos,
+      );
     }
   }
 }

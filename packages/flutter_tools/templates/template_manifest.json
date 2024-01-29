@@ -367,32 +367,39 @@
         "templates/xcode/ios/custom_application_bundle/Runner.xcodeproj.tmpl/xcshareddata/xcschemes/Runner.xcscheme.tmpl",
 
         "templates/swift_package_manager/Package.swift.tmpl",
-        "templates/app_spm/ios-objc.tmpl/Runner.xcodeproj/project.pbxproj.tmpl",
-        "templates/app_spm/ios-swift.tmpl/Runner.xcodeproj/project.pbxproj.tmpl",
+
         "templates/app_spm/ios.tmpl/Flutter/Packages/FlutterPackage/Package.swift",
         "templates/app_spm/ios.tmpl/Flutter/Packages/FlutterPackage/Sources/FlutterPackage/FlutterPackage.swift",
+
         "templates/app_spm/macos.tmpl/Flutter/Packages/FlutterPackage/Package.swift",
         "templates/app_spm/macos.tmpl/Flutter/Packages/FlutterPackage/Sources/FlutterPackage/FlutterPackage.swift",
-        "templates/app_spm/macos.tmpl/Runner.xcodeproj/project.pbxproj.tmpl",
 
         "templates/app_example_spm/ios.tmpl/Flutter/Packages/FlutterTestPackage/Package.swift.tmpl",
         "templates/app_example_spm/ios.tmpl/Flutter/Packages/FlutterTestPackage/Sources/FlutterPluginTests/FlutterPluginTests.swift",
-        "templates/app_example_spm/ios.tmpl/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme",
+
+        "templates/app_example_spm/macos.tmpl/Flutter/Packages/FlutterTestPackage/Package.swift.tmpl",
+        "templates/app_example_spm/macos.tmpl/Flutter/Packages/FlutterTestPackage/Sources/FlutterPluginTests/FlutterPluginTests.swift",
 
         "templates/plugin_spm/ios-objc.tmpl/projectName.tmpl/Sources/projectName_test.tmpl/pluginClassTests.m.tmpl",
         "templates/plugin_spm/ios-objc.tmpl/projectName.tmpl/Sources/projectName.tmpl/include/projectName.tmpl/pluginClass.h.tmpl",
         "templates/plugin_spm/ios-objc.tmpl/projectName.tmpl/Sources/projectName.tmpl/pluginClass.m.tmpl",
         "templates/plugin_spm/ios-objc.tmpl/projectName.tmpl/Package.swift.tmpl",
         "templates/plugin_spm/ios-objc.tmpl/projectName.podspec.tmpl",
+        "templates/plugin_spm/ios-objc.tmpl/projectName.tmpl/Sources/projectName_test.tmpl/include/.gitkeep",
 
         "templates/plugin_spm/ios-swift.tmpl/projectName.tmpl/Sources/projectName_test.tmpl/pluginClassTests.swift.tmpl",
         "templates/plugin_spm/ios-swift.tmpl/projectName.tmpl/Sources/projectName.tmpl/pluginClass.swift.tmpl",
         "templates/plugin_spm/ios-swift.tmpl/projectName.tmpl/Package.swift.tmpl",
         "templates/plugin_spm/ios-swift.tmpl/projectName.podspec.tmpl",
 
-        "templates/plugin_spm/ios.tmpl/projectName.tmpl/Sources/projectName_test.tmpl/include/.gitkeep",
         "templates/plugin_spm/ios.tmpl/projectName.tmpl/Sources/projectName_test.tmpl/Resources/.gitkeep",
-        "templates/plugin_spm/ios.tmpl/.gitignore",
-        "templates/plugin_spm/ios.tmpl/projectName.tmpl/Sources/projectName.tmpl/Resources/.gitkeep"
+        "templates/plugin_spm/ios.tmpl/projectName.tmpl/Sources/projectName.tmpl/Resources/.gitkeep",
+
+        "templates/plugin_spm/macos.tmpl/projectName.tmpl/Sources/projectName_test.tmpl/pluginClassTests.swift.tmpl",
+        "templates/plugin_spm/macos.tmpl/projectName.tmpl/Sources/projectName.tmpl/pluginClass.swift.tmpl",
+        "templates/plugin_spm/macos.tmpl/projectName.tmpl/Package.swift.tmpl",
+        "templates/plugin_spm/macos.tmpl/projectName.podspec.tmpl",
+        "templates/plugin_spm/macos.tmpl/projectName.tmpl/Sources/projectName_test.tmpl/Resources/.gitkeep",
+        "templates/plugin_spm/macos.tmpl/projectName.tmpl/Sources/projectName.tmpl/Resources/.gitkeep"
     ]
 }

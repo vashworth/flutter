@@ -15,9 +15,8 @@ import '../globals.dart';
 import '../ios/plist_parser.dart';
 import '../ios/xcodeproj.dart';
 import '../project.dart';
-import '../xcode_project.dart';
 
-/// TODO: SPM
+/// TODO: SPM - comment
 class FlutterPackageMigration extends ProjectMigrator {
   FlutterPackageMigration(
     XcodeBasedProject project,
@@ -26,13 +25,15 @@ class FlutterPackageMigration extends ProjectMigrator {
     required Logger logger,
     required FileSystem fileSystem,
     required ProcessManager processManager,
-  })  : _xcodeProjectInfoFile = project.xcodeProjectInfoFile,
+  })  : _xcodeProject = project,
+        _xcodeProjectInfoFile = project.xcodeProjectInfoFile,
         _platform = platform,
         _xcodeProjectInterpreter = xcodeProjectInterpreter,
         _fileSystem = fileSystem,
         _processManager = processManager,
         super(logger);
 
+  final XcodeBasedProject _xcodeProject;
   final XcodeProjectInterpreter _xcodeProjectInterpreter;
   final FileSystem _fileSystem;
   final ProcessManager _processManager;
@@ -40,7 +41,7 @@ class FlutterPackageMigration extends ProjectMigrator {
   final SupportedPlatform _platform;
 
   static const String _flutterPackageBuildFileIdentifier = '78A318202AECB46A00862997';
-  static const String _flutterPackageFileReferenceIdentifier = '78A3181E2AECB45400862997';
+  static const String flutterPackageFileReferenceIdentifier = '78A3181E2AECB45400862997';
   static const String _flutterPackageProductDependencyIdentifer = '78A3181F2AECB46A00862997';
   static const String _iosRunnerFrameworksBuildPhaseIdentifer = '97C146EB1CF9000F007C117D';
   static const String _macosRunnerFrameworksBuildPhaseIdentifer = '33CC10EA2044A3C60003C045';
@@ -83,6 +84,22 @@ class FlutterPackageMigration extends ProjectMigrator {
       if (!_xcodeProjectInfoFile.existsSync()) {
         throw Exception('Xcode project not found.');
       }
+
+      // Update FlutterOutputs.xcfilelist
+      if (_platform == SupportedPlatform.macos) {
+        final File outputFile = (_xcodeProject as MacOSProject).outputFileList;
+        if (outputFile.existsSync() && outputFile.readAsStringSync().contains('FlutterMacOS.framework/Versions/A/FlutterMacOS')) {
+          final List<String> lines =  outputFile.readAsLinesSync();
+          lines.removeWhere((String path) => path.contains('FlutterMacOS.framework/Versions/A/FlutterMacOS'));
+          outputFile.writeAsStringSync(
+            lines.join('\n'),
+          );
+        }
+      }
+
+      // Update gitignore
+      _updateGitIgnore(_xcodeProject.parent.directory.childFile('.gitignore'));
+      _updateGitIgnore(_xcodeProject.hostAppRoot.childFile('.gitignore'));
 
       final Version? version = _xcodeProjectInterpreter.version;
 
@@ -134,6 +151,22 @@ class FlutterPackageMigration extends ProjectMigrator {
       logger.printError('An error occured when migrating your project to Swift Package Manager: $e');
 
       throwToolExit('Failed to convert your project to use Swift Package Manager. Please follow instructions found at xxx to manually convert your project.');
+    }
+  }
+
+  void _updateGitIgnore(File gitignore) {
+    // TODO: SPM, should add if not exists?
+    if (!gitignore.existsSync()) {
+      return;
+    }
+    final String originalProjectContents = gitignore.readAsStringSync();
+    if (originalProjectContents.contains('Flutter/Packages/FlutterPackage')) {
+      return;
+    }
+    String newProjectContents = originalProjectContents;
+    newProjectContents = newProjectContents.replaceAll('**/Pods/', '**/Pods/\nFlutter/Packages/FlutterPackage');
+    if (originalProjectContents != newProjectContents) {
+      gitignore.writeAsStringSync(newProjectContents);
     }
   }
 
@@ -196,7 +229,7 @@ class FlutterPackageMigration extends ProjectMigrator {
 
   bool _isFileReferenceMigrated(ParsedProjectInfo projectInfo) {
     return projectInfo.fileReferenceIndentifiers
-        .contains(_flutterPackageFileReferenceIdentifier);
+        .contains(flutterPackageFileReferenceIdentifier);
   }
 
   List<String> _migrateFileReference(
@@ -211,15 +244,15 @@ class FlutterPackageMigration extends ProjectMigrator {
     final String newContent;
     if (_platform == SupportedPlatform.ios) {
       newContent =
-        '		$_flutterPackageFileReferenceIdentifier /* FlutterPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterPackage; path = Flutter/Packages/FlutterPackage; sourceTree = "<group>"; };';
+        '		$flutterPackageFileReferenceIdentifier /* FlutterPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterPackage; path = Flutter/Packages/FlutterPackage; sourceTree = "<group>"; };';
     } else {
       newContent =
-        '		$_flutterPackageFileReferenceIdentifier /* FlutterPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterPackage; path = Packages/FlutterPackage; sourceTree = "<group>"; };';
+        '		$flutterPackageFileReferenceIdentifier /* FlutterPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterPackage; path = Packages/FlutterPackage; sourceTree = "<group>"; };';
     }
 
 
     final String? nextKey = _nextKeyInSortedList(
-      _flutterPackageFileReferenceIdentifier,
+      flutterPackageFileReferenceIdentifier,
       projectInfo.fileReferenceIndentifiers,
     );
 
@@ -317,7 +350,7 @@ class FlutterPackageMigration extends ProjectMigrator {
         '		$_flutterPackagesGroupIdentifier /* Packages */ = {',
         '			isa = PBXGroup;',
         '			children = (',
-        '				$_flutterPackageFileReferenceIdentifier /* FlutterPackage */,',
+        '				$flutterPackageFileReferenceIdentifier /* FlutterPackage */,',
         '			);',
         '			name = Packages;',
         '			sourceTree = "<group>";',

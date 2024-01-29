@@ -48,6 +48,20 @@
                ReferencedContainer = "container:Runner.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         {{#withSwiftPackageManager}}
+         {{#withPlatformChannelPluginHook}}
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FlutterPluginTests"
+               BuildableName = "FlutterPluginTests"
+               BlueprintName = "FlutterPluginTests"
+               ReferencedContainer = "container:Flutter/Packages/FlutterTestPackage">
+            </BuildableReference>
+         </TestableReference>
+         {{/withPlatformChannelPluginHook}}
+         {{/withSwiftPackageManager}}
       </Testables>
    </TestAction>
    <LaunchAction
