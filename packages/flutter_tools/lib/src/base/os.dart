@@ -10,11 +10,13 @@ import 'package:meta/meta.dart';
 import 'package:process/process.dart';
 
 import 'common.dart';
+import 'error_handling_io.dart';
 import 'file_system.dart';
 import 'io.dart';
 import 'logger.dart';
 import 'platform.dart';
 import 'process.dart';
+import 'package:io/io.dart' show copyPathSync;
 
 abstract class OperatingSystemUtils {
   factory OperatingSystemUtils({
@@ -442,14 +444,43 @@ class _MacOSUtils extends _PosixUtils {
           throwOnError: true,
           verboseExceptions: true,
         );
+        if (targetDirectory.path.contains('darwin-x64')) {
+          print('Unzip ${tempDirectory.path}');
+        }
         for (final FileSystemEntity unzippedFile in tempDirectory.listSync(followLinks: false)) {
           // rsync --delete the unzipped files so files removed from the archive are also removed from the target.
           // Add the '-8' parameter to avoid mangling filenames with encodings that do not match the current locale.
-          _processUtils.runSync(
-            <String>['rsync', '-8', '-av', '--delete', unzippedFile.path, targetDirectory.path],
-            throwOnError: true,
-            verboseExceptions: true,
-          );
+          if (targetDirectory.path.contains('darwin-x64')) {
+            print('Rsync ${unzippedFile.path}');
+          }
+
+          // Delete existing file/directory/link with matching name
+          // before copying files to avoid type mismatching.
+          _deleteExisting(targetDirectory, unzippedFile.basename);
+
+          // final FileSystemEntityType fileType = unzippedFile.fileSystem.typeSync(
+          //   unzippedFile.path,
+          //   followLinks: false,
+          // );
+
+          // Copy from the temporary directory to target directory.
+          if (unzippedFile is Directory) {
+            final Directory destinationDirectory = targetDirectory.childDirectory(unzippedFile.basename);
+            copyDirectory(unzippedFile, destinationDirectory);
+          } else if (unzippedFile is Link) {
+            final Link destinationLink = targetDirectory.childLink(unzippedFile.basename);
+            destinationLink.createSync(unzippedFile.targetSync(), recursive: true);
+          } else if (unzippedFile is File) {
+            final File destinationFile = targetDirectory.childFile(unzippedFile.basename);
+            unzippedFile.copySync(destinationFile.path);
+          }
+
+
+          // _processUtils.runSync(
+          //   <String>['rsync', '-8', '-av', '--delete', unzippedFile.path, targetDirectory.path],
+          //   throwOnError: true,
+          //   verboseExceptions: true,
+          // );
         }
       } finally {
         tempDirectory.deleteSync(recursive: true);
@@ -463,6 +494,25 @@ class _MacOSUtils extends _PosixUtils {
         verboseExceptions: true,
       );
     }
+  }
+
+  /// Delete existing file/directory/link with matching name.
+  void _deleteExisting(Directory targetDirectory, String fileName) {
+    final FileSystemEntityType fileType = targetDirectory.fileSystem.typeSync(
+      targetDirectory.fileSystem.path.join(targetDirectory.path, fileName),
+      followLinks: false,
+    );
+
+    final FileSystemEntity fileToReplace;
+    if (fileType == FileSystemEntityType.directory) {
+      fileToReplace = targetDirectory.childDirectory(fileName);
+    } else if (fileType == FileSystemEntityType.link) {
+      fileToReplace = targetDirectory.childLink(fileName);
+    } else {
+      fileToReplace = targetDirectory.childFile(fileName);
+    }
+
+    ErrorHandlingFileSystem.deleteIfExists(fileToReplace, recursive: true);
   }
 }
 

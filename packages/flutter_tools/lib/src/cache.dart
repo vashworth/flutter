@@ -947,13 +947,14 @@ abstract class EngineCachedArtifact extends CachedArtifact {
 
       _makeFilesExecutable(dir, operatingSystemUtils);
 
-      final File frameworkZip = fileSystem.file(fileSystem.path.join(dir.path, 'FlutterMacOS.framework.zip'));
-      if (frameworkZip.existsSync()) {
-        final Directory framework = fileSystem.directory(fileSystem.path.join(dir.path, 'FlutterMacOS.framework'));
-        ErrorHandlingFileSystem.deleteIfExists(framework, recursive: true);
-        framework.createSync();
-        operatingSystemUtils.unzip(frameworkZip, framework);
-      }
+      // print(dir.path);
+      // final File frameworkZip = fileSystem.file(fileSystem.path.join(dir.path, 'FlutterMacOS.framework.zip'));
+      // if (frameworkZip.existsSync()) {
+      //   final Directory framework = fileSystem.directory(fileSystem.path.join(dir.path, 'FlutterMacOS.framework'));
+      //   ErrorHandlingFileSystem.deleteIfExists(framework, recursive: true);
+      //   framework.createSync();
+      //   operatingSystemUtils.unzip(frameworkZip, framework);
+      // }
     }
 
     final File licenseSource = cache.getLicenseFile();
@@ -1101,7 +1102,20 @@ class ArtifactUpdater {
         if (tempFile.existsSync()) {
           tempFile.deleteSync();
         }
-        await _download(url, tempFile, status);
+        if (location.path.contains('darwin-x64')) {
+          if (tempFile.basename == 'framework.zip') {
+            _fileSystem.file('/Users/vashworth/Development/engine/src/out/debug/framework/framework.zip').copySync(tempFile.path);
+          } else if (tempFile.basename == 'artifacts.zip') {
+            _fileSystem.file('/Users/vashworth/Development/engine/src/out/host_debug/zip_archives/darwin-x64/artifacts.zip').copySync(tempFile.path);
+          } else if (tempFile.basename == 'gen_snapshot.zip') {
+            _fileSystem.file('/Users/vashworth/Development/engine/src/out/host_debug/zip_archives/darwin-x64/gen_snapshot.zip').copySync(tempFile.path);
+          } else if (tempFile.basename == 'font-subset.zip') {
+            _fileSystem.file('/Users/vashworth/Development/engine/src/out/host_debug/zip_archives/darwin-x64/font-subset.zip').copySync(tempFile.path);
+          }
+        } else {
+          await _download(url, tempFile, status);
+        }
+
 
         if (!tempFile.existsSync()) {
           throw Exception('Did not find downloaded file ${tempFile.path}');
