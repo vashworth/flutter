@@ -18,6 +18,7 @@ import 'devfs.dart';
 import 'device_port_forwarder.dart';
 import 'project.dart';
 import 'vmservice.dart';
+import 'web/compile.dart';
 
 DeviceManager? get deviceManager => context.get<DeviceManager>();
 
@@ -758,6 +759,9 @@ abstract class Device {
   /// Whether the device supports the '--fast-start' development mode.
   bool get supportsFastStart => false;
 
+  /// Whether the Flavors feature ('--flavor') is supported for this device.
+  bool get supportsFlavors => false;
+
   /// Stop an app package on the current device.
   ///
   /// Specify [userIdentifier] to stop app installed to a profile (Android only).
@@ -949,6 +953,7 @@ class DebuggingOptions {
     this.webEnableExpressionEvaluation = false,
     this.webHeaders = const <String, String>{},
     this.webLaunchUrl,
+    this.webRenderer = WebRendererMode.auto,
     this.vmserviceOutFile,
     this.fastStart = false,
     this.nullAssertions = false,
@@ -960,6 +965,7 @@ class DebuggingOptions {
     this.enableDartProfiling = true,
     this.enableEmbedderApi = false,
     this.usingCISystem = false,
+    this.debugLogsDirectoryPath,
    }) : debuggingEnabled = true;
 
   DebuggingOptions.disabled(this.buildInfo, {
@@ -977,6 +983,7 @@ class DebuggingOptions {
       this.webBrowserFlags = const <String>[],
       this.webLaunchUrl,
       this.webHeaders = const <String, String>{},
+      this.webRenderer = WebRendererMode.auto,
       this.cacheSkSL = false,
       this.traceAllowlist,
       this.enableImpeller = ImpellerStatus.platformDefault,
@@ -985,6 +992,7 @@ class DebuggingOptions {
       this.enableDartProfiling = true,
       this.enableEmbedderApi = false,
       this.usingCISystem = false,
+      this.debugLogsDirectoryPath,
     }) : debuggingEnabled = false,
       useTestFonts = false,
       startPaused = false,
@@ -1055,6 +1063,7 @@ class DebuggingOptions {
     required this.webEnableExpressionEvaluation,
     required this.webHeaders,
     required this.webLaunchUrl,
+    required this.webRenderer,
     required this.vmserviceOutFile,
     required this.fastStart,
     required this.nullAssertions,
@@ -1066,6 +1075,7 @@ class DebuggingOptions {
     required this.enableDartProfiling,
     required this.enableEmbedderApi,
     required this.usingCISystem,
+    required this.debugLogsDirectoryPath,
   });
 
   final bool debuggingEnabled;
@@ -1109,6 +1119,7 @@ class DebuggingOptions {
   final bool enableDartProfiling;
   final bool enableEmbedderApi;
   final bool usingCISystem;
+  final String? debugLogsDirectoryPath;
 
   /// Whether the tool should try to uninstall a previously installed version of the app.
   ///
@@ -1136,6 +1147,9 @@ class DebuggingOptions {
 
   /// Allow developers to add custom headers to web server
   final Map<String, String> webHeaders;
+
+  /// Which web renderer to use for the debugging session
+  final WebRendererMode webRenderer;
 
   /// A file where the VM Service URL should be written after the application is started.
   final String? vmserviceOutFile;
@@ -1245,6 +1259,7 @@ class DebuggingOptions {
     'webEnableExpressionEvaluation': webEnableExpressionEvaluation,
     'webLaunchUrl': webLaunchUrl,
     'webHeaders': webHeaders,
+    'webRenderer': webRenderer.name,
     'vmserviceOutFile': vmserviceOutFile,
     'fastStart': fastStart,
     'nullAssertions': nullAssertions,
@@ -1255,6 +1270,7 @@ class DebuggingOptions {
     'enableDartProfiling': enableDartProfiling,
     'enableEmbedderApi': enableEmbedderApi,
     'usingCISystem': usingCISystem,
+    'debugLogsDirectoryPath': debugLogsDirectoryPath,
   };
 
   static DebuggingOptions fromJson(Map<String, Object?> json, BuildInfo buildInfo) =>
@@ -1299,6 +1315,7 @@ class DebuggingOptions {
       webEnableExpressionEvaluation: json['webEnableExpressionEvaluation']! as bool,
       webHeaders: (json['webHeaders']! as Map<dynamic, dynamic>).cast<String, String>(),
       webLaunchUrl: json['webLaunchUrl'] as String?,
+      webRenderer: WebRendererMode.values.byName(json['webRenderer']! as String),
       vmserviceOutFile: json['vmserviceOutFile'] as String?,
       fastStart: json['fastStart']! as bool,
       nullAssertions: json['nullAssertions']! as bool,
@@ -1310,6 +1327,7 @@ class DebuggingOptions {
       enableDartProfiling: (json['enableDartProfiling'] as bool?) ?? true,
       enableEmbedderApi: (json['enableEmbedderApi'] as bool?) ?? false,
       usingCISystem: (json['usingCISystem'] as bool?) ?? false,
+      debugLogsDirectoryPath: json['debugLogsDirectoryPath'] as String?,
     );
 }
 
