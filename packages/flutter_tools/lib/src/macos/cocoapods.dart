@@ -224,7 +224,7 @@ class CocoaPods {
           _logger,
         ),
       ]);
-      postPodMigration.run();
+      await postPodMigration.run();
 
       podsProcessed = true;
     }

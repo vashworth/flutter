@@ -7,11 +7,11 @@ import 'dart:convert';
 import 'package:process/process.dart';
 
 import '../base/common.dart';
+import '../base/error_handling_io.dart';
 import '../base/file_system.dart';
 import '../base/logger.dart';
 import '../base/project_migrator.dart';
 import '../base/version.dart';
-import '../globals.dart';
 import '../ios/plist_parser.dart';
 import '../ios/xcodeproj.dart';
 import '../project.dart';
@@ -78,8 +78,15 @@ class FlutterPackageMigration extends ProjectMigrator {
     processManager: _processManager,
   );
 
+  void _restoreFromBackup() {
+    if (backupProjectSettings.existsSync()) {
+      logger.printError('Restoring project settings from backup file...');
+      backupProjectSettings.copySync(_xcodeProject.xcodeProjectInfoFile.path);
+    }
+  }
+
   @override
-  void migrate() {
+  Future<void> migrate() async {
     try {
       if (!_xcodeProjectInfoFile.existsSync()) {
         throw Exception('Xcode project not found.');
@@ -107,7 +114,7 @@ class FlutterPackageMigration extends ProjectMigrator {
 
       // If Xcode not installed or less than 15, skip this migration.
       if (version == null || version < Version(15, 0, 0)) {
-        xcode15 = true;
+        xcode15 = false;
       }
 
       // Parse project.pbxproj into JSON
@@ -125,11 +132,11 @@ class FlutterPackageMigration extends ProjectMigrator {
       lines = _migrateBuildFile(lines, parsedInfo);
       lines = _migrateFileReference(lines, parsedInfo);
       lines = _migrateFrameworksBuildPhase(lines, parsedInfo);
-      lines = _migrateGroupPackages(lines, parsedInfo);
+      lines = _migrateGroups(lines, parsedInfo);
       lines = _migrateNativeTarget(lines, parsedInfo);
-      lines = _migratePackageProductDependencies(lines, parsedInfo);
-      lines = _migrateLocalPackageProductDependencies(lines, parsedInfo, xcode15);
       lines = _migrateProjectObject(lines, parsedInfo, xcode15);
+      lines = _migrateLocalPackageProductDependencies(lines, parsedInfo, xcode15);
+      lines = _migratePackageProductDependencies(lines, parsedInfo);
 
       final String newProjectContents = '${lines.join('\n')}\n';
 
@@ -139,18 +146,26 @@ class FlutterPackageMigration extends ProjectMigrator {
 
         logger.printStatus('Adding Flutter Package as a dependency...');
         _xcodeProjectInfoFile.writeAsStringSync(newProjectContents);
-      }
 
-      // Re-parse the project settings to check for syntax errors
-      final ParsedProjectInfo updatedInfo = _parseResults();
+        // Re-parse the project settings to check for syntax errors
+        final ParsedProjectInfo updatedInfo = _parseResults();
 
-      if (!_isMigrated(updatedInfo, xcode15)) {
-        throw Exception('Settings were not updated correctly.');
+        if (!_isMigrated(updatedInfo, xcode15)) {
+          throw Exception('Settings were not updated correctly.');
+        }
+
+        // Get the build settings to make sure it compiles
+        await _xcodeProjectInterpreter.getInfo(
+          _xcodeProject.hostAppRoot.path,
+        );
       }
     } on Exception catch (e) {
       logger.printError('An error occured when migrating your project to Swift Package Manager: $e');
-
+      _restoreFromBackup();
+      // TODO: SPM - instructions
       throwToolExit('Failed to convert your project to use Swift Package Manager. Please follow instructions found at xxx to manually convert your project.');
+    } finally {
+      ErrorHandlingFileSystem.deleteIfExists(backupProjectSettings);
     }
   }
 
@@ -164,12 +179,19 @@ class FlutterPackageMigration extends ProjectMigrator {
       return;
     }
     String newProjectContents = originalProjectContents;
-    newProjectContents = newProjectContents.replaceAll('**/Pods/', '**/Pods/\nFlutter/Packages/FlutterPackage');
+    if (originalProjectContents.contains('**/Pods/')) {
+      newProjectContents = newProjectContents.replaceFirst('**/Pods/', '**/Pods/\nFlutter/Packages/FlutterPackage');
+    } else {
+      newProjectContents = '$newProjectContents\nFlutter/Packages/FlutterPackage\n';
+    }
+
     if (originalProjectContents != newProjectContents) {
+      logger.printTrace('Adding FlutterPackage to ${gitignore.dirname}/${gitignore.basename}...');
       gitignore.writeAsStringSync(newProjectContents);
     }
   }
 
+  /// Parses the project.pbxproj into JSON.
   ParsedProjectInfo _parseResults() {
     final String? results = _parser.plistJsonContent(_xcodeProjectInfoFile.path, sorted: true);
     if (results == null) {
@@ -193,9 +215,9 @@ class FlutterPackageMigration extends ProjectMigrator {
         _isFrameworksBuildPhaseMigrated(projectInfo) &&
         _isGroupsMigrated(projectInfo) &&
         _isNativeTargetMigrated(projectInfo) &&
-        _isSwiftPackageProductDependencyMigrated(projectInfo) &&
+        _isProjectObjectMigrated(projectInfo, xcode15) &&
         _isLocalSwiftPackageProductDependencyMigrated(projectInfo, xcode15) &&
-        _isProjectObjectMigrated(projectInfo, xcode15);
+        _isSwiftPackageProductDependencyMigrated(projectInfo);
   }
 
   bool _isBuildFilesMigrated(ParsedProjectInfo projectInfo) {
@@ -211,20 +233,13 @@ class FlutterPackageMigration extends ProjectMigrator {
       return lines;
     }
 
-    final String? nextKey = _nextKeyInSortedList(
-      _flutterPackageBuildFileIdentifier,
-      projectInfo.buildFileIdentifiers,
-    );
-
     const String newContent =
         '		$_flutterPackageBuildFileIdentifier /* FlutterPackage in Frameworks */ = {isa = PBXBuildFile; productRef = $_flutterPackageProductDependencyIdentifer /* FlutterPackage */; };';
 
-    return _insertAlphabeticallyInSection(
-      lines: lines,
-      sectionName: 'PBXBuildFile',
-      newContent: <String>[newContent],
-      nextKey: nextKey,
-    );
+    final (int _, int endSectionIndex) = _sectionRange('PBXBuildFile', lines);
+
+    lines.insert(endSectionIndex, newContent);
+    return lines;
   }
 
   bool _isFileReferenceMigrated(ParsedProjectInfo projectInfo) {
@@ -250,18 +265,10 @@ class FlutterPackageMigration extends ProjectMigrator {
         '		$flutterPackageFileReferenceIdentifier /* FlutterPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterPackage; path = Packages/FlutterPackage; sourceTree = "<group>"; };';
     }
 
+    final (int _, int endSectionIndex) = _sectionRange('PBXFileReference', lines);
 
-    final String? nextKey = _nextKeyInSortedList(
-      flutterPackageFileReferenceIdentifier,
-      projectInfo.fileReferenceIndentifiers,
-    );
-
-    return _insertAlphabeticallyInSection(
-      lines: lines,
-      sectionName: 'PBXFileReference',
-      newContent: <String>[newContent],
-      nextKey: nextKey,
-    );
+    lines.insert(endSectionIndex, newContent);
+    return lines;
   }
 
   bool _isFrameworksBuildPhaseMigrated(ParsedProjectInfo projectInfo) {
@@ -283,8 +290,19 @@ class FlutterPackageMigration extends ProjectMigrator {
       return lines;
     }
 
-    // Add Packages group as a child of the Flutter group
+    final (int startSectionIndex, int endSectionIndex) = _sectionRange('PBXFrameworksBuildPhase', lines);
 
+    // Find index where Frameworks Build Phase for the Runner target begins.
+    final int runnerFrameworksPhaseStartIndex = lines.indexWhere(
+      (String line) => line.trim().startsWith(_runnerFrameworksBuildPhaseIdentifer),
+      startSectionIndex,
+    );
+    if (runnerFrameworksPhaseStartIndex == -1 ||
+        runnerFrameworksPhaseStartIndex > endSectionIndex) {
+      throw Exception('Unable to find PBXFrameworksBuildPhase for ${_xcodeProject.hostAppProjectName} target');
+    }
+
+    // Get the Frameworks Build Phase for the Runner target from the parsed project info.
     final ParsedProjectFrameworksBuildPhase? runnerFrameworksPhase = projectInfo
         .frameworksBuildPhases
         .where((ParsedProjectFrameworksBuildPhase phase) =>
@@ -292,36 +310,42 @@ class FlutterPackageMigration extends ProjectMigrator {
         .toList()
         .firstOrNull;
     if (runnerFrameworksPhase == null) {
-      throw Exception('Unable to find PBXFrameworksBuildPhase $_runnerFrameworksBuildPhaseIdentifer');
+      throw Exception('Unable to find parsed PBXFrameworksBuildPhase for ${_xcodeProject.hostAppProjectName} target');
     }
 
-    final (int startSectionIndex, int endSectionIndex) = _sectionRange('PBXFrameworksBuildPhase', lines);
-
-    final int runnerFrameworksPhaseStartIndex = lines.indexWhere(
-      (String line) => line.trim().startsWith(_runnerFrameworksBuildPhaseIdentifer),
-      startSectionIndex,
-    );
-    if (runnerFrameworksPhaseStartIndex == -1 ||
-        runnerFrameworksPhaseStartIndex > endSectionIndex) {
-      throw Exception('Unable to find PBXFrameworksBuildPhase $_runnerFrameworksBuildPhaseIdentifer');
+    if (runnerFrameworksPhase.files == null) {
+      // If files is null, the files field is missing and must be added.
+      const String newContent = '''
+			files = (
+				$_flutterPackageBuildFileIdentifier /* FlutterPackage in Frameworks */,
+			);''';
+      lines.insert(runnerFrameworksPhaseStartIndex + 1, newContent);
+    } else {
+      // Find the files field within the Frameworks PBXFrameworksBuildPhase for the Runner target.
+      final int startFilesIndex = lines.indexWhere(
+          (String line) => line.trim().contains('files'), runnerFrameworksPhaseStartIndex);
+      const String newContent =
+          '				$_flutterPackageBuildFileIdentifier /* FlutterPackage in Frameworks */,';
+      lines.insert(startFilesIndex + 1, newContent);
     }
-
-    final int startFilesIndex = lines.indexWhere(
-        (String line) => line.trim().contains('files'), runnerFrameworksPhaseStartIndex);
-    const String newContent =
-        '				$_flutterPackageBuildFileIdentifier /* FlutterPackage in Frameworks */,';
-    lines.insert(startFilesIndex + 1, newContent);
 
     return lines;
   }
 
   bool _isGroupsMigrated(ParsedProjectInfo projectInfo) {
+    return _isPackagesGroupMigrated(projectInfo) && _isFlutterGroupMigrated(projectInfo);
+  }
+
+  bool _isPackagesGroupMigrated(ParsedProjectInfo projectInfo) {
     return projectInfo.parsedGroups
         .where((ParsedProjectGroup group) =>
             group.identifier == _flutterPackagesGroupIdentifier)
         .toList()
-        .isNotEmpty &&
-        projectInfo.parsedGroups
+        .isNotEmpty;
+  }
+
+  bool _isFlutterGroupMigrated(ParsedProjectInfo projectInfo) {
+    return projectInfo.parsedGroups
         .where((ParsedProjectGroup group) =>
             group.identifier == _flutterGroupIdentifier &&
             group.children != null &&
@@ -330,7 +354,7 @@ class FlutterPackageMigration extends ProjectMigrator {
         .isNotEmpty;
   }
 
-  List<String> _migrateGroupPackages(
+  List<String> _migrateGroups(
     List<String> lines,
     ParsedProjectInfo projectInfo,
   ) {
@@ -339,65 +363,66 @@ class FlutterPackageMigration extends ProjectMigrator {
       return lines;
     }
 
-    // Add Packages group if it doesn't already exist
-    if (projectInfo.parsedGroups
-        .where((ParsedProjectGroup group) =>
-            group.identifier == _flutterPackagesGroupIdentifier)
-        .toList()
-        .isEmpty) {
-      // The Package group is not exist yet, add it
-      const List<String> newContent = <String>[
-        '		$_flutterPackagesGroupIdentifier /* Packages */ = {',
-        '			isa = PBXGroup;',
-        '			children = (',
-        '				$flutterPackageFileReferenceIdentifier /* FlutterPackage */,',
-        '			);',
-        '			name = Packages;',
-        '			sourceTree = "<group>";',
-        '		};',
-      ];
+    final (int startSectionIndex, int endSectionIndex) = _sectionRange('PBXGroup', lines);
 
-      final String? nextKey = _nextKeyInSortedList(
-        _flutterPackagesGroupIdentifier,
-        projectInfo.parsedGroups.map((ParsedProjectGroup group) => group.identifier).toList(),
-      );
+    lines = _migratePackagesGroup(lines, projectInfo, endSectionIndex);
+    lines = _migrateFlutterGroup(lines, projectInfo, startSectionIndex, endSectionIndex);
 
-      lines = _insertAlphabeticallyInSection(
-        lines: lines,
-        sectionName: 'PBXGroup',
-        newContent: newContent,
-        nextKey: nextKey,
-      );
-    }
+    return lines;
+  }
 
-    // Add Packages group as a child of the Flutter group
-    final ParsedProjectGroup? flutterGroup = projectInfo.parsedGroups
-        .where((ParsedProjectGroup group) =>
-            group.identifier == _flutterGroupIdentifier)
-        .toList()
-        .firstOrNull;
-    if (flutterGroup == null) {
-      throw Exception('Unable to find PBXGroup $_flutterGroupIdentifier');
-    }
-
-    // Skip if already a child
-    if (flutterGroup.children != null &&
-        flutterGroup.children!.contains(_flutterPackagesGroupIdentifier)) {
+  List<String> _migratePackagesGroup(
+    List<String> lines,
+    ParsedProjectInfo projectInfo,
+    int endSectionIndex,
+  ) {
+    if (_isPackagesGroupMigrated(projectInfo)) {
+      logger.printTrace('Packages Group already migrated. Skipping...');
       return lines;
     }
 
-    final (int flutterGroupStartIndex, int flutterGroupEndIndex) = _subSectionRange(
-      sectionName: 'PBXGroup',
-      identifer: _flutterGroupIdentifier,
-      compareList: projectInfo.parsedGroups.map((ParsedProjectGroup group) => group.identifier).toList(),
-      lines: lines,
-    );
+    // The Package group is not exist yet, add it
+    const List<String> newContent = <String>[
+      '		$_flutterPackagesGroupIdentifier /* Packages */ = {',
+      '			isa = PBXGroup;',
+      '			children = (',
+      '				$flutterPackageFileReferenceIdentifier /* FlutterPackage */,',
+      '			);',
+      '			name = Packages;',
+      '			sourceTree = "<group>";',
+      '		};',
+    ];
 
+    lines.insertAll(endSectionIndex, newContent);
+
+    return lines;
+  }
+
+  List<String> _migrateFlutterGroup(
+    List<String> lines,
+    ParsedProjectInfo projectInfo,
+    int startSectionIndex,
+    int endSectionIndex,
+  ) {
+    if (_isFlutterGroupMigrated(projectInfo)) {
+      logger.printTrace('Flutter Group already migrated. Skipping...');
+      return lines;
+    }
+
+    // Find index where Flutter Group begins.
+    final int flutterGroupStartIndex = lines.indexWhere(
+      (String line) => line.trim().startsWith(_flutterGroupIdentifier),
+      startSectionIndex,
+    );
+    if (flutterGroupStartIndex == -1 ||
+        flutterGroupStartIndex > endSectionIndex) {
+      throw Exception('Unable to find Flutter PBXGroup');
+    }
+
+    // Find the children field within the Flutter Group.
     final int startChildrenIndex = lines.indexWhere(
         (String line) => line.trim().contains('children'), flutterGroupStartIndex);
-    if (startChildrenIndex == -1 || startChildrenIndex > flutterGroupEndIndex) {
-      throw Exception('Unable to find children of $_flutterGroupIdentifier');
-    }
+
     const String newContent = '				$_flutterPackagesGroupIdentifier /* Packages */,';
     lines.insert(startChildrenIndex + 1, newContent);
 
@@ -422,57 +447,45 @@ class FlutterPackageMigration extends ProjectMigrator {
       logger.printTrace('PBXNativeTarget already migrated. Skipping...');
       return lines;
     }
+
+    final (int startSectionIndex, int endSectionIndex) = _sectionRange('PBXNativeTarget', lines);
+
+    // Find index where Native Target for the Runner target begins.
+    final int runnerNativeTargetStartIndex = lines.indexWhere(
+      (String line) => line.trim().startsWith(_runnerNativeTargetIdentifer),
+      startSectionIndex,
+    );
+    if (runnerNativeTargetStartIndex == -1 ||
+        runnerNativeTargetStartIndex > endSectionIndex) {
+      throw Exception('Unable to find PBXNativeTarget for ${_xcodeProject.hostAppProjectName} target');
+    }
+
+    // Get the Native Target for the Runner target from the parsed project info.
     final ParsedNativeTarget? runnerNativeTarget = projectInfo.nativeTargets
         .where((ParsedNativeTarget target) =>
             target.identifier == _runnerNativeTargetIdentifer)
         .toList()
         .firstOrNull;
     if (runnerNativeTarget == null) {
-      throw Exception(
-          'Unable to find PBXNativeTarget $_runnerNativeTargetIdentifer');
+      throw Exception('Unable to find parsed PBXNativeTarget for ${_xcodeProject.hostAppProjectName} target');
     }
 
-    final List<String>? packageProductDependencies =
-        runnerNativeTarget.packageProductDependencies;
-
-    if (packageProductDependencies != null &&
-        packageProductDependencies.contains(_flutterPackageProductDependencyIdentifer)) {
-      return lines;
-    }
-
-    final (int runnerNativeTargetStartIndex, int runnerNativeTargetEndIndex) = _subSectionRange(
-      sectionName: 'PBXNativeTarget',
-      identifer: _runnerNativeTargetIdentifer,
-      compareList: projectInfo.nativeTargets.map((ParsedNativeTarget target) => target.identifier).toList(),
-      lines: lines,
-    );
-
-    if (packageProductDependencies != null) {
-      // There are preexisting dependencies, add to it
-      const String newContent =
-          '				$_flutterPackageProductDependencyIdentifer /* FlutterPackage */,';
-      final int startDependenciesIndex = lines.indexWhere(
-          (String line) => line.trim().contains('packageProductDependencies'),
-          runnerNativeTargetStartIndex);
-      lines.insert(startDependenciesIndex + 1, newContent);
-    } else {
-      // insert it
-      final String? nextKey = _nextKeyInSortedList(
-        'packageProductDependencies',
-        runnerNativeTarget.data.keys.toList(),
-      );
+    if (runnerNativeTarget.packageProductDependencies == null) {
+      // If packageProductDependencies is null, the packageProductDependencies field is missing and must be added.
       const List<String> newContent = <String>[
         '			packageProductDependencies = (',
         '				$_flutterPackageProductDependencyIdentifer /* FlutterPackage */,',
         '			);',
       ];
-      if (nextKey != null) {
-        final int index = lines.indexWhere(
-            (String line) => line.trim().startsWith(nextKey), runnerNativeTargetStartIndex);
-        lines.insertAll(index, newContent);
-      } else {
-        lines.insertAll(runnerNativeTargetEndIndex, newContent);
-      }
+      lines.insertAll(runnerNativeTargetStartIndex + 1, newContent);
+    } else {
+      // Find the packageProductDependencies field within the Native Target for the Runner target.
+      final int startDependenciesIndex = lines.indexWhere(
+          (String line) => line.trim().contains('packageProductDependencies'),
+          runnerNativeTargetStartIndex);
+      const String newContent =
+          '				$_flutterPackageProductDependencyIdentifer /* FlutterPackage */,';
+      lines.insert(startDependenciesIndex + 1, newContent);
     }
     return lines;
   }
@@ -482,6 +495,7 @@ class FlutterPackageMigration extends ProjectMigrator {
             .contains(_flutterPackageProductDependencyIdentifer);
   }
 
+  /// Only applicable for Xcode 15
   bool _isProjectObjectMigrated(ParsedProjectInfo projectInfo, bool xcode15,) {
     return !xcode15 || projectInfo.projects
         .where((ParsedProject target) =>
@@ -492,70 +506,58 @@ class FlutterPackageMigration extends ProjectMigrator {
         .isNotEmpty;
   }
 
+  /// Only applicable for Xcode 15
   List<String> _migrateProjectObject(
     List<String> lines,
     ParsedProjectInfo projectInfo,
     bool xcode15,
   ) {
     if (_isProjectObjectMigrated(projectInfo, xcode15)) {
-      logger.printTrace('PBXProject already migrated. Skipping...');
+      logger.printTrace('PBXProject already migrated or not needed. Skipping...');
       return lines;
     }
+
+    final (int startSectionIndex, int endSectionIndex) = _sectionRange('PBXProject', lines);
+
+    // Find index where Runner Project begins.
+    final int projectStartIndex = lines.indexWhere(
+      (String line) => line.trim().startsWith(_projectIdentifier),
+      startSectionIndex,
+    );
+    if (projectStartIndex == -1 ||
+        projectStartIndex > endSectionIndex) {
+      throw Exception('Unable to find PBXProject for ${_xcodeProject.hostAppProjectName}');
+    }
+
+    // Get the Runner project from the parsed project info.
     final ParsedProject? projectObject = projectInfo.projects
         .where((ParsedProject target) =>
             target.identifier == _projectIdentifier)
         .toList()
         .firstOrNull;
     if (projectObject == null) {
-      throw Exception(
-          'Unable to find PBXProject $_projectIdentifier');
+      throw Exception('Unable to find parsed PBXProject for ${_xcodeProject.hostAppProjectName} target');
     }
 
-    final List<String>? packageReferences =
-        projectObject.packageReferences;
-
-    if (packageReferences != null &&
-        packageReferences.contains(_localSwiftPackageReferenceIdentifer)) {
-      return lines;
-    }
-
-    final (int projectStartIndex, int projectEndIndex) = _subSectionRange(
-      sectionName: 'PBXProject',
-      identifer: _projectIdentifier,
-      compareList: projectInfo.projects.map((ParsedProject target) => target.identifier).toList(),
-      lines: lines,
-    );
-
-    if (packageReferences != null) {
-      // There are preexisting references, add to it
-      const String newContent =
-          '				$_localSwiftPackageReferenceIdentifer /* XCLocalSwiftPackageReference "Flutter/Packages/FlutterPackage" */,';
-      final int startDependenciesIndex = lines.indexWhere(
-          (String line) => line.trim().contains('packageReferences'),
-          projectStartIndex);
-      lines.insert(startDependenciesIndex + 1, newContent);
-    } else {
-      // insert it
-      final String? nextKey = _nextKeyInSortedList(
-        'packageReferences',
-        projectObject.data.keys.toList(),
-      );
+    if (projectObject.packageReferences == null) {
+      // If packageReferences is null, the packageReferences field is missing and must be added.
       const List<String> newContent = <String>[
         '			packageReferences = (',
         '				$_localSwiftPackageReferenceIdentifer /* XCLocalSwiftPackageReference "Flutter/Packages/FlutterPackage" */,',
         '			);',
       ];
-      if (nextKey != null) {
-        final int index = lines.indexWhere(
-            (String line) => line.trim().startsWith(nextKey), projectStartIndex);
-        lines.insertAll(index, newContent);
-      } else {
-        lines.insertAll(projectEndIndex, newContent);
-      }
+      lines.insertAll(projectStartIndex + 1, newContent);
+    } else {
+      // Find the packageReferences field within the Runner project.
+      final int startDependenciesIndex = lines.indexWhere(
+          (String line) => line.trim().contains('packageReferences'),
+          projectStartIndex);
+      const String newContent =
+          '				$_localSwiftPackageReferenceIdentifer /* XCLocalSwiftPackageReference "Flutter/Packages/FlutterPackage" */,';
+      lines.insert(startDependenciesIndex + 1, newContent);
     }
     return lines;
   }
-
 
   List<String> _migratePackageProductDependencies(
     List<String> lines,
@@ -566,16 +568,10 @@ class FlutterPackageMigration extends ProjectMigrator {
       return lines;
     }
 
-    final (int startSectionIndex, _) = _sectionRange('XCSwiftPackageProductDependency', lines, validateExistance: false);
+    final (int startSectionIndex, int endSectionIndex) = _sectionRange('XCSwiftPackageProductDependency', lines, throwIfMissing: false);
 
     if (startSectionIndex == -1) {
       // There isn't a XCSwiftPackageProductDependency section yet, so add it
-
-      final String? nextKey = _nextKeyInSortedList(
-        'XCSwiftPackageProductDependency',
-        projectInfo.isaTypes,
-      );
-
       final List<String> newContent = <String>[
         '/* Begin XCSwiftPackageProductDependency section */',
         '		$_flutterPackageProductDependencyIdentifer /* FlutterPackage */ = {',
@@ -585,42 +581,23 @@ class FlutterPackageMigration extends ProjectMigrator {
         '/* End XCSwiftPackageProductDependency section */',
       ];
 
-      if (nextKey != null) {
-        final int index = lines
-            .indexWhere((String line) => line.startsWith('/* Begin $nextKey'));
-        if (index == -1) {
-          throw Exception('Unable to find section $nextKey');
-        }
-        lines.insertAll(index, newContent);
-      } else {
-        final int index = lines.indexWhere((String line) =>
-            line.startsWith('/* End ${projectInfo.isaTypes.last}'));
-        if (index == -1) {
-          throw Exception(
-              'Unable to find section ${projectInfo.isaTypes.last}');
-        }
-        lines.insertAll(index + 1, newContent);
+      final int index = lines.lastIndexWhere((String line) => line.trim().startsWith('/* End'));
+      if (index == -1) {
+        throw Exception('Unable to find any sections.');
       }
-    } else {
-      final String? nextKey = _nextKeyInSortedList(
-        _flutterPackageProductDependencyIdentifer,
-        projectInfo.swiftPackageProductDependencies,
-      );
+      lines.insertAll(index + 1, newContent);
 
-      final List<String> newContent = <String>[
-        '		$_flutterPackageProductDependencyIdentifer /* FlutterPackage */ = {',
-        '			isa = XCSwiftPackageProductDependency;',
-        '			productName = FlutterPackage;',
-        '		};',
-      ];
-
-      return _insertAlphabeticallyInSection(
-        lines: lines,
-        sectionName: 'XCSwiftPackageProductDependency',
-        newContent: newContent,
-        nextKey: nextKey,
-      );
+      return lines;
     }
+
+    final List<String> newContent = <String>[
+      '		$_flutterPackageProductDependencyIdentifer /* FlutterPackage */ = {',
+      '			isa = XCSwiftPackageProductDependency;',
+      '			productName = FlutterPackage;',
+      '		};',
+    ];
+
+    lines.insertAll(endSectionIndex, newContent);
 
     return lines;
   }
@@ -643,16 +620,10 @@ class FlutterPackageMigration extends ProjectMigrator {
       return lines;
     }
 
-    final (int startSectionIndex, _) = _sectionRange('XCLocalSwiftPackageReference', lines, validateExistance: false);
+    final (int startSectionIndex, int endSectionIndex) = _sectionRange('XCLocalSwiftPackageReference', lines, throwIfMissing: false);
 
     if (startSectionIndex == -1) {
       // There isn't a XCLocalSwiftPackageReference section yet, so add it
-
-      final String? nextKey = _nextKeyInSortedList(
-        'XCLocalSwiftPackageReference',
-        projectInfo.isaTypes,
-      );
-
       final List<String> newContent = <String>[
         '/* Begin XCLocalSwiftPackageReference section */',
         '		$_localSwiftPackageReferenceIdentifer /* XCLocalSwiftPackageReference "Flutter/Packages/FlutterPackage" */ = {',
@@ -662,128 +633,34 @@ class FlutterPackageMigration extends ProjectMigrator {
         '/* End XCLocalSwiftPackageReference section */',
       ];
 
-      if (nextKey != null) {
-        final int index = lines
-            .indexWhere((String line) => line.startsWith('/* Begin $nextKey'));
-        if (index == -1) {
-          throw Exception('Unable to find section $nextKey');
-        }
-        lines.insertAll(index, newContent);
-      } else {
-        final int index = lines.indexWhere((String line) =>
-            line.startsWith('/* End ${projectInfo.isaTypes.last}'));
-        if (index == -1) {
-          throw Exception(
-              'Unable to find section ${projectInfo.isaTypes.last}');
-        }
-        lines.insertAll(index + 1, newContent);
+      final int index = lines.lastIndexWhere((String line) => line.trim().startsWith('/* End'));
+      if (index == -1) {
+        throw Exception('Unable to find any sections.');
       }
-    } else {
-      final String? nextKey = _nextKeyInSortedList(
-        _localSwiftPackageReferenceIdentifer,
-        projectInfo.localSwiftPackageProductDependencies,
-      );
+      lines.insertAll(index + 1, newContent);
 
-      final List<String> newContent = <String>[
-        '		$_localSwiftPackageReferenceIdentifer /* XCLocalSwiftPackageReference "Flutter/Packages/FlutterPackage" */ = {',
-        '			isa = XCLocalSwiftPackageReference;',
-        '			relativePath = Flutter/Packages/FlutterPackage;',
-        '		};',
-      ];
-
-      return _insertAlphabeticallyInSection(
-        lines: lines,
-        sectionName: 'XCLocalSwiftPackageReference',
-        newContent: newContent,
-        nextKey: nextKey,
-      );
+      return lines;
     }
+
+    final List<String> newContent = <String>[
+      '		$_localSwiftPackageReferenceIdentifer /* XCLocalSwiftPackageReference "Flutter/Packages/FlutterPackage" */ = {',
+      '			isa = XCLocalSwiftPackageReference;',
+      '			relativePath = Flutter/Packages/FlutterPackage;',
+      '		};',
+    ];
+
+    lines.insertAll(endSectionIndex, newContent);
 
     return lines;
   }
 
-
-  String? _nextKeyInSortedList(String compareTo, List<String> compareList) {
-    for (final String value in compareList) {
-      final int comparison = value.compareTo(compareTo);
-      if (comparison > 0) {
-        return value;
-      }
-    }
-    return null;
-  }
-
-  (int, int) _sectionRange(String sectionName, List<String> lines, {bool validateExistance = true}) {
+  (int, int) _sectionRange(String sectionName, List<String> lines, {bool throwIfMissing = true}) {
     final int startSectionIndex = lines.indexOf('/* Begin $sectionName section */');
     final int endSectionIndex = lines.indexOf('/* End $sectionName section */');
-    if (validateExistance && (startSectionIndex == -1 || endSectionIndex == -1 || startSectionIndex > endSectionIndex)) {
+    if (throwIfMissing && (startSectionIndex == -1 || endSectionIndex == -1 || startSectionIndex > endSectionIndex)) {
       throw Exception('Unable to find $sectionName section');
     }
     return (startSectionIndex, endSectionIndex);
-  }
-
-  (int, int) _subSectionRange({
-    required String sectionName,
-    required String identifer,
-    required List<String> lines,
-    required List<String> compareList,
-  }) {
-    final (int startSectionIndex, int endSectionIndex) = _sectionRange(sectionName, lines);
-
-    final RegExp regex = RegExp('\\s*$identifer.*?{');
-    final int startIndex = lines.indexWhere(
-      (String line) => regex.hasMatch(line),
-      startSectionIndex,
-    );
-    if (startIndex == -1 || startIndex > endSectionIndex) {
-      throw Exception('Unable to find $sectionName $identifer');
-    }
-
-    final String? nextKey = _nextKeyInSortedList(
-      identifer,
-      compareList,
-    );
-
-    final int endIndex;
-    if (nextKey != null) {
-      final int index = lines.indexWhere(
-            (String line) => line.trim().startsWith(nextKey), startIndex);
-      if (index == -1 || index > endSectionIndex) {
-        throw Exception('Unable to find $sectionName $nextKey');
-      }
-      endIndex = index - 1;
-    } else {
-      endIndex = endSectionIndex - 1;
-    }
-
-    return (startIndex, endIndex);
-  }
-
-  List<String> _insertAlphabeticallyInSection({
-    required String sectionName,
-    String? nextKey,
-    required List<String> newContent,
-    required List<String> lines,
-  }) {
-    final (int startSectionIndex, int endSectionIndex) = _sectionRange(sectionName, lines);
-    // Put new content in before key that's next in alphabetical order.
-    // Or put at end of list before the section end if there's no next key.
-
-    final RegExp regex = RegExp('\\s*$nextKey.*?{');
-    if (nextKey != null) {
-      final int index = lines.indexWhere(
-        (String line) => regex.hasMatch(line),
-        startSectionIndex,
-      );
-      if (index == -1 || index > endSectionIndex) {
-        throw Exception('Unable to find $sectionName $nextKey');
-      }
-      lines.insertAll(index, newContent);
-    } else {
-      lines.insertAll(endSectionIndex, newContent);
-    }
-
-    return lines;
   }
 }
 

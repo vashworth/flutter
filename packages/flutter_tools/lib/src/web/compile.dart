@@ -83,7 +83,7 @@ class WebBuilder {
     ];
 
     final ProjectMigration migration = ProjectMigration(migrators);
-    migration.run();
+    await migration.run();
 
     final Status status = _logger.startProgress('Compiling $target for the Web...');
     final Stopwatch sw = Stopwatch()..start();

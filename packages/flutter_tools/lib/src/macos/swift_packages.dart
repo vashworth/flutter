@@ -6,7 +6,6 @@ import 'package:process/process.dart';
 
 import '../artifacts.dart';
 import '../base/common.dart';
-import '../base/error_handling_io.dart';
 import '../base/file_system.dart';
 import '../base/logger.dart';
 import '../base/project_migrator.dart';
@@ -140,35 +139,17 @@ class SwiftPackageManager {
   }
 
   Future<void> migrateProject(XcodeBasedProject project, SupportedPlatform platform) async {
-    final FlutterPackageMigration flutterPackageMigration = FlutterPackageMigration(
-      project,
-      platform,
-      xcodeProjectInterpreter: _xcodeProjectInterpreter,
-      logger: _logger,
-      fileSystem: _fileSystem,
-      processManager: _processManager,
-    );
-
-    try {
-      final ProjectMigration migration = ProjectMigration(<ProjectMigrator>[
-        flutterPackageMigration,
-      ]);
-      migration.run();
-
-      // Get the build settings to make sure it compiles
-      await _xcodeProjectInterpreter.getInfo(
-        project.hostAppRoot.path,
-      );
-
-    } on Exception {
-      if (flutterPackageMigration.backupProjectSettings.existsSync()) {
-        _logger.printError('Restoring project settings from backup file...');
-        flutterPackageMigration.backupProjectSettings.copySync(project.xcodeProjectInfoFile.path);
-      }
-      rethrow;
-    } finally {
-      ErrorHandlingFileSystem.deleteIfExists(flutterPackageMigration.backupProjectSettings);
-    }
+    final ProjectMigration migration = ProjectMigration(<ProjectMigrator>[
+      FlutterPackageMigration(
+        project,
+        platform,
+        xcodeProjectInterpreter: _xcodeProjectInterpreter,
+        logger: _logger,
+        fileSystem: _fileSystem,
+        processManager: _processManager,
+      ),
+    ]);
+    await migration.run();
   }
 
   static void setupFlutterFramework(

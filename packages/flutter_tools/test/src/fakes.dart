@@ -324,6 +324,11 @@ class FakePlistParser implements PlistParser {
     setProperty(key, value);
     return true;
   }
+
+  @override
+  String? plistJsonContent(String filePath, {bool sorted = false}) {
+    throw UnimplementedError();
+  }
 }
 
 class FakeBotDetector implements BotDetector {
@@ -463,6 +468,7 @@ class TestFeatureFlags implements FeatureFlags {
     this.isCliAnimationEnabled = true,
     this.isNativeAssetsEnabled = false,
     this.isPreviewDeviceEnabled = false,
+    this.isSwiftPackageManagerEnabled = false,
   });
 
   @override
@@ -500,6 +506,9 @@ class TestFeatureFlags implements FeatureFlags {
 
   @override
   final bool isPreviewDeviceEnabled;
+
+  @override
+  final bool isSwiftPackageManagerEnabled;
 
   @override
   bool isEnabled(Feature feature) {

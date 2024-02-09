@@ -17,7 +17,6 @@ import 'package:flutter_tools/src/ios/migrations/xcode_build_system_migration.da
 import 'package:flutter_tools/src/ios/xcodeproj.dart';
 import 'package:flutter_tools/src/migrations/cocoapods_script_symlink.dart';
 import 'package:flutter_tools/src/migrations/cocoapods_toolchain_directory_migration.dart';
-import 'package:flutter_tools/src/migrations/flutter_package_migration.dart';
 import 'package:flutter_tools/src/migrations/xcode_project_object_version_migration.dart';
 import 'package:flutter_tools/src/migrations/xcode_script_build_phase_migration.dart';
 import 'package:flutter_tools/src/migrations/xcode_thin_binary_build_phase_input_paths_migration.dart';
@@ -45,10 +44,10 @@ void main () {
       );
     });
 
-    testWithoutContext('migrators succeed', () {
+    testWithoutContext('migrators succeed', () async {
       final FakeIOSMigrator fakeIOSMigrator = FakeIOSMigrator();
       final ProjectMigration migration = ProjectMigration(<ProjectMigrator>[fakeIOSMigrator]);
-      migration.run();
+      await migration.run();
     });
 
     group('remove framework linking and embedding migration', () {
@@ -902,19 +901,19 @@ platform :ios, '12.0'
         project.xcodeProjectInfoFile = xcodeProjectInfoFile;
       });
 
-      testWithoutContext('skipped if files are missing', () {
+      testWithoutContext('skipped if files are missing', () async {
         final RemoveBitcodeMigration migration = RemoveBitcodeMigration(
           project,
           testLogger,
         );
-        expect(migration.migrate(), isTrue);
+        expect(await migration.migrate(), isTrue);
         expect(xcodeProjectInfoFile.existsSync(), isFalse);
 
         expect(testLogger.traceText, contains('Xcode project not found, skipping removing bitcode migration'));
         expect(testLogger.statusText, isEmpty);
       });
 
-      testWithoutContext('skipped if nothing to upgrade', () {
+      testWithoutContext('skipped if nothing to upgrade', () async {
         const String xcodeProjectInfoFileContents = 'IPHONEOS_DEPLOYMENT_TARGET = 12.0;';
         xcodeProjectInfoFile.writeAsStringSync(xcodeProjectInfoFileContents);
         final DateTime projectLastModified = xcodeProjectInfoFile.lastModifiedSync();
@@ -923,7 +922,7 @@ platform :ios, '12.0'
           project,
           testLogger,
         );
-        expect(migration.migrate(), isTrue);
+        expect(await migration.migrate(), isTrue);
 
         expect(xcodeProjectInfoFile.lastModifiedSync(), projectLastModified);
         expect(xcodeProjectInfoFile.readAsStringSync(), xcodeProjectInfoFileContents);
@@ -931,7 +930,7 @@ platform :ios, '12.0'
         expect(testLogger.statusText, isEmpty);
       });
 
-      testWithoutContext('bitcode build setting is removed', () {
+      testWithoutContext('bitcode build setting is removed', () async {
         xcodeProjectInfoFile.writeAsStringSync('''
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ENABLE_BITCODE = YES;
@@ -944,7 +943,7 @@ platform :ios, '12.0'
           project,
           testLogger,
         );
-        expect(migration.migrate(), isTrue);
+        expect(await migration.migrate(), isTrue);
 
         expect(xcodeProjectInfoFile.readAsStringSync(), '''
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1409,209 +1408,6 @@ LD_RUNPATH_SEARCH_PATHS = $(inherited) /usr/lib/swift '@executable_path/../Frame
       expect(testLogger.statusText, contains('Adding input path to Thin Binary build phase.'));
     });
   });
-
-  group('update for Swift Package Manager', () {
-    late MemoryFileSystem memoryFileSystem;
-    late BufferLogger testLogger;
-    late FakeIosProject project;
-    late File xcodeProjectInfoFile;
-    late FakeProcessManager processManager;
-
-    setUp(() {
-      memoryFileSystem = MemoryFileSystem();
-      testLogger = BufferLogger.test();
-      project = FakeIosProject();
-      processManager = FakeProcessManager.list(<FakeCommand>[]);
-      xcodeProjectInfoFile = memoryFileSystem.file('project.pbxproj');
-      project.xcodeProjectInfoFile = xcodeProjectInfoFile;
-      memoryFileSystem.file('/usr/bin/plutil').createSync(recursive: true);
-    });
-
-    testWithoutContext('skipped if files are missing', () {
-      final XcodeThinBinaryBuildPhaseInputPathsMigration iosProjectMigration = XcodeThinBinaryBuildPhaseInputPathsMigration(
-        project,
-        testLogger,
-      );
-      iosProjectMigration.migrate();
-      expect(xcodeProjectInfoFile.existsSync(), isFalse);
-
-      expect(testLogger.traceText, contains('Xcode project not found, skipping script build phase dependency analysis removal'));
-      expect(testLogger.statusText, isEmpty);
-    });
-
-    group('PBXBuildFile', () {
-      testWithoutContext('skipped if nothing to upgrade', () {
-        const String xcodeProjectInfoFileContents = r'''
-/* Begin PBXBuildFile section */
-		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-		78A318202AECB46A00862997 /* FlutterPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterPackage */; };
-		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
-		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
-/* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-''';
-        xcodeProjectInfoFile.writeAsStringSync(xcodeProjectInfoFileContents);
-
-        processManager.addCommand(FakeCommand(
-          command: <String>['/usr/bin/plutil', '-convert', 'json', '-r', '-o', '-', xcodeProjectInfoFile.path],
-          stdout: '''
-{
-  "archiveVersion" : "1",
-  "classes" : {
-
-  },
-  "objects" : {
-    "78A318202AECB46A00862997" : {
-      "isa" : "PBXBuildFile",
-      "productRef" : "78A3181F2AECB46A00862997"
-    },
-    "97C146FC1CF9000F007C117D" : {
-      "fileRef" : "97C146FA1CF9000F007C117D",
-      "isa" : "PBXBuildFile"
-    },
-    "331C808B294A63AB00263BE5" : {
-      "fileRef" : "331C807B294A618700263BE5",
-      "isa" : "PBXBuildFile"
-    },
-    "74858FAF1ED2DC5600515810" : {
-      "fileRef" : "74858FAE1ED2DC5600515810",
-      "isa" : "PBXBuildFile"
-    }
-  }
-}
-''',
-        ),);
-
-        final DateTime projectLastModified = xcodeProjectInfoFile.lastModifiedSync();
-
-        final FlutterPackageMigration iosProjectMigration = FlutterPackageMigration(
-          project,
-          logger: testLogger,
-          fileSystem: memoryFileSystem,
-          processManager: FakeProcessManager.any(),
-        );
-        iosProjectMigration.migrate();
-
-        expect(xcodeProjectInfoFile.lastModifiedSync(), projectLastModified);
-        expect(xcodeProjectInfoFile.readAsStringSync(), xcodeProjectInfoFileContents);
-
-        expect(testLogger.statusText, isEmpty);
-        expect(testLogger.errorText, isEmpty);
-        expect(testLogger.traceText, 'PBXBuildFile already migrated. Skipping...');
-      });
-
-      testWithoutContext('insert FlutterPackage in middle', () {
-        const String xcodeProjectInfoFileContents = r'''
-/* Begin PBXBuildFile section */
-		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
-		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
-/* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-''';
-        xcodeProjectInfoFile.writeAsStringSync(xcodeProjectInfoFileContents);
-
-        processManager.addCommand(FakeCommand(
-          command: <String>['/usr/bin/plutil', '-convert', 'json', '-r', '-o', '-', xcodeProjectInfoFile.path],
-          stdout: '''
-{
-  "archiveVersion" : "1",
-  "classes" : {
-
-  },
-  "objects" : {
-    "97C146FC1CF9000F007C117D" : {
-      "fileRef" : "97C146FA1CF9000F007C117D",
-      "isa" : "PBXBuildFile"
-    },
-    "331C808B294A63AB00263BE5" : {
-      "fileRef" : "331C807B294A618700263BE5",
-      "isa" : "PBXBuildFile"
-    },
-    "74858FAF1ED2DC5600515810" : {
-      "fileRef" : "74858FAE1ED2DC5600515810",
-      "isa" : "PBXBuildFile"
-    }
-  }
-}
-''',
-        ),);
-
-        final FlutterPackageMigration iosProjectMigration = FlutterPackageMigration(
-          project,
-          logger: testLogger,
-          fileSystem: memoryFileSystem,
-          processManager: processManager,
-        );
-        iosProjectMigration.migrate();
-
-        expect(testLogger.statusText, contains('Adding Flutter Package as a dependency.'));
-
-        expect(xcodeProjectInfoFile.readAsStringSync(), r'''
-/* Begin PBXBuildFile section */
-		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-		78A318202AECB46A00862997 /* FlutterPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterPackage */; };
-		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
-		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
-/* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-''');
-
-      });
-
-      testWithoutContext('insert FlutterPackage at the end', () {
-        const String xcodeProjectInfoFileContents = r'''
-/* Begin PBXBuildFile section */
-		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-/* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-''';
-        xcodeProjectInfoFile.writeAsStringSync(xcodeProjectInfoFileContents);
-
-        processManager.addCommand(FakeCommand(
-          command: <String>['/usr/bin/plutil', '-convert', 'json', '-r', '-o', '-', xcodeProjectInfoFile.path],
-          stdout: '''
-{
-  "archiveVersion" : "1",
-  "classes" : {
-
-  },
-  "objects" : {
-    "74858FAF1ED2DC5600515810" : {
-      "fileRef" : "74858FAE1ED2DC5600515810",
-      "isa" : "PBXBuildFile"
-    }
-  }
-}
-''',
-        ),);
-
-        final FlutterPackageMigration iosProjectMigration = FlutterPackageMigration(
-          project,
-          logger: testLogger,
-          fileSystem: memoryFileSystem,
-          processManager: processManager,
-        );
-        iosProjectMigration.migrate();
-
-        expect(testLogger.statusText, contains('Adding Flutter Package as a dependency.'));
-
-        expect(xcodeProjectInfoFile.readAsStringSync(), r'''
-/* Begin PBXBuildFile section */
-		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-		78A318202AECB46A00862997 /* FlutterPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterPackage */; };
-/* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-''');
-      });
-    });
-
-  });
 }
 
 class FakeIosProject extends Fake implements IosProject {
@@ -1650,7 +1446,7 @@ class FakeIOSMigrator extends ProjectMigrator {
     : super(BufferLogger.test());
 
   @override
-  void migrate() {}
+  Future<void> migrate() async {}
 
   @override
   String migrateLine(String line) {
