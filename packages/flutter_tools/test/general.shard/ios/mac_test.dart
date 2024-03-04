@@ -205,6 +205,10 @@ void main() {
       );
     });
 
+    // TODO: SPM - diagnoseXcodeBuildFailure tests
+
+    // TODO: SPM - test build
+
     testWithoutContext('Sends analytics when bitcode fails', () async {
       const List<String> buildCommands = <String>['xcrun', 'cc', 'blah'];
       final XcodeBuildResult buildResult = XcodeBuildResult(

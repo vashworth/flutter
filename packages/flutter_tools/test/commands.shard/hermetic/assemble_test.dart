@@ -34,6 +34,8 @@ void main() {
     );
   });
 
+  // TODO: SPM - test packages/flutter_tools/lib/src/commands/assemble.dart
+
   testUsingContext('flutter assemble can run a build', () async {
     final CommandRunner<void> commandRunner = createTestCommandRunner(AssembleCommand(
       buildSystem: TestBuildSystem.all(BuildResult(success: true)),

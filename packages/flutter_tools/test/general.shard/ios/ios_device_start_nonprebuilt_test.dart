@@ -34,7 +34,7 @@ import '../../src/context.dart' hide FakeXcodeProjectInterpreter;
 import '../../src/fake_devices.dart';
 import '../../src/fake_process_manager.dart';
 import '../../src/fakes.dart';
-
+// TODO: SPM - test
 List<String> _xattrArgs(FlutterProject flutterProject) {
   return <String>[
     'xattr',

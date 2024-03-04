@@ -44,14 +44,13 @@ class SwiftPackageManager {
     return '${project.hostAppRoot.path}/Flutter/Packages/FlutterPackage';
   }
 
-  static Directory flutterPackage(XcodeBasedProject project, FileSystem fileSystem) {
+  static Directory flutterPackageDirectory(XcodeBasedProject project, FileSystem fileSystem) {
     return fileSystem.directory(flutterPackagesPath(project));
   }
 
   Future<void> generate(List<Plugin> plugins, SupportedPlatform platform, XcodeBasedProject project) async {
-    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
-      throwToolExit('The platform ${platform.name} is not compatible with Swift Package Manager. Only iOS and macOS is allowed.');
-    }
+    _validatePlatform(platform);
+
     final List<SwiftPackagePackageDependency> packageDependencies = <SwiftPackagePackageDependency>[];
     final List<SwiftPackageTargetDependency> targetProducts = <SwiftPackageTargetDependency>[];
 
@@ -125,9 +124,10 @@ class SwiftPackageManager {
         artifacts: _artifacts,
         fileSystem: _fileSystem,
         processManager: _processManager,
+        logger: _logger,
       );
 
-      await migrateProject(project, platform);
+      await _migrateProject(project, platform);
     }
   }
 
@@ -138,7 +138,7 @@ class SwiftPackageManager {
     return false;
   }
 
-  Future<void> migrateProject(XcodeBasedProject project, SupportedPlatform platform) async {
+  Future<void> _migrateProject(XcodeBasedProject project, SupportedPlatform platform) async {
     final ProjectMigration migration = ProjectMigration(<ProjectMigrator>[
       FlutterPackageMigration(
         project,
@@ -152,6 +152,14 @@ class SwiftPackageManager {
     await migration.run();
   }
 
+  /// Validates the platform is either iOS or macOS, otherwise throw an error
+  /// and exit.
+  static void _validatePlatform(SupportedPlatform platform) {
+    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
+      throwToolExit('The platform ${platform.name} is not compatible with Swift Package Manager. Only iOS and macOS is allowed.');
+    }
+  }
+
   static void setupFlutterFramework(
     SupportedPlatform platform,
     XcodeBasedProject project,
@@ -159,42 +167,34 @@ class SwiftPackageManager {
     required Artifacts artifacts,
     required FileSystem fileSystem,
     required ProcessManager processManager,
+    required Logger logger,
   }) {
-    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
-      throwToolExit('The platform ${platform.name} is not compatible with Swift Package Manager. Only iOS and macOS is allowed.');
+    _validatePlatform(platform);
+    final String xcframeworkName = platform == SupportedPlatform.macos ? 'FlutterMacOS.xcframework' : 'Flutter.xcframework';
+    final Directory flutterPackageDir = flutterPackageDirectory(project, fileSystem);
+    if (!flutterPackageDir.existsSync()) {
+      // This can happen when Swift Package Manager is enabled, but the project
+      // hasn't been migrated yet since it doesn't have any Swift Package
+      // Manager plugin dependencies.
+      logger.printTrace('FlutterPackage does not exist, skipping adding link to $xcframeworkName.');
+      return;
     }
-    final Directory flutterPackageDir = flutterPackage(project, fileSystem);
 
     String engineCacheFlutterFramework;
-    Link frameworkSymlink;
-
     if (platform == SupportedPlatform.macos) {
-      // TODO: SPM - macos, use artifact instead of creating on the fly
       engineCacheFlutterFramework = artifacts.getArtifactPath(
-        Artifact.flutterMacOSFramework,
+        Artifact.flutterMacOSXcframework,
         platform: TargetPlatform.darwin,
         mode: buildMode,
       );
-      final String xcframeworkPath = fileSystem.file(engineCacheFlutterFramework).parent.childDirectory('FlutterMacOS.xcframework').path;
-      processManager.runSync(<String>[
-        'xcrun',
-        'xcodebuild',
-        '-create-xcframework',
-        '-framework',
-        engineCacheFlutterFramework,
-        xcframeworkPath,
-      ]);
-      engineCacheFlutterFramework = xcframeworkPath;
-      frameworkSymlink = flutterPackageDir.childLink('FlutterMacOS.xcframework');
     } else {
       engineCacheFlutterFramework = artifacts.getArtifactPath(
         Artifact.flutterXcframework,
         platform: TargetPlatform.ios,
         mode: buildMode,
       );
-      frameworkSymlink = flutterPackageDir.childLink('Flutter.xcframework');
     }
-
+    final Link frameworkSymlink = flutterPackageDir.childLink(xcframeworkName);
     if (!frameworkSymlink.existsSync()) {
       frameworkSymlink.createSync(engineCacheFlutterFramework);
     } else if (frameworkSymlink.targetSync() != engineCacheFlutterFramework) {

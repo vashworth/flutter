@@ -259,6 +259,7 @@ Future<XcodeBuildResult> buildXcodeProject({
       artifacts: globals.artifacts!,
       fileSystem: globals.fs,
       processManager: globals.processManager,
+      logger: globals.logger,
     );
   }
   await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);

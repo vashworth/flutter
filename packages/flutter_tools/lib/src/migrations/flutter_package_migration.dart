@@ -104,9 +104,11 @@ class FlutterPackageMigration extends ProjectMigrator {
         }
       }
 
-      // Update gitignore
-      _updateGitIgnore(_xcodeProject.parent.directory.childFile('.gitignore'));
-      _updateGitIgnore(_xcodeProject.hostAppRoot.childFile('.gitignore'));
+      // Update gitignore. If unable to update the platform specific gitignore,
+      // try updating the app gitignore.
+      if (!_updateGitIgnore(_xcodeProject.hostAppRoot.childFile('.gitignore'))) {
+        _updateGitIgnore(_xcodeProject.parent.directory.childFile('.gitignore'));
+      }
 
       final Version? version = _xcodeProjectInterpreter.version;
 
@@ -150,7 +152,7 @@ class FlutterPackageMigration extends ProjectMigrator {
         // Re-parse the project settings to check for syntax errors
         final ParsedProjectInfo updatedInfo = _parseResults();
 
-        if (!_isMigrated(updatedInfo, xcode15)) {
+        if (!_isMigrated(updatedInfo, xcode15, logErrorIfNotMigrated: true)) {
           throw Exception('Settings were not updated correctly.');
         }
 
@@ -169,14 +171,14 @@ class FlutterPackageMigration extends ProjectMigrator {
     }
   }
 
-  void _updateGitIgnore(File gitignore) {
+  bool _updateGitIgnore(File gitignore) {
     // TODO: SPM, should add if not exists?
     if (!gitignore.existsSync()) {
-      return;
+      return false;
     }
     final String originalProjectContents = gitignore.readAsStringSync();
     if (originalProjectContents.contains('Flutter/Packages/FlutterPackage')) {
-      return;
+      return true;
     }
     String newProjectContents = originalProjectContents;
     if (originalProjectContents.contains('**/Pods/')) {
@@ -189,6 +191,7 @@ class FlutterPackageMigration extends ProjectMigrator {
       logger.printTrace('Adding FlutterPackage to ${gitignore.dirname}/${gitignore.basename}...');
       gitignore.writeAsStringSync(newProjectContents);
     }
+    return true;
   }
 
   /// Parses the project.pbxproj into JSON.
@@ -209,19 +212,23 @@ class FlutterPackageMigration extends ProjectMigrator {
     }
   }
 
-  bool _isMigrated(ParsedProjectInfo projectInfo, bool xcode15) {
-    return _isBuildFilesMigrated(projectInfo) &&
-        _isFileReferenceMigrated(projectInfo) &&
-        _isFrameworksBuildPhaseMigrated(projectInfo) &&
-        _isGroupsMigrated(projectInfo) &&
-        _isNativeTargetMigrated(projectInfo) &&
-        _isProjectObjectMigrated(projectInfo, xcode15) &&
-        _isLocalSwiftPackageProductDependencyMigrated(projectInfo, xcode15) &&
-        _isSwiftPackageProductDependencyMigrated(projectInfo);
+  bool _isMigrated(ParsedProjectInfo projectInfo, bool xcode15, {bool logErrorIfNotMigrated = false}) {
+    return _isBuildFilesMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isFileReferenceMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isFrameworksBuildPhaseMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isGroupsMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isNativeTargetMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isProjectObjectMigrated(projectInfo, xcode15, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isLocalSwiftPackageProductDependencyMigrated(projectInfo, xcode15, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isSwiftPackageProductDependencyMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated);
   }
 
-  bool _isBuildFilesMigrated(ParsedProjectInfo projectInfo) {
-    return projectInfo.buildFileIdentifiers.contains(_flutterPackageBuildFileIdentifier);
+  bool _isBuildFilesMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = projectInfo.buildFileIdentifiers.contains(_flutterPackageBuildFileIdentifier);
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('PBXBuildFile not migrated');
+    }
+    return migrated;
   }
 
   List<String> _migrateBuildFile(
@@ -242,9 +249,13 @@ class FlutterPackageMigration extends ProjectMigrator {
     return lines;
   }
 
-  bool _isFileReferenceMigrated(ParsedProjectInfo projectInfo) {
-    return projectInfo.fileReferenceIndentifiers
+  bool _isFileReferenceMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = projectInfo.fileReferenceIndentifiers
         .contains(flutterPackageFileReferenceIdentifier);
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('PBXFileReference not migrated');
+    }
+    return migrated;
   }
 
   List<String> _migrateFileReference(
@@ -271,14 +282,18 @@ class FlutterPackageMigration extends ProjectMigrator {
     return lines;
   }
 
-  bool _isFrameworksBuildPhaseMigrated(ParsedProjectInfo projectInfo) {
-    return projectInfo.frameworksBuildPhases
+  bool _isFrameworksBuildPhaseMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = projectInfo.frameworksBuildPhases
         .where((ParsedProjectFrameworksBuildPhase phase) =>
             phase.identifier == _runnerFrameworksBuildPhaseIdentifer &&
             phase.files != null &&
             phase.files!.contains(_flutterPackageBuildFileIdentifier))
         .toList()
         .isNotEmpty;
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('PBXFrameworksBuildPhase not migrated');
+    }
+    return migrated;
   }
 
   List<String> _migrateFrameworksBuildPhase(
@@ -294,7 +309,7 @@ class FlutterPackageMigration extends ProjectMigrator {
 
     // Find index where Frameworks Build Phase for the Runner target begins.
     final int runnerFrameworksPhaseStartIndex = lines.indexWhere(
-      (String line) => line.trim().startsWith(_runnerFrameworksBuildPhaseIdentifer),
+      (String line) => line.trim().startsWith('$_runnerFrameworksBuildPhaseIdentifer /* Frameworks */ = {'),
       startSectionIndex,
     );
     if (runnerFrameworksPhaseStartIndex == -1 ||
@@ -332,26 +347,35 @@ class FlutterPackageMigration extends ProjectMigrator {
     return lines;
   }
 
-  bool _isGroupsMigrated(ParsedProjectInfo projectInfo) {
-    return _isPackagesGroupMigrated(projectInfo) && _isFlutterGroupMigrated(projectInfo);
+  bool _isGroupsMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    return _isPackagesGroupMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated) &&
+        _isFlutterGroupMigrated(projectInfo, logErrorIfNotMigrated: logErrorIfNotMigrated);
   }
 
-  bool _isPackagesGroupMigrated(ParsedProjectInfo projectInfo) {
-    return projectInfo.parsedGroups
+  bool _isPackagesGroupMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = projectInfo.parsedGroups
         .where((ParsedProjectGroup group) =>
             group.identifier == _flutterPackagesGroupIdentifier)
         .toList()
         .isNotEmpty;
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('Packages PBXGroup not migrated');
+    }
+    return migrated;
   }
 
-  bool _isFlutterGroupMigrated(ParsedProjectInfo projectInfo) {
-    return projectInfo.parsedGroups
+  bool _isFlutterGroupMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = projectInfo.parsedGroups
         .where((ParsedProjectGroup group) =>
             group.identifier == _flutterGroupIdentifier &&
             group.children != null &&
             group.children!.contains(_flutterPackagesGroupIdentifier))
         .toList()
         .isNotEmpty;
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('Flutter PBXGroup not migrated');
+    }
+    return migrated;
   }
 
   List<String> _migrateGroups(
@@ -410,8 +434,16 @@ class FlutterPackageMigration extends ProjectMigrator {
     }
 
     // Find index where Flutter Group begins.
+    final ParsedProjectGroup? flutterGroup = projectInfo.parsedGroups
+        .where((ParsedProjectGroup group) =>
+            group.identifier == _flutterGroupIdentifier).firstOrNull;
+    if (flutterGroup == null) {
+      throw Exception('Unable to find parsed Flutter PBXGroup');
+    }
+
+    final String subsectionLineStart = flutterGroup.name != null ? '$_flutterGroupIdentifier /* ${flutterGroup.name} */ = {' : _flutterGroupIdentifier;
     final int flutterGroupStartIndex = lines.indexWhere(
-      (String line) => line.trim().startsWith(_flutterGroupIdentifier),
+      (String line) => line.trim().startsWith(subsectionLineStart),
       startSectionIndex,
     );
     if (flutterGroupStartIndex == -1 ||
@@ -429,14 +461,18 @@ class FlutterPackageMigration extends ProjectMigrator {
     return lines;
   }
 
-  bool _isNativeTargetMigrated(ParsedProjectInfo projectInfo) {
-    return projectInfo.nativeTargets
+  bool _isNativeTargetMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = projectInfo.nativeTargets
         .where((ParsedNativeTarget target) =>
             target.identifier == _runnerNativeTargetIdentifer &&
             target.packageProductDependencies != null &&
             target.packageProductDependencies!.contains(_flutterPackageProductDependencyIdentifer))
         .toList()
         .isNotEmpty;
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('PBXNativeTarget not migrated');
+    }
+    return migrated;
   }
 
   List<String> _migrateNativeTarget(
@@ -450,24 +486,24 @@ class FlutterPackageMigration extends ProjectMigrator {
 
     final (int startSectionIndex, int endSectionIndex) = _sectionRange('PBXNativeTarget', lines);
 
+    // Get the Native Target for the Runner target from the parsed project info.
+    final ParsedNativeTarget? runnerNativeTarget = projectInfo.nativeTargets
+        .where((ParsedNativeTarget target) =>
+            target.identifier == _runnerNativeTargetIdentifer)
+        .firstOrNull;
+    if (runnerNativeTarget == null) {
+      throw Exception('Unable to find parsed PBXNativeTarget for ${_xcodeProject.hostAppProjectName} target');
+    }
+
     // Find index where Native Target for the Runner target begins.
+    final String subsectionLineStart = runnerNativeTarget.name != null ? '$_runnerNativeTargetIdentifer /* ${runnerNativeTarget.name} */ = {' : _runnerNativeTargetIdentifer;
     final int runnerNativeTargetStartIndex = lines.indexWhere(
-      (String line) => line.trim().startsWith(_runnerNativeTargetIdentifer),
+      (String line) => line.trim().startsWith(subsectionLineStart),
       startSectionIndex,
     );
     if (runnerNativeTargetStartIndex == -1 ||
         runnerNativeTargetStartIndex > endSectionIndex) {
       throw Exception('Unable to find PBXNativeTarget for ${_xcodeProject.hostAppProjectName} target');
-    }
-
-    // Get the Native Target for the Runner target from the parsed project info.
-    final ParsedNativeTarget? runnerNativeTarget = projectInfo.nativeTargets
-        .where((ParsedNativeTarget target) =>
-            target.identifier == _runnerNativeTargetIdentifer)
-        .toList()
-        .firstOrNull;
-    if (runnerNativeTarget == null) {
-      throw Exception('Unable to find parsed PBXNativeTarget for ${_xcodeProject.hostAppProjectName} target');
     }
 
     if (runnerNativeTarget.packageProductDependencies == null) {
@@ -490,20 +526,19 @@ class FlutterPackageMigration extends ProjectMigrator {
     return lines;
   }
 
-  bool _isSwiftPackageProductDependencyMigrated(ParsedProjectInfo projectInfo) {
-    return projectInfo.swiftPackageProductDependencies
-            .contains(_flutterPackageProductDependencyIdentifer);
-  }
-
   /// Only applicable for Xcode 15
-  bool _isProjectObjectMigrated(ParsedProjectInfo projectInfo, bool xcode15,) {
-    return !xcode15 || projectInfo.projects
+  bool _isProjectObjectMigrated(ParsedProjectInfo projectInfo, bool xcode15, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = !xcode15 || projectInfo.projects
         .where((ParsedProject target) =>
             target.identifier == _projectIdentifier &&
             target.packageReferences != null &&
             target.packageReferences!.contains(_localSwiftPackageReferenceIdentifer))
         .toList()
         .isNotEmpty;
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('PBXProject not migrated');
+    }
+    return migrated;
   }
 
   /// Only applicable for Xcode 15
@@ -521,7 +556,7 @@ class FlutterPackageMigration extends ProjectMigrator {
 
     // Find index where Runner Project begins.
     final int projectStartIndex = lines.indexWhere(
-      (String line) => line.trim().startsWith(_projectIdentifier),
+      (String line) => line.trim().startsWith('$_projectIdentifier /* Project object */ = {'),
       startSectionIndex,
     );
     if (projectStartIndex == -1 ||
@@ -557,6 +592,15 @@ class FlutterPackageMigration extends ProjectMigrator {
       lines.insert(startDependenciesIndex + 1, newContent);
     }
     return lines;
+  }
+
+  bool _isSwiftPackageProductDependencyMigrated(ParsedProjectInfo projectInfo, {bool logErrorIfNotMigrated = false}) {
+    final bool migrated = projectInfo.swiftPackageProductDependencies
+            .contains(_flutterPackageProductDependencyIdentifer);
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('XCSwiftPackageProductDependency not migrated');
+    }
+    return migrated;
   }
 
   List<String> _migratePackageProductDependencies(
@@ -604,10 +648,15 @@ class FlutterPackageMigration extends ProjectMigrator {
 
   bool _isLocalSwiftPackageProductDependencyMigrated(
     ParsedProjectInfo projectInfo,
-    bool xcode15,
-  ) {
-    return !xcode15 || projectInfo.localSwiftPackageProductDependencies
+    bool xcode15, {
+    bool logErrorIfNotMigrated = false,
+  }) {
+    final bool migrated = !xcode15 || projectInfo.localSwiftPackageProductDependencies
             .contains(_localSwiftPackageReferenceIdentifer);
+    if (logErrorIfNotMigrated && !migrated) {
+      logger.printError('XCLocalSwiftPackageReference not migrated');
+    }
+    return migrated;
   }
 
   List<String> _migrateLocalPackageProductDependencies(
@@ -771,9 +820,16 @@ class ParsedProjectInfo {
 }
 
 class ParsedProjectGroup {
-  ParsedProjectGroup._(this.identifier, this.children);
+  ParsedProjectGroup._(this.identifier, this.children, this.name);
 
   factory ParsedProjectGroup.fromJson(String key, Map<String, Object?> data) {
+    String? name;
+    if (data['name'] is String) {
+      name = data['name']! as String;
+    } else if (data['path'] is String) {
+      name = data['path']! as String;
+    }
+
     final List<String> parsedChildren = <String>[];
     if (data['children'] is List<Object?>) {
       for (final Object? item in data['children']! as List<Object?>) {
@@ -781,13 +837,14 @@ class ParsedProjectGroup {
           parsedChildren.add(item);
         }
       }
-      return ParsedProjectGroup._(key, parsedChildren);
+      return ParsedProjectGroup._(key, parsedChildren, name);
     }
-    return ParsedProjectGroup._(key, null);
+    return ParsedProjectGroup._(key, null, name);
   }
 
   final String identifier;
   final List<String>? children;
+  final String? name;
 }
 
 class ParsedProjectFrameworksBuildPhase {
@@ -813,9 +870,14 @@ class ParsedProjectFrameworksBuildPhase {
 
 class ParsedNativeTarget {
   ParsedNativeTarget._(
-      this.data, this.identifier, this.packageProductDependencies,);
+      this.data, this.identifier, this.name, this.packageProductDependencies,);
 
   factory ParsedNativeTarget.fromJson(String key, Map<String, Object?> data) {
+    String? name;
+    if (data['name'] is String) {
+      name = data['name']! as String;
+    }
+
     final List<String> parsedChildren = <String>[];
     if (data['packageProductDependencies'] is List<Object?>) {
       for (final Object? item
@@ -824,13 +886,14 @@ class ParsedNativeTarget {
           parsedChildren.add(item);
         }
       }
-      return ParsedNativeTarget._(data, key, parsedChildren);
+      return ParsedNativeTarget._(data, key, name, parsedChildren);
     }
-    return ParsedNativeTarget._(data, key, null);
+    return ParsedNativeTarget._(data, key, name, null);
   }
 
   final Map<String, Object?> data;
   final String identifier;
+  final String? name;
   final List<String>? packageProductDependencies;
 }
 

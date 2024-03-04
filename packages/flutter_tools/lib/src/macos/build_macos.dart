@@ -106,6 +106,7 @@ Future<void> buildMacOS({
       artifacts: globals.artifacts!,
       fileSystem: globals.fs,
       processManager: globals.processManager,
+      logger: globals.logger,
     );
   }
   await processPodsIfNeeded(flutterProject.macos, getMacOSBuildDirectory(), buildInfo.mode);

@@ -27,6 +27,8 @@ enum _StdioStream {
   stderr,
 }
 
+// TODO: SPM - test
+
 void main() {
   late FileSystem fileSystem;
   late FakeProcessManager fakeProcessManager;

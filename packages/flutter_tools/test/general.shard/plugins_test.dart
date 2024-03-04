@@ -72,7 +72,7 @@ class _PluginPlatformInfo {
     ].join('\n');
   }
 }
-
+// TODO: SPM - test?
 void main() {
   group('plugins', () {
     late FileSystem fs;

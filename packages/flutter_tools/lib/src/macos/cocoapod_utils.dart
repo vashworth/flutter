@@ -39,6 +39,9 @@ Future<void> processPodsIfNeeded(
     paths: <String>[
       xcodeProject.xcodeProjectInfoFile.path,
       xcodeProject.podfile.path,
+      // TODO: SPM - Error when SPM disabled
+      // Fingerprint write error: Exception: Missing input files:
+      // run:stdout:            LocalFile: '/Users/vashworth/Development/experiment/flutter/spm_tests/cocoapods_objc_plugin/example/ios/Flutter/Packages/FlutterPackage'
       SwiftPackageManager.flutterPackagesPath(xcodeProject),
       globals.fs.path.join(
         Cache.flutterRoot!,

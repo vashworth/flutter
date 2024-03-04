@@ -39,7 +39,7 @@ void main() {
     });
 
     testWithoutContext('migrate FlutterOutputs.xcfilelist for macOS', () {
-      // TODO
+      // TODO: SPM
     });
 
     group('migrate gitignore', () {
@@ -226,19 +226,19 @@ Flutter/Packages/FlutterPackage
     });
 
     testWithoutContext('skip if all settings migrated', () {
-      // TODO
+      // TODO: SPM
     });
 
     testWithoutContext('throw if settings not updated correctly', () {
-      // TODO
+      // TODO: SPM
     });
 
     testWithoutContext('throw if settings fail to compile', () {
-      // TODO
+      // TODO: SPM
     });
 
     testWithoutContext('restore project settings from backup on failure', () {
-      // TODO
+      // TODO: SPM
     });
 
     group('migrate PBXBuildFile', () {
@@ -480,11 +480,11 @@ Flutter/Packages/FlutterPackage
 
     group('migrate PBXFrameworksBuildPhase', () {
       group('for iOS', () {
-        // TODO
+        // TODO: SPM
       });
 
       group('for macOS', () {
-        // TODO
+        // TODO: SPM
       });
       testWithoutContext('skipped if already updated', () {
         final MemoryFileSystem memoryFileSystem = MemoryFileSystem();
@@ -838,11 +838,11 @@ Flutter/Packages/FlutterPackage
 
     group('migrate PBXGroup', () {
       group('for iOS', () {
-        // TODO
+        // TODO: SPM
       });
 
       group('for macOS', () {
-        // TODO
+        // TODO: SPM
       });
       testWithoutContext('skipped if already updated', () {
         final MemoryFileSystem memoryFileSystem = MemoryFileSystem();
@@ -1105,11 +1105,11 @@ Flutter/Packages/FlutterPackage
 
     group('migrate PBXNativeTarget', () {
       group('for iOS', () {
-        // TODO
+        // TODO: SPM
       });
 
       group('for macOS', () {
-        // TODO
+        // TODO: SPM
       });
       testWithoutContext('skipped if already updated', () {
         final MemoryFileSystem memoryFileSystem = MemoryFileSystem();
@@ -1461,11 +1461,11 @@ Flutter/Packages/FlutterPackage
 
     group('migrate PBXProject', () {
       group('for iOS', () {
-        // TODO
+        // TODO: SPM
       });
 
       group('for macOS', () {
-        // TODO
+        // TODO: SPM
       });
       testWithoutContext('skipped if not Xcode 15', () {
         final MemoryFileSystem memoryFileSystem = MemoryFileSystem();

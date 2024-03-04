@@ -67,6 +67,8 @@ void main() {
         expect(projectUnderTest.ios.deprecatedProjectFlutterFramework, isNot(exists));
         expect(projectUnderTest.ios.flutterPodspec, isNot(exists));
 
+        // TODO: SPM - test
+
         expect(projectUnderTest.linux.ephemeralDirectory, isNot(exists));
         expect(projectUnderTest.macos.ephemeralDirectory, isNot(exists));
         expect(projectUnderTest.windows.ephemeralDirectory, isNot(exists));

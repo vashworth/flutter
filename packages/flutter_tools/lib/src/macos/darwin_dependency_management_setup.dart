@@ -15,6 +15,7 @@ import '../project.dart';
 import 'cocoapods.dart';
 import 'swift_packages.dart';
 
+/// TODO: SPM - comment
 class DarwinDependencyManagementSetup {
   DarwinDependencyManagementSetup({
     required Artifacts artifacts,
@@ -46,6 +47,7 @@ class DarwinDependencyManagementSetup {
   final FlutterProject _project;
   final List<Plugin> _plugins;
 
+  /// TODO: SPM - comment
   Future<void> setup({
     required SupportedPlatform platform,
     required XcodeBasedProject xcodeProject,
@@ -71,7 +73,7 @@ class DarwinDependencyManagementSetup {
       await spm.generate(<Plugin>[], platform, xcodeProject);
     }
 
-    final (int pluginCount, int swiftPackageCount, int cocoapodCount) = await _countPlugins(
+    final (int pluginCount, int swiftPackageCount, int cocoapodCount) = await _evaluatePlugins(
       platform: platform,
       xcodeProject: xcodeProject,
     );
@@ -110,7 +112,16 @@ class DarwinDependencyManagementSetup {
     return false;
   }
 
-  Future<(int, int, int)> _countPlugins({
+  /// Returns count of total number of plugins, number of Swift Package Manager
+  /// compatible plugins, and number of CocoaPods compatible plugins. A plugin
+  /// can be both Swift Package Manager and CocoaPods compatible.
+  ///
+  /// Prints warnings when using a plugin incompatible with the available Darwin
+  /// Dependency Manager (Swift Package Manager or CocoaPods).
+  ///
+  /// Prints message prompting the user to deintegrate CocoaPods if using all
+  /// Swift Package plugins.
+  Future<(int, int, int)> _evaluatePlugins({
     required SupportedPlatform platform,
     required XcodeBasedProject xcodeProject,
   }) async {
@@ -135,31 +146,28 @@ class DarwinDependencyManagementSetup {
       }
 
       pluginCount += 1;
-
       if (pluginSwiftPackageManagerCompatible) {
         swiftPackageCount += 1;
       }
-
       if (pluginCocoapodCompatible) {
         cocoapodCount += 1;
-      } else if (!_project.usingSwiftPackageManager && pluginSwiftPackageManagerCompatible) {
-        // If not using Swift Package Manager and plugin does not have podspec but does have swift package, warn it will not be used
+      }
+
+      // If not using Swift Package Manager and plugin does not have podspec but does have swift package, warn it will not be used
+      if (!_project.usingSwiftPackageManager && !pluginCocoapodCompatible && pluginSwiftPackageManagerCompatible) {
         _logger.printWarning('Plugin ${plugin.name} is only Swift Package Manager compatible. Try enabling Swift Package Manager.');
       }
     }
-
-    if (_project.usingSwiftPackageManager) {
-      if (pluginCount == swiftPackageCount) {
+    // TODO: SPM - Improve messages
+    if (_project.usingSwiftPackageManager && pluginCount == swiftPackageCount && swiftPackageCount != 0) {
+      final bool podfileExists = xcodeProject.podfile.existsSync();
+      if (podfileExists) {
+        // If all plugins are SPM and the Podfile matches the default, recommend pod deintegration
         final File podfileTemplate = await _cocoapods.getPodfileTemplate(xcodeProject, xcodeProject.xcodeProject);
-        final bool podfileExists = xcodeProject.podfile.existsSync();
-
-        // If all plugins are SPM and generic podfile but pod stuff still exists, recommend pod deintegration
-        // If all plugins are SPM and custom podfile, recommend migrating
-
-        // TODO: SPM - Improve messages
-        if (podfileExists && xcodeProject.podfile.readAsStringSync() == podfileTemplate.readAsStringSync()) {
+        if (xcodeProject.podfile.readAsStringSync() == podfileTemplate.readAsStringSync()) {
           _logger.printStatus('All of the plugins you are using for ${platform.name} are Swift Packages. You may consider removing Cococapod files. To remove Cocoapods, in the ${platform.name}/ directory run `pod deintegrate` and delete the Podfile.');
-        } else if (podfileExists) {
+        } else {
+          // If all plugins are SPM and custom podfile, recommend migrating
           _logger.printStatus('All of the plugins you are using for ${platform.name} are Swift Packages, but you may be using other Cocoapods. You may consider migrating to Swift Package Manager.');
         }
       }

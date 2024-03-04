@@ -65,6 +65,7 @@ const String samplesIndexJson = '''
   { "id": "sample2" }
 ]''';
 
+// TODO: SPM - test
 void main() {
   late Directory tempDir;
   late Directory projectDir;

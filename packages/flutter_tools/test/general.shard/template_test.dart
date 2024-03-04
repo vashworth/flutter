@@ -14,7 +14,7 @@ import 'package:flutter_tools/src/globals.dart' as globals;
 import 'package:flutter_tools/src/template.dart';
 import '../src/common.dart';
 import '../src/context.dart';
-
+// TODO: SPM - test
 void main() {
   testWithoutContext('Template constructor throws ToolExit when source directory is missing', () {
     final FileExceptionHandler handler = FileExceptionHandler();
