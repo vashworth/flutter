@@ -177,14 +177,14 @@ class FlutterPackageMigration extends ProjectMigrator {
       return false;
     }
     final String originalProjectContents = gitignore.readAsStringSync();
-    if (originalProjectContents.contains('Flutter/Packages/FlutterPackage')) {
+    if (originalProjectContents.contains('**/Flutter/Packages/FlutterPackage/')) {
       return true;
     }
     String newProjectContents = originalProjectContents;
     if (originalProjectContents.contains('**/Pods/')) {
-      newProjectContents = newProjectContents.replaceFirst('**/Pods/', '**/Pods/\nFlutter/Packages/FlutterPackage');
+      newProjectContents = newProjectContents.replaceFirst('**/Pods/', '**/Pods/\n**/Flutter/Packages/FlutterPackage/');
     } else {
-      newProjectContents = '$newProjectContents\nFlutter/Packages/FlutterPackage\n';
+      newProjectContents = '$newProjectContents\n**/Flutter/Packages/FlutterPackage/\n';
     }
 
     if (originalProjectContents != newProjectContents) {

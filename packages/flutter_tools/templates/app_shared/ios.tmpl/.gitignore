@@ -11,7 +11,7 @@
 **/DerivedData/
 Icon?
 **/Pods/
-Flutter/Packages/FlutterPackage
+**/Flutter/Packages/FlutterPackage/
 **/.symlinks/
 profile
 xcuserdata
