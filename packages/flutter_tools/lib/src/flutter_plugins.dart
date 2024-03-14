@@ -879,7 +879,6 @@ Future<void> writeMacOSPluginRegistrant(
   List<Plugin> plugins, {
   File? pluginRegistrant,
 }) async {
-  // TODO: SPM
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, MacOSPlugin.kConfigKey);
   final List<Map<String, Object?>> macosMethodChannelPlugins = _extractPlatformMaps(methodChannelPlugins, MacOSPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{

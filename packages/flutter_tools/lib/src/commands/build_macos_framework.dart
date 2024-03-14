@@ -96,7 +96,6 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
       // Build aot, create App.framework. Make XCFrameworks.
       await _produceAppFramework(buildInfo, modeDirectory, buildOutput);
 
-      // TODO: SPM - add2app
       // Build and copy plugins.
       await processPodsIfNeeded(project.macos, getMacOSBuildDirectory(), buildInfo.mode);
       if (boolArg('plugins') && hasPlugins(project)) {

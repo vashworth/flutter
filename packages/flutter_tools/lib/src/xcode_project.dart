@@ -578,8 +578,6 @@ class IosProject extends XcodeBasedProject {
       return;
     }
 
-    // TODO: SPM - add2app?
-
     ErrorHandlingFileSystem.deleteIfExists(ephemeralModuleDirectory, recursive: true);
     await _overwriteFromTemplate(
       globals.fs.path.join('module', 'ios', 'library'),

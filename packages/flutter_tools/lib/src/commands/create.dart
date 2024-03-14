@@ -359,7 +359,6 @@ class CreateCommand extends CreateBase {
     final Directory relativeDir = globals.fs.directory(projectDirPath);
     int generatedFileCount = 0;
     final PubContext pubContext;
-    // TODO: SPM - add2app, module
     switch (template) {
       case FlutterProjectType.app:
         generatedFileCount += await generateApp(

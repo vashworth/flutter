@@ -92,18 +92,6 @@ class FlutterPackageMigration extends ProjectMigrator {
         throw Exception('Xcode project not found.');
       }
 
-      // Update FlutterOutputs.xcfilelist
-      if (_platform == SupportedPlatform.macos) {
-        final File outputFile = (_xcodeProject as MacOSProject).outputFileList;
-        if (outputFile.existsSync() && outputFile.readAsStringSync().contains('FlutterMacOS.framework/Versions/A/FlutterMacOS')) {
-          final List<String> lines =  outputFile.readAsLinesSync();
-          lines.removeWhere((String path) => path.contains('FlutterMacOS.framework/Versions/A/FlutterMacOS'));
-          outputFile.writeAsStringSync(
-            lines.join('\n'),
-          );
-        }
-      }
-
       // Update gitignore. If unable to update the platform specific gitignore,
       // try updating the app gitignore.
       if (!_updateGitIgnore(_xcodeProject.hostAppRoot.childFile('.gitignore'))) {

@@ -344,11 +344,6 @@ class AssembleCommand extends FlutterCommand {
       writeListIfChanged(result.inputFiles, stringArg('build-inputs')!);
     }
     if (argumentResults.wasParsed('build-outputs')) {
-      if (_flutterProject.usingSwiftPackageManager) {
-        // Swift Package Manager also produces the FlutterMacOS framework.
-        // Xcode will complain about multiple commands producing the same output if this is included.
-        result.outputFiles.removeWhere((File file) => file.path.contains('FlutterMacOS.framework/Versions/A/FlutterMacOS'));
-      }
       writeListIfChanged(result.outputFiles, stringArg('build-outputs')!);
     }
     if (argumentResults.wasParsed('performance-measurement-file')) {

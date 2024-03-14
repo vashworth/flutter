@@ -42,12 +42,18 @@ class SwiftPackageManager {
 
   static const String _defaultFlutterPluginsSwiftPackageName = 'FlutterPackage';
 
+  static const String _packageFileName = 'Package.swift';
+
   static String flutterPackagesPath(XcodeBasedProject project) {
     return '${project.hostAppRoot.path}/Flutter/Packages/$_defaultFlutterPluginsSwiftPackageName';
   }
 
   static Directory flutterPackageDirectory(XcodeBasedProject project, FileSystem fileSystem) {
     return fileSystem.directory(flutterPackagesPath(project));
+  }
+
+  static File flutterPackageFile(XcodeBasedProject project, FileSystem fileSystem) {
+    return fileSystem.directory(flutterPackagesPath(project)).childFile(_packageFileName);
   }
 
   Future<void> generate(
@@ -77,7 +83,7 @@ class SwiftPackageManager {
     final String swiftPackagePath = overrideSwiftPackagePath ?? flutterPackagesPath(project);
     final String swiftPackageName = overrideSwiftPackageName ?? _defaultFlutterPluginsSwiftPackageName;
     final SwiftPackage pluginsPackage = SwiftPackage(
-      swiftPackagePath: '$swiftPackagePath/Package.swift',
+      swiftPackagePath: '$swiftPackagePath/$_packageFileName',
       fileSystem: _fileSystem,
       logger: _logger,
       templateRenderer: _templateRenderer,
@@ -322,7 +328,7 @@ class SwiftPackageContext {
 
     final Map<String, String> context = <String, String>{
       'packageName': _stringifyName(),
-      'swiftToolsVersion': '5.7',
+      'swiftToolsVersion': '5.9',
       'platforms': _stringifyPlatforms(),
       'products': _stringifyProducts(),
       'dependencies': _stringifyDependencies(),
