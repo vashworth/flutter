@@ -525,7 +525,7 @@ import Foundation
 import {{name}}
 {{/methodChannelPlugins}}
 
-func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+{{#usingSwiftPackageManager}}public {{/usingSwiftPackageManager}}func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   {{#methodChannelPlugins}}
   {{class}}.register(with: registry.registrar(forPlugin: "{{class}}"))
 {{/methodChannelPlugins}}
@@ -874,7 +874,11 @@ Future<void> _writePluginCmakefile(File destinationFile, Map<String, Object> tem
   );
 }
 
-Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+Future<void> writeMacOSPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  File? pluginRegistrant,
+}) async {
   // TODO: SPM
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, MacOSPlugin.kConfigKey);
   final List<Map<String, Object?>> macosMethodChannelPlugins = _extractPlatformMaps(methodChannelPlugins, MacOSPlugin.kConfigKey);
@@ -882,11 +886,12 @@ Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> pl
     'os': 'macos',
     'framework': 'FlutterMacOS',
     'methodChannelPlugins': macosMethodChannelPlugins,
+    'usingSwiftPackageManager': project.usingSwiftPackageManager,
   };
   await _renderTemplateToFile(
     _swiftPluginRegistryTemplate,
     context,
-    project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
+    pluginRegistrant ?? project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
     globals.templateRenderer,
   );
 }
@@ -1210,7 +1215,7 @@ Future<void> injectPlugins(
     await _writeLinuxPluginFiles(project, plugins);
   }
   if (macOSPlatform) {
-    await _writeMacOSPluginRegistrant(project, plugins);
+    await writeMacOSPluginRegistrant(project, plugins);
   }
   if (windowsPlatform) {
     await writeWindowsPluginFiles(project, plugins, globals.templateRenderer, allowedPlugins: allowedPlugins);
