@@ -40,17 +40,115 @@ class SwiftPackageManager {
   final ProcessManager _processManager;
   final XcodeProjectInterpreter _xcodeProjectInterpreter;
 
+  static const String _defaultFlutterPluginsSwiftPackageName = 'FlutterPackage';
+
   static String flutterPackagesPath(XcodeBasedProject project) {
-    return '${project.hostAppRoot.path}/Flutter/Packages/FlutterPackage';
+    return '${project.hostAppRoot.path}/Flutter/Packages/$_defaultFlutterPluginsSwiftPackageName';
   }
 
   static Directory flutterPackageDirectory(XcodeBasedProject project, FileSystem fileSystem) {
     return fileSystem.directory(flutterPackagesPath(project));
   }
 
-  Future<void> generate(List<Plugin> plugins, SupportedPlatform platform, XcodeBasedProject project) async {
+  Future<void> generate(
+    List<Plugin> plugins,
+    SupportedPlatform platform,
+    XcodeBasedProject project, {
+    String? overrideSwiftPackagePath,
+    String? overrideSwiftPackageName,
+    bool includeFlutterFramework = true,
+    bool migrateApp = true,
+    bool skipIfNoDependencies = true,
+    SwiftPackageLibraryType? libraryType,
+  }) async {
     _validatePlatform(platform);
 
+    final (List<SwiftPackagePackageDependency> packageDependencies, List<SwiftPackageTargetDependency> targetProducts) = _dependenciesForPlugins(plugins, platform);
+
+    // If skipIfNoDependencies is true, there aren't any swift package plugins,
+    // and the project hasn't been migrated yet, don't generate a Swift package
+    // or migrate the app since it's not needed. If the project has already been
+    // migrated, regenerate the Package.swift even if there are no dependencies
+    // in case there previously were dependencies.
+    if (skipIfNoDependencies && packageDependencies.isEmpty && !projectMigrated(project)) {
+      return;
+    }
+
+    final String swiftPackagePath = overrideSwiftPackagePath ?? flutterPackagesPath(project);
+    final String swiftPackageName = overrideSwiftPackageName ?? _defaultFlutterPluginsSwiftPackageName;
+    final SwiftPackage pluginsPackage = SwiftPackage(
+      swiftPackagePath: '$swiftPackagePath/Package.swift',
+      fileSystem: _fileSystem,
+      logger: _logger,
+      templateRenderer: _templateRenderer,
+    );
+
+    SwiftPackageTarget? frameworkTarget;
+    SwiftPackageTargetDependency? frameworkTargetDependency;
+    if (includeFlutterFramework && packageDependencies.isNotEmpty) {
+      final String flutterFramework = platform == SupportedPlatform.ios ? 'Flutter' : 'FlutterMacOS';
+      frameworkTarget = SwiftPackageTarget.binaryTarget(
+        name: flutterFramework,
+        path: '$flutterFramework.xcframework',
+      );
+      frameworkTargetDependency = SwiftPackageTargetDependency(name: flutterFramework);
+    }
+
+    final List<SwiftPackageTarget> packageTargets = <SwiftPackageTarget>[
+      if (frameworkTarget != null) frameworkTarget,
+      SwiftPackageTarget(
+        name: swiftPackageName,
+        dependencies: <SwiftPackageTargetDependency>[
+          if (frameworkTargetDependency != null) frameworkTargetDependency,
+          ...targetProducts,
+        ],
+      ),
+    ];
+
+    final SwiftPackageContext packageContext = SwiftPackageContext(
+      name: swiftPackageName,
+      platforms: <SwiftPackageSupportedPlatform>[
+        if (platform == SupportedPlatform.ios) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.ios, version: '12.0'),
+        if (platform == SupportedPlatform.macos) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.macos, version: '10.14'),
+      ],
+      products: <SwiftPackageProduct>[
+        SwiftPackageProduct(
+          name: swiftPackageName,
+          targets: <String>[swiftPackageName],
+          libraryType: libraryType,
+        ),
+      ],
+      dependencies: packageDependencies,
+      targets: packageTargets,
+    );
+
+    // Create FlutterPackage, which adds dependencies to the Flutter Framework and plugins.
+    await pluginsPackage.createSwiftPackage(packageContext);
+
+    if (includeFlutterFramework) {
+      // You need to setup the framework symlink so xcodebuild commands like
+      // showSettings will still work. The BuildMode is not known yet, so set
+      // to debug for now. The correct framework will be symlinked when the
+      // project is built.
+      setupFlutterFramework(
+        platform,
+        project,
+        BuildMode.debug,
+        artifacts: _artifacts,
+        fileSystem: _fileSystem,
+        processManager: _processManager,
+        logger: _logger,
+      );
+    }
+    if (migrateApp) {
+      await _migrateProject(project, platform);
+    }
+  }
+
+  (List<SwiftPackagePackageDependency>, List<SwiftPackageTargetDependency>) _dependenciesForPlugins(
+    List<Plugin> plugins,
+    SupportedPlatform platform,
+  ) {
     final List<SwiftPackagePackageDependency> packageDependencies = <SwiftPackagePackageDependency>[];
     final List<SwiftPackageTargetDependency> targetProducts = <SwiftPackageTargetDependency>[];
 
@@ -70,65 +168,7 @@ class SwiftPackageManager {
         _logger.printTrace('Using a non-spm plugin: ${plugin.name}');
       }
     }
-
-    // TODO: if no dependencies, no need for Flutter.xcframework either
-
-    final SwiftPackage flutterPackage = SwiftPackage(
-      swiftPackagePath: '${flutterPackagesPath(project)}/Package.swift',
-      fileSystem: _fileSystem,
-      logger: _logger,
-      templateRenderer: _templateRenderer,
-    );
-
-    final String flutterFramework = platform == SupportedPlatform.ios ? 'Flutter' : 'FlutterMacOS';
-
-    if (packageDependencies.isNotEmpty || projectMigrated(project)) {
-      final List<SwiftPackageTarget> packageTargets = <SwiftPackageTarget>[
-        if (packageDependencies.isNotEmpty) SwiftPackageTarget.binaryTarget(
-            name: flutterFramework,
-            path: '$flutterFramework.xcframework',
-          ),
-          SwiftPackageTarget(
-            name: 'FlutterPackage',
-            dependencies: <SwiftPackageTargetDependency>[
-              if (packageDependencies.isNotEmpty) SwiftPackageTargetDependency(name: flutterFramework),
-              ...targetProducts,
-            ],
-          ),
-      ];
-
-      final SwiftPackageContext packageContext = SwiftPackageContext(
-        name: 'FlutterPackage',
-        platforms: <SwiftPackageSupportedPlatform>[
-          if (platform == SupportedPlatform.ios) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.ios, version: '12.0'),
-          if (platform == SupportedPlatform.macos) SwiftPackageSupportedPlatform(platform: SwiftPackagePlatform.macos, version: '10.14'),
-        ],
-        products: <SwiftPackageProduct>[
-          SwiftPackageProduct(name: 'FlutterPackage', targets: <String>['FlutterPackage']),
-        ],
-        dependencies: packageDependencies,
-        targets: packageTargets,
-      );
-
-      // Create FlutterPackage, which adds dependencies to the Flutter Framework and plugins.
-      await flutterPackage.createSwiftPackage(packageContext);
-
-      // You need to setup the framework symlink so xcodebuild commands like
-      // showSettings will still work. The BuildMode is not known yet, so set
-      // to debug for now. The correct framework will be symlinked when the
-      // project is built.
-      setupFlutterFramework(
-        platform,
-        project,
-        BuildMode.debug,
-        artifacts: _artifacts,
-        fileSystem: _fileSystem,
-        processManager: _processManager,
-        logger: _logger,
-      );
-
-      await _migrateProject(project, platform);
-    }
+    return (packageDependencies, targetProducts);
   }
 
   static bool projectMigrated(XcodeBasedProject project) {
@@ -232,9 +272,9 @@ class SwiftPackage {
       if (target.binaryTarget) {
         continue;
       }
-      final File requiredSwiftFile = _fileSystem.file('${swiftPackage.parent.path}/Sources/${target.name}/${target.name}.swift');
-      final bool fileAlreadyExists = await requiredSwiftFile.exists();
-      if (!fileAlreadyExists) {
+      final Directory targetDirectory = swiftPackage.parent.childDirectory('Sources').childDirectory(target.name);
+      if (!targetDirectory.existsSync() || targetDirectory.listSync().isEmpty) {
+        final File requiredSwiftFile = _fileSystem.file('${swiftPackage.parent.path}/Sources/${target.name}/${target.name}.swift');
         await requiredSwiftFile.create(recursive: true);
       }
     }
@@ -314,7 +354,8 @@ $_singleIndent],
 
   String _stringifyProducts() {
     // products: [
-    //     .library(name: "FlutterPackage", targets: ["FlutterPackage"])
+    //     .library(name: "FlutterPackage", targets: ["FlutterPackage"]),
+    //     .library(name: "FlutterDependenciesPackage", type: .dynamic, targets: ["FlutterDependenciesPackage"]),
     // ],
     final List<String> libraries = <String>[];
     for (final SwiftPackageProduct product in products) {
@@ -322,7 +363,11 @@ $_singleIndent],
       if (product.targets.isNotEmpty) {
         targetsString = ', targets: ["${product.targets.join('", ')}"]';
       }
-      final String library = '$_doubleIndent.library(name: "${product.name}"$targetsString)';
+      String libraryTypeString = '';
+      if (product.libraryType != null) {
+        libraryTypeString = ', type: ${product.libraryType!.name}';
+      }
+      final String library = '$_doubleIndent.library(name: "${product.name}"$libraryTypeString$targetsString)';
       libraries.add(library);
     }
 
@@ -430,14 +475,25 @@ enum SwiftPackagePlatform {
   final String name;
 }
 
+enum SwiftPackageLibraryType {
+  dynamic(name: '.dynamic'),
+  static(name: '.static');
+
+  const SwiftPackageLibraryType({required this.name});
+
+  final String name;
+}
+
 class SwiftPackageProduct {
   SwiftPackageProduct({
     required this.name,
     required this.targets,
+    this.libraryType,
   });
 
   final String name;
   final List<String> targets;
+  final SwiftPackageLibraryType? libraryType;
 }
 
 class SwiftPackagePackageDependency {

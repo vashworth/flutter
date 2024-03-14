@@ -8,6 +8,7 @@ import 'base/utils.dart';
 import 'build_info.dart';
 import 'bundle.dart' as bundle;
 import 'convert.dart';
+import 'features.dart';
 import 'flutter_plugins.dart';
 import 'globals.dart' as globals;
 import 'ios/code_signing.dart';
@@ -591,10 +592,17 @@ class IosProject extends XcodeBasedProject {
         ephemeralModuleDirectory,
       );
       if (hasPlugins(parent)) {
-        await _overwriteFromTemplate(
-          globals.fs.path.join('module', 'ios', 'host_app_ephemeral_cocoapods'),
-          ephemeralModuleDirectory,
-        );
+        if (parent.usingSwiftPackageManager) {
+          await _overwriteFromTemplate(
+            globals.fs.path.join('module', 'ios', 'host_app_ephemeral_spm'),
+            ephemeralModuleDirectory,
+          );
+        } else {
+          await _overwriteFromTemplate(
+            globals.fs.path.join('module', 'ios', 'host_app_ephemeral_cocoapods'),
+            ephemeralModuleDirectory,
+          );
+        }
       }
     }
   }
@@ -673,6 +681,7 @@ class IosProject extends XcodeBasedProject {
         'iosIdentifier': iosBundleIdentifier,
         'hasIosDevelopmentTeam': iosDevelopmentTeam != null && iosDevelopmentTeam.isNotEmpty,
         'iosDevelopmentTeam': iosDevelopmentTeam ?? '',
+        'withSwiftPackageManager': parent.usingSwiftPackageManager,
       },
       printStatusWhenWriting: false,
     );

@@ -20,6 +20,8 @@ import '../cache.dart';
 import '../flutter_plugins.dart';
 import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
+import '../macos/swift_packages.dart';
+import '../plugins.dart';
 import '../project.dart';
 import '../runner/flutter_command.dart' show DevelopmentArtifact, FlutterCommandResult;
 import '../version.dart';
@@ -272,9 +274,9 @@ class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
           buildInfo, modeDirectory, iPhoneBuildOutput, simulatorBuildOutput);
 
       // Build and copy plugins.
-      // TODO: SPM - add2app
       await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);
       if (boolArg('plugins') && hasPlugins(project)) {
+        await _produceSwiftPackage(project, modeDirectory);
         await _producePlugins(buildInfo.mode, xcodeBuildConfiguration, iPhoneBuildOutput, simulatorBuildOutput, modeDirectory);
       }
 
@@ -318,7 +320,9 @@ class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
 
     globals.printStatus('Frameworks written to ${outputDirectory.path}.');
 
-    if (!project.isModule && hasPlugins(project)) {
+    if (!project.isModule && hasPlugins(project) && !project.usingSwiftPackageManager) {
+      // Swift Package Manager handles the FlutterPluginRegistrant as a Swift Package,
+      // so skip creating files.
       // Apps do not generate a FlutterPluginRegistrant.framework. Users will need
       // to copy the GeneratedPluginRegistrant class to their project manually.
       final File pluginRegistrantHeader = project.ios.pluginRegistrantHeader;
@@ -608,5 +612,58 @@ end
     } finally {
       status.stop();
     }
+  }
+
+  Future<void> _produceSwiftPackage(
+    FlutterProject project,
+    Directory modeDirectory,
+  ) async {
+    if (!project.usingSwiftPackageManager) {
+      return;
+    }
+    const String swiftPackageName = 'FlutterPluginRegistrant';
+    final Directory swiftPackageDirectory = modeDirectory.childDirectory(swiftPackageName);
+
+    final SwiftPackageManager spm = SwiftPackageManager(
+      artifacts: globals.artifacts!,
+      fileSystem: globals.fs,
+      logger: globals.logger,
+      processManager: globals.processManager,
+      templateRenderer: globals.templateRenderer,
+      xcodeProjectInterpreter: globals.xcodeProjectInterpreter!,
+    );
+
+    final List<Plugin> plugins = await findPlugins(project);
+    // Sort the plugins by name to keep ordering stable in generated files.
+    plugins.sort((Plugin left, Plugin right) => left.name.compareTo(right.name));
+
+    final File registrantHeader = swiftPackageDirectory
+        .childDirectory('Sources')
+        .childDirectory(swiftPackageName)
+        .childDirectory('include')
+        .childFile('GeneratedPluginRegistrant.h');
+
+    final File registrantImplementation = swiftPackageDirectory
+        .childDirectory('Sources')
+        .childDirectory(swiftPackageName)
+        .childFile('GeneratedPluginRegistrant.m');
+
+    await writeIOSPluginRegistrant(
+      project,
+      plugins,
+      pluginRegistrantHeader: registrantHeader,
+      pluginRegistrantImplementation: registrantImplementation,
+    );
+    await spm.generate(
+      plugins,
+      SupportedPlatform.ios,
+      project.ios,
+      overrideSwiftPackagePath: swiftPackageDirectory.path,
+      overrideSwiftPackageName: 'FlutterPluginRegistrant',
+      includeFlutterFramework: false,
+      migrateApp: false,
+      libraryType: SwiftPackageLibraryType.dynamic,
+      skipIfNoDependencies: false,
+    );
   }
 }

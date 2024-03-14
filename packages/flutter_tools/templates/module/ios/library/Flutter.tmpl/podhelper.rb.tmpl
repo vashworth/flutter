@@ -65,7 +65,10 @@ def install_flutter_plugin_pods(flutter_application_path)
 
   # Keep pod path relative so it can be checked into Podfile.lock.
   relative = flutter_relative_path_from_podfile(ios_application_path)
-  pod 'FlutterPluginRegistrant', path: File.join(relative, 'Flutter', 'FlutterPluginRegistrant'), inhibit_warnings: true
+  plugin_registrant_podspec_path = File.join(relative, 'Flutter', 'FlutterPluginRegistrant', 'FlutterPluginRegistrant.podspec')
+  if File.exist?(plugin_registrant_podspec_path)
+    pod 'FlutterPluginRegistrant', path: File.join(relative, 'Flutter', 'FlutterPluginRegistrant'), inhibit_warnings: true
+  end
 end
 
 # Install Flutter application pod.

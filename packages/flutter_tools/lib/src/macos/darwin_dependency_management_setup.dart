@@ -84,7 +84,8 @@ class DarwinDependencyManagementSetup {
       cocoapodCount: cocoapodCount,
     );
 
-    if (useCocoapods || xcodeProject.podfile.existsSync()) {
+    // Skip updating podfile if project is module, since it will use a different Podfile.
+    if (!_project.isModule && (useCocoapods || xcodeProject.podfile.existsSync())) {
       if (_plugins.isNotEmpty) {
         await _cocoapods.setupPodfile(xcodeProject);
       }

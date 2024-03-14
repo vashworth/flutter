@@ -773,7 +773,12 @@ $_dartPluginRegisterWith
 }
 ''';
 
-Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+Future<void> writeIOSPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  File? pluginRegistrantHeader,
+  File? pluginRegistrantImplementation,
+}) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, IOSPlugin.kConfigKey);
   final List<Map<String, Object?>> iosPlugins = _extractPlatformMaps(methodChannelPlugins, IOSPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
@@ -784,24 +789,30 @@ Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plug
   };
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;
-    // TODO: SPM - add2app
-    await _renderTemplateToFile(
-      _pluginRegistrantPodspecTemplate,
-      context,
-      registryDirectory.childFile('FlutterPluginRegistrant.podspec'),
-      globals.templateRenderer,
-    );
+    final File podspecFile = registryDirectory.childFile('FlutterPluginRegistrant.podspec');
+    if (project.usingSwiftPackageManager) {
+      // Swift Package Manager handles the FlutterPluginRegistrant as a Swift Package,
+      // so delete the corresponding Pod.
+      ErrorHandlingFileSystem.deleteIfExists(podspecFile);
+    } else {
+      await _renderTemplateToFile(
+        _pluginRegistrantPodspecTemplate,
+        context,
+        podspecFile,
+        globals.templateRenderer,
+      );
+    }
   }
   await _renderTemplateToFile(
     _objcPluginRegistryHeaderTemplate,
     context,
-    project.ios.pluginRegistrantHeader,
+    pluginRegistrantHeader ?? project.ios.pluginRegistrantHeader,
     globals.templateRenderer,
   );
   await _renderTemplateToFile(
     _objcPluginRegistryImplementationTemplate,
     context,
-    project.ios.pluginRegistrantImplementation,
+    pluginRegistrantImplementation ?? project.ios.pluginRegistrantImplementation,
     globals.templateRenderer,
   );
 }
@@ -864,6 +875,7 @@ Future<void> _writePluginCmakefile(File destinationFile, Map<String, Object> tem
 }
 
 Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+  // TODO: SPM
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, MacOSPlugin.kConfigKey);
   final List<Map<String, Object?>> macosMethodChannelPlugins = _extractPlatformMaps(methodChannelPlugins, MacOSPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
@@ -1192,7 +1204,7 @@ Future<void> injectPlugins(
     await _writeAndroidPluginRegistrant(project, plugins);
   }
   if (iosPlatform) {
-    await _writeIOSPluginRegistrant(project, plugins);
+    await writeIOSPluginRegistrant(project, plugins);
   }
   if (linuxPlatform) {
     await _writeLinuxPluginFiles(project, plugins);
@@ -1204,7 +1216,7 @@ Future<void> injectPlugins(
     await writeWindowsPluginFiles(project, plugins, globals.templateRenderer, allowedPlugins: allowedPlugins);
   }
 
-  if (!project.isModule && (iosPlatform || macOSPlatform)) {
+  if (iosPlatform || macOSPlatform) {
     final DarwinDependencyManagementSetup darwinDependencyManagerSetup = DarwinDependencyManagementSetup(
       artifacts: globals.artifacts!,
       fileSystem: globals.fs,
