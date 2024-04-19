@@ -753,6 +753,14 @@ class Cache {
     }
     return exists;
   }
+
+  Future<void> downloadArtifact(
+    Uri url,
+    File file,
+    Status status,
+  ) async {
+    return _artifactUpdater._download(url, file, status);
+  }
 }
 
 /// Representation of a set of artifacts used by the tool.

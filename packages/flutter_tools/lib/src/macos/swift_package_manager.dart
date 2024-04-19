@@ -30,12 +30,12 @@ class SwiftPackageManager {
 
   static const String _defaultFlutterPluginsSwiftPackageName = 'FlutterGeneratedPluginSwiftPackage';
 
-  static final SwiftPackageSupportedPlatform _iosSwiftPackageSupportedPlatform = SwiftPackageSupportedPlatform(
+  static final SwiftPackageSupportedPlatform iosSwiftPackageSupportedPlatform = SwiftPackageSupportedPlatform(
     platform: SwiftPackagePlatform.ios,
     version: Version(12, 0, null),
   );
 
-  static final SwiftPackageSupportedPlatform _macosSwiftPackageSupportedPlatform = SwiftPackageSupportedPlatform(
+  static final SwiftPackageSupportedPlatform macosSwiftPackageSupportedPlatform = SwiftPackageSupportedPlatform(
     platform: SwiftPackagePlatform.macos,
     version: Version(10, 14, null),
   );
@@ -53,7 +53,11 @@ class SwiftPackageManager {
     final (
       List<SwiftPackagePackageDependency> packageDependencies,
       List<SwiftPackageTargetDependency> targetDependencies
-    ) = _dependenciesForPlugins(plugins, platform);
+    ) = dependenciesForPlugins(
+      plugins: plugins,
+      platform: platform,
+      fileSystem: _fileSystem,
+    );
 
     // If there aren't any Swift Package plugins and the project hasn't been
     // migrated yet, don't generate a Swift package or migrate the app since
@@ -66,9 +70,9 @@ class SwiftPackageManager {
 
     final SwiftPackageSupportedPlatform swiftSupportedPlatform;
     if (platform == SupportedPlatform.ios) {
-      swiftSupportedPlatform = _iosSwiftPackageSupportedPlatform;
+      swiftSupportedPlatform = iosSwiftPackageSupportedPlatform;
     } else {
-      swiftSupportedPlatform = _macosSwiftPackageSupportedPlatform;
+      swiftSupportedPlatform = macosSwiftPackageSupportedPlatform;
     }
 
     // FlutterGeneratedPluginSwiftPackage must be statically linked to ensure
@@ -96,10 +100,17 @@ class SwiftPackageManager {
     pluginsPackage.createSwiftPackage();
   }
 
-  (List<SwiftPackagePackageDependency>, List<SwiftPackageTargetDependency>) _dependenciesForPlugins(
-    List<Plugin> plugins,
-    SupportedPlatform platform,
-  ) {
+  /// Generate a list of [SwiftPackagePackageDependency] and [SwiftPackageTargetDependency]
+  /// from a list of [plugins] for the given [platform].
+  ///
+  /// If [alterPath] is provided, alter the [SwiftPackagePackageDependency]'s
+  /// path using the provided function.
+  static (List<SwiftPackagePackageDependency>, List<SwiftPackageTargetDependency>) dependenciesForPlugins({
+    required List<Plugin> plugins,
+    required SupportedPlatform platform,
+    required FileSystem fileSystem,
+    String Function(String)? alterPath,
+  }) {
     final List<SwiftPackagePackageDependency> packageDependencies =
         <SwiftPackagePackageDependency>[];
     final List<SwiftPackageTargetDependency> targetDependencies =
@@ -107,18 +118,23 @@ class SwiftPackageManager {
 
     for (final Plugin plugin in plugins) {
       final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
-        _fileSystem,
+        fileSystem,
         platform.name,
       );
       if (plugin.platforms[platform.name] == null ||
           pluginSwiftPackageManifestPath == null ||
-          !_fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
+          !fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
         continue;
+      }
+
+      String packagePath = fileSystem.file(pluginSwiftPackageManifestPath).parent.path;
+      if (alterPath != null) {
+        packagePath = alterPath(packagePath);
       }
 
       packageDependencies.add(SwiftPackagePackageDependency(
         name: plugin.name,
-        path: _fileSystem.file(pluginSwiftPackageManifestPath).parent.path,
+        path: packagePath,
       ));
 
       // The target dependency product name is hyphen separated because it's
@@ -169,10 +185,10 @@ class SwiftPackageManager {
     final SwiftPackageSupportedPlatform defaultPlatform;
     final SwiftPackagePlatform packagePlatform;
     if (platform == SupportedPlatform.ios) {
-      defaultPlatform = _iosSwiftPackageSupportedPlatform;
+      defaultPlatform = iosSwiftPackageSupportedPlatform;
       packagePlatform = SwiftPackagePlatform.ios;
     } else {
-      defaultPlatform = _macosSwiftPackageSupportedPlatform;
+      defaultPlatform = macosSwiftPackageSupportedPlatform;
       packagePlatform = SwiftPackagePlatform.macos;
     }
 

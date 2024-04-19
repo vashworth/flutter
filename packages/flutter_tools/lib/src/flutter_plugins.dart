@@ -419,7 +419,7 @@ import Foundation
 import {{name}}
 {{/methodChannelPlugins}}
 
-func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+{{#usesSwiftPackageManager}}public {{/usesSwiftPackageManager}}func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   {{#methodChannelPlugins}}
   {{class}}.register(with: registry.registrar(forPlugin: "{{class}}"))
 {{/methodChannelPlugins}}
@@ -667,7 +667,12 @@ $_dartPluginRegisterWith
 }
 ''';
 
-Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+Future<void> writeIOSPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  File? pluginRegistrantHeader,
+  File? pluginRegistrantImplementation,
+}) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, IOSPlugin.kConfigKey);
   final List<Map<String, Object?>> iosPlugins = _extractPlatformMaps(methodChannelPlugins, IOSPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
@@ -675,26 +680,34 @@ Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plug
     'deploymentTarget': '12.0',
     'framework': 'Flutter',
     'methodChannelPlugins': iosPlugins,
+    'usesSwiftPackageManager': project.usesSwiftPackageManager,
   };
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;
-    await _renderTemplateToFile(
-      _pluginRegistrantPodspecTemplate,
-      context,
-      registryDirectory.childFile('FlutterPluginRegistrant.podspec'),
-      globals.templateRenderer,
-    );
+    final File podspecFile = registryDirectory.childFile('FlutterPluginRegistrant.podspec');
+    if (project.usesSwiftPackageManager) {
+      // Swift Package Manager handles the FlutterPluginRegistrant as a Swift Package,
+      // so delete the corresponding Pod.
+      ErrorHandlingFileSystem.deleteIfExists(podspecFile);
+    } else {
+      await _renderTemplateToFile(
+        _pluginRegistrantPodspecTemplate,
+        context,
+        podspecFile,
+        globals.templateRenderer,
+      );
+    }
   }
   await _renderTemplateToFile(
     _objcPluginRegistryHeaderTemplate,
     context,
-    project.ios.pluginRegistrantHeader,
+    pluginRegistrantHeader ?? project.ios.pluginRegistrantHeader,
     globals.templateRenderer,
   );
   await _renderTemplateToFile(
     _objcPluginRegistryImplementationTemplate,
     context,
-    project.ios.pluginRegistrantImplementation,
+    pluginRegistrantImplementation ?? project.ios.pluginRegistrantImplementation,
     globals.templateRenderer,
   );
 }
@@ -756,18 +769,23 @@ Future<void> _writePluginCmakefile(File destinationFile, Map<String, Object> tem
   );
 }
 
-Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+Future<void> writeMacOSPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  File? pluginRegistrant,
+}) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, MacOSPlugin.kConfigKey);
   final List<Map<String, Object?>> macosMethodChannelPlugins = _extractPlatformMaps(methodChannelPlugins, MacOSPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
     'os': 'macos',
     'framework': 'FlutterMacOS',
     'methodChannelPlugins': macosMethodChannelPlugins,
+    'usesSwiftPackageManager': project.usesSwiftPackageManager,
   };
   await _renderTemplateToFile(
     _swiftPluginRegistryTemplate,
     context,
-    project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
+    pluginRegistrant ?? project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
     globals.templateRenderer,
   );
 }
@@ -1090,13 +1108,13 @@ Future<void> injectPlugins(
     await _writeAndroidPluginRegistrant(project, plugins);
   }
   if (iosPlatform) {
-    await _writeIOSPluginRegistrant(project, plugins);
+    await writeIOSPluginRegistrant(project, plugins);
   }
   if (linuxPlatform) {
     await _writeLinuxPluginFiles(project, plugins);
   }
   if (macOSPlatform) {
-    await _writeMacOSPluginRegistrant(project, plugins);
+    await writeMacOSPluginRegistrant(project, plugins);
   }
   if (windowsPlatform) {
     await writeWindowsPluginFiles(project, plugins, globals.templateRenderer, allowedPlugins: allowedPlugins);

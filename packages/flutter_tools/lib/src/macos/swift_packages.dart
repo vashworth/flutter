@@ -18,6 +18,15 @@ const String _swiftPackageTemplate = '''
 
 import PackageDescription
 
+{{#buildMode}}
+enum BuildMode: String {
+    case Debug
+    case Profile
+    case Release
+}
+let selectedBuildMode = BuildMode.{{buildMode}}
+{{/buildMode}}
+
 let package = Package(
     name: "{{packageName}}",
     {{#platforms}}
@@ -55,32 +64,31 @@ const String _doubleIndent = '$_singleIndent$_singleIndent';
 /// for more information about Swift Packages and Package.swift.
 class SwiftPackage {
   SwiftPackage({
-    required File manifest,
-    required String name,
+    required this.manifest,
+    required this.name,
     required List<SwiftPackageSupportedPlatform> platforms,
-    required List<SwiftPackageProduct> products,
+    required this.products,
     required List<SwiftPackagePackageDependency> dependencies,
     required List<SwiftPackageTarget> targets,
+    String? buildMode,
     required TemplateRenderer templateRenderer,
-  })  : _manifest = manifest,
-        _name = name,
-        _platforms = platforms,
-        _products = products,
+  })  : _platforms = platforms,
         _dependencies = dependencies,
         _targets = targets,
+        _buildMode = buildMode,
         _templateRenderer = templateRenderer;
 
   /// [File] for Package.swift.
-  final File _manifest;
+  final File manifest;
 
   /// The name of the Swift package.
-  final String _name;
+  final String name;
 
   /// The list of minimum versions for platforms supported by the package.
   final List<SwiftPackageSupportedPlatform> _platforms;
 
   /// The list of products that this package vends and that clients can use.
-  final List<SwiftPackageProduct> _products;
+  final List<SwiftPackageProduct> products;
 
   /// The list of package dependencies.
   final List<SwiftPackagePackageDependency> _dependencies;
@@ -88,18 +96,21 @@ class SwiftPackage {
   /// The list of targets that are part of this package.
   final List<SwiftPackageTarget> _targets;
 
+  final String? _buildMode;
+
   final TemplateRenderer _templateRenderer;
 
   /// Context for the [_swiftPackageTemplate] template.
   Map<String, Object> get _templateContext {
     return <String, Object>{
       'swiftToolsVersion': minimumSwiftToolchainVersion,
-      'packageName': _name,
+      'packageName': name,
       // Supported platforms can't be empty, so only include if not null.
       'platforms': _formatPlatforms() ?? false,
       'products': _formatProducts(),
       'dependencies': _formatDependencies(),
       'targets': _formatTargets(),
+      'buildMode': _buildMode ?? false,
     };
   }
 
@@ -109,10 +120,10 @@ class SwiftPackage {
     // whether it be in Swift or Objective C. If the target does not have any
     // files yet, create an empty Swift file.
     for (final SwiftPackageTarget target in _targets) {
-      if (target.targetType == SwiftPackageTargetType.binaryTarget) {
+      if (target.targetType != SwiftPackageTargetType.target) {
         continue;
       }
-      final Directory targetDirectory = _manifest.parent
+      final Directory targetDirectory = manifest.parent
           .childDirectory('Sources')
           .childDirectory(target.name);
       if (!targetDirectory.existsSync() || targetDirectory.listSync().isEmpty) {
@@ -128,8 +139,8 @@ class SwiftPackage {
       _swiftPackageTemplate,
       _templateContext,
     );
-    _manifest.createSync(recursive: true);
-    _manifest.writeAsStringSync(renderedTemplate);
+    manifest.createSync(recursive: true);
+    manifest.writeAsStringSync(renderedTemplate);
   }
 
   String? _formatPlatforms() {
@@ -143,10 +154,10 @@ class SwiftPackage {
   }
 
   String _formatProducts() {
-    if (_products.isEmpty) {
+    if (products.isEmpty) {
       return '';
     }
-    final List<String> libraries = _products
+    final List<String> libraries = products
         .map((SwiftPackageProduct product) => product.format())
         .toList();
     return libraries.join(',\n$_doubleIndent');
@@ -173,14 +184,16 @@ class SwiftPackage {
 }
 
 enum SwiftPackagePlatform {
-  ios(name: '.iOS'),
-  macos(name: '.macOS'),
-  tvos(name: '.tvOS'),
-  watchos(name: '.watchOS');
+  ios(jsonName: 'ios', swiftFactory: '.iOS'),
+  macos(jsonName: 'macos', swiftFactory: '.macOS');
 
-  const SwiftPackagePlatform({required this.name});
+  const SwiftPackagePlatform({
+    required this.jsonName,
+    required this.swiftFactory,
+  });
 
-  final String name;
+  final String jsonName;
+  final String swiftFactory;
 }
 
 /// A platform that the Swift package supports.
@@ -193,6 +206,36 @@ class SwiftPackageSupportedPlatform {
     required this.version,
   });
 
+  ///
+  static SwiftPackageSupportedPlatform? fromJson(Map<String, Object?> json) {
+    final Object? platformName = json['platformName'];
+    if (platformName == null || platformName is! String) {
+      return null;
+    }
+    final SwiftPackagePlatform packagePlatform;
+    if (platformName == SwiftPackagePlatform.ios.jsonName) {
+      packagePlatform = SwiftPackagePlatform.ios;
+    } else if (platformName == SwiftPackagePlatform.macos.jsonName) {
+      packagePlatform = SwiftPackagePlatform.macos;
+    } else {
+      return null;
+    }
+
+    final Object? version = json['version'];
+    if (version == null || version is! String) {
+      return null;
+    }
+    final Version? parsedVersion = Version.parse(version);
+    if (parsedVersion == null) {
+      return null;
+    }
+
+    return SwiftPackageSupportedPlatform(
+      platform: packagePlatform,
+      version: parsedVersion,
+    );
+  }
+
   final SwiftPackagePlatform platform;
   final Version version;
 
@@ -201,7 +244,7 @@ class SwiftPackageSupportedPlatform {
     //     .macOS("10.14"),
     //     .iOS("12.0"),
     // ],
-    return '${platform.name}("$version")';
+    return '${platform.swiftFactory}("$version")';
   }
 }
 
@@ -210,12 +253,16 @@ class SwiftPackageSupportedPlatform {
 /// Representation of Product.Library.LibraryType from
 /// https://developer.apple.com/documentation/packagedescription/product/library/librarytype.
 enum SwiftPackageLibraryType {
-  dynamic(name: '.dynamic'),
-  static(name: '.static');
+  dynamic(jsonName: 'dynamic', swiftFactory: '.dynamic'),
+  static(jsonName: 'static', swiftFactory: '.static');
 
-  const SwiftPackageLibraryType({required this.name});
+  const SwiftPackageLibraryType({
+    required this.jsonName,
+    required this.swiftFactory,
+  });
 
-  final String name;
+  final String swiftFactory;
+  final String jsonName;
 }
 
 /// An externally visible build artifact that's available to clients of the
@@ -247,7 +294,7 @@ class SwiftPackageProduct {
     }
     String libraryTypeString = '';
     if (libraryType != null) {
-      libraryTypeString = ', type: ${libraryType!.name}';
+      libraryTypeString = ', type: ${libraryType!.swiftFactory}';
     }
     return '.library(name: "$name"$libraryTypeString$targetsString)';
   }
@@ -279,12 +326,17 @@ class SwiftPackagePackageDependency {
 /// See https://developer.apple.com/documentation/packagedescription/target for
 /// more information.
 enum SwiftPackageTargetType {
-  target(name: '.target'),
-  binaryTarget(name: '.binaryTarget');
+  target(jsonName: 'regular', swiftFactory: '.target'),
+  binaryTarget(jsonName: 'binary', swiftFactory: '.binaryTarget'),
+  remoteBinaryTarget(jsonName: 'binary', swiftFactory: '.binaryTarget');
 
-  const SwiftPackageTargetType({required this.name});
+  const SwiftPackageTargetType({
+    required this.jsonName,
+    required this.swiftFactory,
+  });
 
-  final String name;
+  final String jsonName;
+  final String swiftFactory;
 }
 
 /// A building block of a Swift Package that contains a set of source files
@@ -297,6 +349,8 @@ class SwiftPackageTarget {
     required this.name,
     this.dependencies,
   })  : path = null,
+        url = null,
+        checksum = null,
         targetType = SwiftPackageTargetType.target;
 
   SwiftPackageTarget.binaryTarget({
@@ -304,11 +358,23 @@ class SwiftPackageTarget {
     required String relativePath,
   })  : path = relativePath,
         dependencies = null,
+        url = null,
+        checksum = null,
         targetType = SwiftPackageTargetType.binaryTarget;
+
+  SwiftPackageTarget.remoteBinaryTarget({
+    required this.name,
+    required this.url,
+    required this.checksum,
+  })  : path = null,
+        dependencies = null,
+        targetType = SwiftPackageTargetType.remoteBinaryTarget;
 
   final String name;
   final String? path;
   final List<SwiftPackageTargetDependency>? dependencies;
+  final String? url;
+  final String? checksum;
   final SwiftPackageTargetType targetType;
 
   String format() {
@@ -338,6 +404,16 @@ class SwiftPackageTarget {
       targetDetails.add(pathString);
     }
 
+    if (url != null) {
+      final String urlString = 'url: "$url"';
+      targetDetails.add(urlString);
+    }
+
+    if (checksum != null) {
+      final String checksumString = 'checksum: "$checksum"';
+      targetDetails.add(checksumString);
+    }
+
     if (dependencies != null && dependencies!.isNotEmpty) {
       final List<String> targetDependencies = dependencies!
           .map((SwiftPackageTargetDependency dependency) => dependency.format())
@@ -350,7 +426,7 @@ $targetDetailsIndent]''';
     }
 
     return '''
-${targetType.name}(
+${targetType.swiftFactory}(
 $targetDetailsIndent${targetDetails.join(",\n$targetDetailsIndent")}
 $targetIndent)''';
   }

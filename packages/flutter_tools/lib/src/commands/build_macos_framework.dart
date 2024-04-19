@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 
 import '../artifacts.dart';
 import '../base/common.dart';
+import '../base/error_handling_io.dart';
 import '../base/file_system.dart';
 import '../base/io.dart';
 import '../base/logger.dart';
@@ -18,9 +19,12 @@ import '../cache.dart';
 import '../flutter_plugins.dart';
 import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
+import '../macos/swift_packages.dart';
+import '../plugins.dart';
+import '../project.dart';
 import '../runner/flutter_command.dart' show DevelopmentArtifact, FlutterCommandResult;
 import '../version.dart';
-import 'build_ios_framework.dart';
+import 'build_darwin_framework.dart';
 
 /// Produces a .framework for integration into a host macOS app. The .framework
 /// contains the Flutter engine and framework code as well as plugins. It can
@@ -73,25 +77,39 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
     final List<BuildInfo> buildInfos = await getBuildInfos();
     displayNullSafetyMode(buildInfos.first);
 
+    ErrorHandlingFileSystem.deleteIfExists(
+      outputDirectory.childDirectory('FlutterPluginRegistrant'),
+      recursive: true,
+    );
+
     for (final BuildInfo buildInfo in buildInfos) {
       globals.printStatus('Building macOS frameworks in ${buildInfo.mode.cliName} mode...');
       final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);
       final Directory modeDirectory = outputDirectory.childDirectory(xcodeBuildConfiguration);
 
-      if (modeDirectory.existsSync()) {
-        modeDirectory.deleteSync(recursive: true);
+      ErrorHandlingFileSystem.deleteIfExists(modeDirectory, recursive: true);
+
+      final Directory flutterFrameworksDir;
+      final Directory cocoaPodFrameworksDir;
+      if (project.usesSwiftPackageManager) {
+        flutterFrameworksDir = modeDirectory.childDirectory('FlutterFrameworks');
+        cocoaPodFrameworksDir = modeDirectory.childDirectory('CocoaPodFrameworks');
+      } else {
+        flutterFrameworksDir = modeDirectory;
+        cocoaPodFrameworksDir = modeDirectory;
       }
 
-      if (boolArg('cocoapods')) {
+      if (!remoteFlutterFramework) {
+        // Copy FlutterMacOS.xcframework.
+        await _produceFlutterFramework(buildInfo, flutterFrameworksDir);
+      } else if (!project.usesSwiftPackageManager) {
         produceFlutterPodspec(buildInfo.mode, modeDirectory, force: boolArg('force'));
-      } else {
-        await _produceFlutterFramework(buildInfo, modeDirectory);
       }
 
       final Directory buildOutput = modeDirectory.childDirectory('macos');
 
       // Build aot, create App.framework. Make XCFrameworks.
-      await _produceAppFramework(buildInfo, modeDirectory, buildOutput);
+      await _produceAppFramework(buildInfo, flutterFrameworksDir, buildOutput);
 
       // Build and copy plugins.
       await processPodsIfNeeded(
@@ -101,7 +119,18 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
         forceCocoaPodsOnly: true,
       );
       if (boolArg('plugins') && hasPlugins(project)) {
-        await _producePlugins(xcodeBuildConfiguration, buildOutput, modeDirectory);
+        await _producePlugins(xcodeBuildConfiguration, buildOutput, cocoaPodFrameworksDir);
+        await produceSwiftPackages(
+          platform: SupportedPlatform.macos,
+          project: project,
+          cocoaPodFrameworksDir: cocoaPodFrameworksDir,
+          flutterFrameworksDir: flutterFrameworksDir,
+          modeDirectory: modeDirectory,
+          mode: buildInfo.mode,
+          modeName: xcodeBuildConfiguration,
+          useRemoteFlutterFramework: remoteFlutterFramework,
+          fileSystem: globals.fs,
+        );
       }
 
       globals.logger.printStatus(' └─Moving to ${globals.fs.path.relative(modeDirectory.path)}');
@@ -133,14 +162,19 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
       }
     }
 
+    // TODO(vashworth): If using SPM, change this message to guide them to add Swift Package to project
     globals.printStatus('Frameworks written to ${outputDirectory.path}.');
 
-    if (hasPlugins(project)) {
+    final File pluginRegistrantImplementation = project.macos.pluginRegistrantImplementation;
+    if (hasPlugins(project) && !project.usesSwiftPackageManager) {
       // Apps do not generate a FlutterPluginRegistrant.framework. Users will need
       // to copy GeneratedPluginRegistrant.swift to their project manually.
-      final File pluginRegistrantImplementation = project.macos.pluginRegistrantImplementation;
       pluginRegistrantImplementation.copySync(outputDirectory.childFile(pluginRegistrantImplementation.basename).path);
       globals.printStatus('\nCopy ${globals.fs.path.basename(pluginRegistrantImplementation.path)} into your project.');
+    } else {
+      ErrorHandlingFileSystem.deleteIfExists(
+        outputDirectory.childFile(pluginRegistrantImplementation.basename),
+      );
     }
 
     return FlutterCommandResult.success();
@@ -191,11 +225,10 @@ $licenseSource
 LICENSE
   }
   s.author                = { 'Flutter Dev Team' => 'flutter-dev@googlegroups.com' }
-  s.source                = { :http => '${cache.storageBaseUrl}/flutter_infra_release/flutter/${cache.engineRevision}/$artifactsMode/FlutterMacOS.framework.zip' }
+  s.source                = { :http => '${cache.storageBaseUrl}/flutter_infra_release/flutter/${cache.engineRevision}/$artifactsMode/framework.zip' }
   s.documentation_url     = 'https://flutter.dev/docs'
   s.osx.deployment_target = '10.14'
-  s.vendored_frameworks   = 'FlutterMacOS.framework'
-  s.prepare_command       = 'unzip FlutterMacOS.framework -d FlutterMacOS.framework'
+  s.vendored_frameworks   = 'FlutterMacOS.xcframework'
 end
 ''';
 
@@ -355,5 +388,56 @@ end
     } finally {
       status.stop();
     }
+  }
+
+  @override
+  Future<SwiftPackageTarget> remoteFlutterFrameworkTarget(
+    BuildMode mode,
+    Status status,
+  ) async {
+    // TODO(vashworth): Limit to stable/beta branch
+    final String artifactsMode = mode == BuildMode.debug ? 'darwin-x64' : 'darwin-x64-${mode.cliName}';
+    final String frameworkArtifactUrl = '${cache.storageBaseUrl}/flutter_infra_release/flutter/${cache.engineRevision}/$artifactsMode/framework.zip';
+    final Directory destination = globals.fs.systemTempDirectory.createTempSync('flutter_framework.');
+    await cache.downloadArtifact(
+      Uri.parse(frameworkArtifactUrl),
+      destination.childFile('framework.zip'),
+      status,
+    );
+
+    final RunResult results = await globals.processUtils.run(
+      <String>[
+        'swift',
+        'package',
+        'compute-checksum',
+        destination.childFile('framework.zip').path,
+      ],
+    );
+    if (results.exitCode != 0) {
+      throwToolExit('Failed to get checksum for Flutter framework: ${results.stderr}');
+    }
+
+    return SwiftPackageTarget.remoteBinaryTarget(
+      name: 'FlutterMacOS',
+      url: frameworkArtifactUrl,
+      checksum: results.stdout.trim(),
+    );
+  }
+
+  @override
+  Future<void> produceRegistrantSourceFiles({
+    required String swiftPackageName,
+    required Directory swiftPackageDirectory,
+    required List<Plugin> plugins,
+  }) async {
+    final File pluginRegistrant = swiftPackageDirectory
+        .childDirectory('Sources')
+        .childDirectory(swiftPackageName)
+        .childFile('GeneratedPluginRegistrant.swift');
+    return writeMacOSPluginRegistrant(
+      project,
+      plugins,
+      pluginRegistrant: pluginRegistrant,
+    );
   }
 }

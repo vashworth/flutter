@@ -619,10 +619,14 @@ class IosProject extends XcodeBasedProject {
         ephemeralModuleDirectory,
       );
       if (hasPlugins(parent)) {
-        await _overwriteFromTemplate(
-          globals.fs.path.join('module', 'ios', 'host_app_ephemeral_cocoapods'),
-          ephemeralModuleDirectory,
-        );
+        if (parent.usesSwiftPackageManager) {
+          // TODO(vashworth): SPM template
+        } else {
+          await _overwriteFromTemplate(
+            globals.fs.path.join('module', 'ios', 'host_app_ephemeral_cocoapods'),
+            ephemeralModuleDirectory,
+          );
+        }
       }
     }
   }
