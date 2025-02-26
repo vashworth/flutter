@@ -22,17 +22,15 @@ Here's an example of running an integration test:
 flutter drive --target=test_driver/text_editing_integration.dart \
   -d web-server \
   --browser-name=chrome \
-  --profile \
-  --web-renderer=html
+  --profile
 ```
 
-This example runs the test in profile mode (`--profile`) using the HTML
-renderer (`--web-renderer=html`).
+This example runs the test in profile mode (`--profile`).
 
 More resources:
 
 * chromedriver: https://chromedriver.chromium.org/getting-started
-* FlutterDriver: https://github.com/flutter/flutter/wiki/Running-Flutter-Driver-tests-with-Web
+* FlutterDriver: https://github.com/flutter/flutter/blob/main/docs/contributing/testing/Running-Flutter-Driver-tests-with-Web.md
 * `package:integration_test`: https://pub.dev/packages/integration_test
 
 [1]: https://chromedriver.chromium.org/downloads

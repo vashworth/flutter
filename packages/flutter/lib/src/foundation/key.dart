@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/semantics.dart';
+/// @docImport 'package:flutter/widgets.dart';
+library;
+
 import 'package:meta/meta.dart';
 
 import 'diagnostics.dart';
@@ -93,8 +97,7 @@ class ValueKey<T> extends LocalKey {
     if (other.runtimeType != runtimeType) {
       return false;
     }
-    return other is ValueKey<T>
-        && other.value == value;
+    return other is ValueKey<T> && other.value == value;
   }
 
   @override
