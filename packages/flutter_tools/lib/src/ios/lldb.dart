@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import '../base/common.dart';
 import '../base/io.dart';
 import '../base/logger.dart';
 import '../base/process.dart';
@@ -26,6 +27,8 @@ class LLDB {
 
   int? get processId => _lldbProcess?.processId;
 
+  _LLDBLogWaiter? _logWaiter;
+
   // (lldb) Process 6152 stopped
   static final RegExp _lldbProcessStopped = RegExp(r'Process \d* stopped');
 
@@ -40,12 +43,46 @@ class LLDB {
   // Print backtrace for all threads while app is stopped.
   static const String _backTraceAll = 'thread backtrace all';
 
+  static const String _pythonScript = '''
+"""Intercept NOTIFY_DEBUGGER_ABOUT_RX_PAGES and touch the pages."""
+base = frame.register["x0"].GetValueAsAddress()
+page_len = frame.register["x1"].GetValueAsUnsigned()
+
+# Note: NOTIFY_DEBUGGER_ABOUT_RX_PAGES will check contents of the
+# first page to see if handled it correctly. This makes diagnosing
+# misconfiguration (e.g. missing breakpoint) easier.
+data = bytearray(page_len)
+data[0:8] = b'IHELPED!'
+
+error = lldb.SBError()
+frame.GetThread().GetProcess().WriteMemory(base, data, error)
+if not error.Success():
+    print(f'Failed to write into {base}[+{page_len}]', error)
+    return
+
+# If the returned value is False, that tells LLDB not to stop at the breakpoint
+return False
+''';
+
   Future<bool> launchAndAttach(String deviceId, int processId) async {
-    if (isRunning) {
-      _logger.printTrace('LLDB is already running');
+    final bool start = await startLLDB(processId);
+    if (!start) {
       return false;
     }
-    final Completer<bool> attachCompleter = Completer<bool>();
+    try {
+      await selectDevice(deviceId);
+      await attachToRunner(processId);
+      await setBreakpoint();
+      await resumeProcess();
+    } on SocketException catch (error) {
+      _logger.printTrace('lldb failed: $error');
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<bool> startLLDB(int processId) async {
     try {
       _lldbProcess = _LLDBProcess(
         process: await _processUtils.start(<String>['lldb']),
@@ -57,47 +94,8 @@ class LLDB {
           .transform<String>(utf8.decoder)
           .transform<String>(const LineSplitter())
           .listen((String line) {
-
-        if (line.contains(_backTraceAll)) {
-          // Even though we're not "detached", just stopped, mark as detached so the backtrace
-          // is only show in verbose.
-          _lldbProcess?.processStatus = _AppProcessState.detached;
-        }
-
-        if (_lldbProcess?.processStatus == _AppProcessState.stopped) {
-          _logger.printError(line);
-        } else {
-          _logger.printTrace(line);
-        }
-
-        if (_lldbProcessStopped.hasMatch(line)) {
-          if (_lldbProcess?.processStatus == _AppProcessState.suspended) {
-            // Wait for process to attach. Attaching will show the process as
-            // stopped since the app starts in a suspended state. Continue
-            // execution of the process.
-            _lldbProcess?.stdinWriteln(_processResume);
-            return;
-          } else {
-            // The app has been stopped. Dump the backtrace, and detach.
-            _lldbProcess?.processStatus = _AppProcessState.stopped;
-            _lldbProcess?.stdinWriteln(_backTraceAll);
-            detach();
-            return;
-          }
-        }
-
-        if (_lldbProcessResuming.hasMatch(line)) {
-          _lldbProcess?.processStatus = _AppProcessState.resumed;
-          attachCompleter.complete(true);
-          return;
-        }
-
-        if (_lldbProcessDetached.hasMatch(line)) {
-          // The debugger has detached from the app, and there will be no more debugging messages.
-          // Kill the lldb process.
-          exit();
-          return;
-        }
+          // print(line);
+          _logWaiter?.checkForMatch(line);
       });
 
       final StreamSubscription<String> stderrSubscription = _lldbProcess!.stderr
@@ -112,9 +110,6 @@ class LLDB {
         await stdoutSubscription.cancel();
         await stderrSubscription.cancel();
       }).whenComplete(() async {
-        if (!attachCompleter.isCompleted) {
-          attachCompleter.complete(false);
-        }
         _lldbProcess = null;
       }));
     } on ProcessException catch (exception) {
@@ -124,16 +119,7 @@ class LLDB {
       _logger.printError('Process exception running lldb:\n$exception');
       return false;
     }
-
-    try {
-      await _lldbProcess?.stdinWriteln('device select $deviceId');
-      await _lldbProcess?.stdinWriteln('device process attach --pid $processId');
-    } on SocketException catch (error) {
-      _logger.printTrace('lldb failed: $error');
-      return false;
-    }
-
-    return attachCompleter.future;
+    return true;
   }
 
   Future<void> detach() async {
@@ -149,6 +135,54 @@ class LLDB {
     _lldbProcess = null;
     return success;
   }
+
+  Future<void> selectDevice(String deviceId) async {
+    await _lldbProcess?.stdinWriteln('device select $deviceId');
+  }
+
+  Future<void> attachToRunner(int processId) async {
+    await _lldbProcess?.stdinWriteln('device process attach --pid $processId');
+    await _waitForLog(_lldbProcessStopped);
+  }
+
+  Future<void> setBreakpoint() async {
+    await _lldbProcess?.stdinWriteln(r"breakpoint set -r '^NOTIFY_DEBUGGER_ABOUT_RX_PAGES$'");
+    final String breakpoint = await _waitForLog(RegExp(r'Breakpoint \d*:'));
+    final Match? match = RegExp(r'Breakpoint (\d)*:').firstMatch(breakpoint);
+    final String? breakpointId = match?.group(1);
+    if (breakpointId == null) {
+      throwToolExit('Failed to set breakpoint');
+    }
+    await _lldbProcess?.stdinWriteln('breakpoint command add -s p $breakpointId');
+    await _lldbProcess?.stdinWriteln(_pythonScript);
+    await _lldbProcess?.stdinWriteln('DONE');
+  }
+
+  Future<void> resumeProcess() async {
+    await _lldbProcess?.stdinWriteln(_processResume);
+    await _waitForLog(_lldbProcessResuming);
+  }
+
+  Future<String> _waitForLog(RegExp pattern) async {
+    _logWaiter = _LLDBLogWaiter(pattern);
+    return _logWaiter!.waitForLog();
+  }
+}
+
+class _LLDBLogWaiter {
+  _LLDBLogWaiter(RegExp pattern) : _waitCompleter = Completer<String>(), _waitingFor = pattern;
+  final RegExp _waitingFor;
+  final Completer<String> _waitCompleter;
+
+  Future<String> waitForLog() async {
+    return _waitCompleter.future;
+  }
+
+  void checkForMatch(String line) {
+    if (_waitingFor.hasMatch(line)) {
+      _waitCompleter.complete(line);
+    }
+  }
 }
 
 class _LLDBProcess {
@@ -157,12 +191,10 @@ class _LLDBProcess {
     required this.processId,
     required Logger logger,
   })  : _lldbProcess = process,
-        processStatus = _AppProcessState.suspended,
         _logger = logger;
 
   final Process _lldbProcess;
   final int processId;
-  _AppProcessState processStatus;
 
   final Logger _logger;
 
@@ -196,18 +228,4 @@ class _LLDBProcess {
     _stdinWriteFuture = _stdinWriteFuture?.then<void>((_) => writeln()) ?? writeln();
     return _stdinWriteFuture;
   }
-}
-
-enum _AppProcessState {
-  /// The app process starts in a suspended state while it waits for a debugger.
-  suspended,
-
-  /// The app process is stopped when an error occurs.
-  stopped,
-
-  /// The app process is resumed on all threads.
-  resumed,
-
-  /// LLDB is detached from the app process.
-  detached,
 }
