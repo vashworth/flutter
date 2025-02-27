@@ -65,15 +65,19 @@ return False
 ''';
 
   Future<bool> launchAndAttach(String deviceId, int processId) async {
-    final bool start = await startLLDB(processId);
+    final bool start = await _startLLDB(processId);
     if (!start) {
       return false;
     }
     try {
-      await selectDevice(deviceId);
-      await attachToRunner(processId);
-      await setBreakpoint();
-      await resumeProcess();
+      await _selectDevice(deviceId);
+
+      // Can either use init file or set breakpoint, need to decide which
+      await _addInitFile();
+      await _setBreakpoint();
+
+      await _attachToAppProcess(processId);
+      await _resumeProcess();
     } on SocketException catch (error) {
       _logger.printTrace('lldb failed: $error');
       return false;
@@ -82,7 +86,7 @@ return False
     return true;
   }
 
-  Future<bool> startLLDB(int processId) async {
+  Future<bool> _startLLDB(int processId) async {
     try {
       _lldbProcess = _LLDBProcess(
         process: await _processUtils.start(<String>['lldb']),
@@ -94,7 +98,7 @@ return False
           .transform<String>(utf8.decoder)
           .transform<String>(const LineSplitter())
           .listen((String line) {
-          // print(line);
+          print(line);
           _logWaiter?.checkForMatch(line);
       });
 
@@ -136,16 +140,20 @@ return False
     return success;
   }
 
-  Future<void> selectDevice(String deviceId) async {
+  Future<void> _selectDevice(String deviceId) async {
     await _lldbProcess?.stdinWriteln('device select $deviceId');
   }
 
-  Future<void> attachToRunner(int processId) async {
+  Future<void> _attachToAppProcess(int processId) async {
     await _lldbProcess?.stdinWriteln('device process attach --pid $processId');
     await _waitForLog(_lldbProcessStopped);
   }
 
-  Future<void> setBreakpoint() async {
+  Future<void> _addInitFile() async {
+    // await _lldbProcess?.stdinWriteln(r'command source path/to/.lldbinit');
+  }
+
+  Future<void> _setBreakpoint() async {
     await _lldbProcess?.stdinWriteln(r"breakpoint set -r '^NOTIFY_DEBUGGER_ABOUT_RX_PAGES$'");
     final String breakpoint = await _waitForLog(RegExp(r'Breakpoint \d*:'));
     final Match? match = RegExp(r'Breakpoint (\d)*:').firstMatch(breakpoint);
@@ -158,7 +166,7 @@ return False
     await _lldbProcess?.stdinWriteln('DONE');
   }
 
-  Future<void> resumeProcess() async {
+  Future<void> _resumeProcess() async {
     await _lldbProcess?.stdinWriteln(_processResume);
     await _waitForLog(_lldbProcessResuming);
   }
