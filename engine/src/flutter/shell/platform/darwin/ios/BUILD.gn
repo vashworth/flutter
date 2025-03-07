@@ -19,7 +19,6 @@ if (darwin_extension_safe) {
   _flutter_framework_dir = "$root_out_dir/Flutter.framework"
 }
 
-
 shell_gpu_configuration("ios_gpu_configuration") {
   enable_software = true
   enable_gl = false
