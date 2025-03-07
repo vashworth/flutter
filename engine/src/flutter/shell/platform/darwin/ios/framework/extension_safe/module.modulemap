@@ -1,0 +1,6 @@
+framework module FlutterExtensionSafe {
+  umbrella header "Flutter.h"
+
+  export *
+  module * { export * }
+}

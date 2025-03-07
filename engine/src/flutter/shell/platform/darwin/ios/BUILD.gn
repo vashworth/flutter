@@ -13,7 +13,12 @@ import("//flutter/shell/gpu/gpu.gni")
 import("//flutter/shell/platform/darwin/common/framework_common.gni")
 import("//flutter/testing/testing.gni")
 
-_flutter_framework_dir = "$root_out_dir/Flutter.framework"
+if (darwin_extension_safe) {
+  _flutter_framework_dir = "$root_out_dir/FlutterExtensionSafe.framework"
+} else {
+  _flutter_framework_dir = "$root_out_dir/Flutter.framework"
+}
+
 
 shell_gpu_configuration("ios_gpu_configuration") {
   enable_software = true
@@ -271,12 +276,13 @@ shared_library("ios_test_flutter") {
 shared_library("create_flutter_framework_dylib") {
   visibility = [ ":*" ]
 
-  output_name = "Flutter"
-
-  ldflags = [ "-Wl,-install_name,@rpath/Flutter.framework/Flutter" ]
-
   if (darwin_extension_safe) {
+    output_name = "FlutterExtensionSafe"
+    ldflags = [ "-Wl,-install_name,@rpath/FlutterExtensionSafe.framework/FlutterExtensionSafe" ]
     ldflags += [ "-fapplication-extension" ]
+  } else {
+    output_name = "Flutter"
+    ldflags = [ "-Wl,-install_name,@rpath/Flutter.framework/Flutter" ]
   }
 
   public = _flutter_framework_headers
@@ -288,9 +294,13 @@ shared_library("create_flutter_framework_dylib") {
 
 copy("copy_dylib") {
   visibility = [ ":*" ]
-
-  sources = [ "$root_out_dir/libFlutter.dylib" ]
-  outputs = [ "$_flutter_framework_dir/Flutter" ]
+  if (darwin_extension_safe) {
+    sources = [ "$root_out_dir/libFlutterExtensionSafe.dylib" ]
+    outputs = [ "$_flutter_framework_dir/FlutterExtensionSafe" ]
+  } else {
+    sources = [ "$root_out_dir/libFlutter.dylib" ]
+    outputs = [ "$_flutter_framework_dir/Flutter" ]
+  }
 
   deps = [ ":create_flutter_framework_dylib" ]
 }
@@ -316,7 +326,11 @@ copy("copy_asan_runtime_dylib") {
 action("copy_framework_info_plist") {
   script = "//flutter/build/copy_info_plist.py"
   visibility = [ ":*" ]
-  sources = [ "framework/Info.plist" ]
+  if (darwin_extension_safe) {
+    sources = [ "framework/extension_safe/Info.plist" ]
+  } else {
+    sources = [ "framework/Info.plist" ]
+  }
   outputs = [ "$_flutter_framework_dir/Info.plist" ]
   args = [
     "--source",
@@ -330,7 +344,11 @@ action("copy_framework_info_plist") {
 
 copy("copy_framework_module_map") {
   visibility = [ ":*" ]
-  sources = [ "framework/module.modulemap" ]
+  if (darwin_extension_safe) {
+    sources = [ "framework/extension_safe/module.modulemap" ]
+  } else {
+    sources = [ "framework/module.modulemap" ]
+  }
   outputs = [ "$_flutter_framework_dir/Modules/module.modulemap" ]
 }
 
@@ -380,7 +398,12 @@ shared_library("copy_and_verify_framework_module") {
     "-fapplication-extension",
   ]
 
-  sources = [ "framework/Source/FlutterUmbrellaImport.m" ]
+  if (darwin_extension_safe) {
+    sources = [ "framework/extension_safe/FlutterUmbrellaImport.m" ]
+  } else {
+    sources = [ "framework/Source/FlutterUmbrellaImport.m" ]
+  }
+
   deps = [
     ":copy_framework_headers",
     ":copy_framework_info_plist",
@@ -396,7 +419,7 @@ shared_library("copy_and_verify_framework_module") {
       "-fatal_warnings",
     ]
     deps += [ ":copy_dylib" ]
-    frameworks = [ "Flutter.framework" ]
+    frameworks = [ "FlutterExtensionSafe.framework" ]
   }
 }
 
@@ -419,12 +442,23 @@ group("universal_flutter_framework") {
 
 action("flutter_framework") {
   script = "//flutter/sky/tools/create_xcframework.py"
-  outputs = [ "$root_out_dir/Flutter.xcframework" ]
+  if (darwin_extension_safe) {
+    outputs = [ "$root_out_dir/FlutterExtensionSafe.xcframework" ]
+  } else {
+    outputs = [ "$root_out_dir/Flutter.xcframework" ]
+  }
+
+  if (darwin_extension_safe) {
+    name = "FlutterExtensionSafe"
+  } else {
+    name = "Flutter"
+  }
+
   args = [
     "--frameworks",
     rebase_path("$_flutter_framework_dir"),
     "--name",
-    "Flutter",
+    name,
     "--location",
     rebase_path("$root_out_dir"),
   ]
