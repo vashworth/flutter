@@ -879,17 +879,20 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
     });
   }
 
-  void handlePressed(MenuController controller) {
+  void handlePressed(MenuController controller, {bool focusForKeyboard = true}) {
     if (controller.isOpen) {
       currentHighlight = null;
       controller.close();
     } else {
+      filteredEntries = widget.dropdownMenuEntries;
       // close to open
       if (_localTextEditingController!.text.isNotEmpty) {
         _enableFilter = false;
       }
       controller.open();
-      _internalFocudeNode.requestFocus();
+      if (focusForKeyboard) {
+        _internalFocudeNode.requestFocus();
+      }
     }
     setState(() {});
   }
@@ -932,8 +935,6 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
       filteredEntries =
           widget.filterCallback?.call(filteredEntries, _localTextEditingController!.text) ??
           filter(widget.dropdownMenuEntries, _localTextEditingController!);
-    } else {
-      filteredEntries = widget.dropdownMenuEntries;
     }
     _menuHasEnabledItem = filteredEntries.any((DropdownMenuEntry<T> entry) => entry.enabled);
 
@@ -1047,7 +1048,7 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
               !widget.enabled
                   ? null
                   : () {
-                    handlePressed(controller);
+                    handlePressed(controller, focusForKeyboard: !canRequestFocus());
                   },
           onChanged: (String text) {
             controller.open();
@@ -1415,6 +1416,17 @@ class _RenderDropdownMenuBody extends RenderBox
       }
     }
     return false;
+  }
+
+  // Children except the text field (first child) are laid out for measurement purpose but not painted.
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    visitChildren((RenderObject renderObjectChild) {
+      final RenderBox child = renderObjectChild as RenderBox;
+      if (child == firstChild) {
+        visitor(renderObjectChild);
+      }
+    });
   }
 }
 
