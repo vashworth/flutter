@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:meta/meta.dart';
@@ -1231,7 +1232,7 @@ class DebuggingOptions {
         '--vm-service-port=$hostVmServicePort',
       // Tell the VM service to listen on all interfaces, don't restrict to the loopback.
       if (interfaceType == DeviceConnectionInterface.wireless)
-        '--vm-service-host=${ipv6 ? '::0' : '0.0.0.0'}',
+        '--vm-service-host=${ipv6 ? '${InternetAddress.anyIPv6.address}' : '${InternetAddress.anyIPv4.address}'}',
       if (enableEmbedderApi) '--enable-embedder-api',
     ];
   }

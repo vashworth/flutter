@@ -5,6 +5,7 @@
 #define FML_USED_ON_EMBEDDER
 
 #import "FlutterDartVMServicePublisher.h"
+#include <arpa/inet.h>
 
 #if FLUTTER_RELEASE
 
@@ -76,8 +77,6 @@ FLUTTER_ASSERT_ARC
 }
 
 - (void)publishServiceProtocolPort:(NSURL*)url {
-  // TODO(vashworth): Remove once done debugging https://github.com/flutter/flutter/issues/129836
-  FML_LOG(INFO) << "Publish Service Protocol Port";
   DNSServiceFlags flags = kDNSServiceFlagsDefault;
 #if TARGET_IPHONE_SIMULATOR
   // Simulator needs to use local loopback explicitly to work.
@@ -125,6 +124,9 @@ static void DNSSD_API RegistrationCallback(DNSServiceRef sdRef,
                                            void* context) {
   if (errorCode == kDNSServiceErr_NoError) {
     FML_DLOG(INFO) << "FlutterDartVMServicePublisher is ready!";
+#if TARGET_OS_IPHONE
+    [DartVMServiceDNSServiceDelegate getHostName];
+#endif
   } else if (errorCode == kDNSServiceErr_PolicyDenied) {
     FML_LOG(ERROR)
         << "Could not register as server for FlutterDartVMServicePublisher, permission "
@@ -135,6 +137,86 @@ static void DNSSD_API RegistrationCallback(DNSServiceRef sdRef,
                       "network settings and relaunch the application.";
   }
 }
+
+#if TARGET_OS_IPHONE
++ (void)getHostName {
+  DNSServiceRef sdRef;
+  DNSServiceFlags flags = kDNSServiceFlagsDefault;
+  uint32_t interfaceIndex = 0;
+  const char* registrationType = "_dartVmService._tcp";
+  const char* domain = "local.";  // default domain
+  int err = DNSServiceResolve(&sdRef, flags, interfaceIndex,
+                              FlutterDartVMServicePublisher.serviceName.UTF8String,
+                              registrationType, domain, DNSServiceResolveCallback, NULL);
+  if (err == 0) {
+    DNSServiceSetDispatchQueue(sdRef, dispatch_get_main_queue());
+    return;
+  } else {
+    FML_LOG(ERROR) << "Failed to resolve Dart VM Service port with mDNS with error: " << err;
+  }
+}
+
++ (void)getDeviceIP:(const char*)hostname {
+  DNSServiceRef sdRef;
+  DNSServiceFlags flags = kDNSServiceFlagsDefault;
+  uint32_t interfaceIndex = 0;
+
+  int err = DNSServiceGetAddrInfo(&sdRef, flags, interfaceIndex, kDNSServiceProtocol_IPv4, hostname,
+                                  DNSServiceGetAddrInfoCallback, NULL);
+
+  if (err == 0) {
+    DNSServiceSetDispatchQueue(sdRef, dispatch_get_main_queue());
+    return;
+  } else {
+    FML_LOG(ERROR) << "Failed to get IP with error: " << err;
+  }
+}
+
+static void DNSSD_API DNSServiceResolveCallback(DNSServiceRef sdRef,
+                                                DNSServiceFlags flags,
+                                                unsigned int interfaceIndex,
+                                                DNSServiceErrorType errorCode,
+                                                const char* fullname,
+                                                const char* hosttarget,
+                                                unsigned short port,
+                                                unsigned short txtLen,
+                                                const unsigned char* txtRecord,
+                                                void* context) {
+  if (errorCode == kDNSServiceErr_NoError) {
+    [DartVMServiceDNSServiceDelegate getDeviceIP:hosttarget];
+  } else {
+    FML_LOG(ERROR) << "Some error occured resolving: " << errorCode;
+  }
+}
+
+static void DNSSD_API DNSServiceGetAddrInfoCallback(DNSServiceRef sdRef,
+                                                    DNSServiceFlags flags,
+                                                    unsigned int interfaceIndex,
+                                                    DNSServiceErrorType errorCode,
+                                                    const char* hostname,
+                                                    const sockaddr* address,
+                                                    unsigned int ttl,
+                                                    void* context) {
+  // TODO: get url from original publishServiceProtocolPort and swap 0.0.0.0 for IP
+
+  if (errorCode == kDNSServiceErr_NoError) {
+    int family = address->sa_family;
+    if (family == AF_INET) {
+      struct sockaddr_in* ipv4 = (struct sockaddr_in*)address;
+      char ipv4Address[INET_ADDRSTRLEN];
+      inet_ntop(AF_INET, &(ipv4->sin_addr), ipv4Address, INET_ADDRSTRLEN);
+      FML_LOG(IMPORTANT) << "Connect to the Dart VM Service on " << ipv4Address;
+    } else if (family == AF_INET6) {
+      struct sockaddr_in6* ipv6 = (struct sockaddr_in6*)address;
+      char ipv6Address[INET6_ADDRSTRLEN];
+      inet_ntop(AF_INET, &(ipv6->sin6_addr), ipv6Address, INET6_ADDRSTRLEN);
+      FML_LOG(IMPORTANT) << "Connect to the Dart VM Service on " << ipv6Address;
+    }
+  } else {
+    FML_LOG(ERROR) << "Some error occured resolving: " << errorCode;
+  }
+}
+#endif
 
 @end
 
