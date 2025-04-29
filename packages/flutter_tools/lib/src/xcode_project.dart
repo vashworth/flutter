@@ -19,6 +19,7 @@ import 'ios/plist_parser.dart';
 import 'ios/xcode_build_settings.dart' as xcode;
 import 'ios/xcodeproj.dart';
 import 'macos/xcode.dart';
+import 'migrations/swift_package_manager_integration_migration.dart';
 import 'platform_plugins.dart';
 import 'project.dart';
 import 'template.dart';
@@ -135,22 +136,40 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// checked in should live here.
   Directory get ephemeralDirectory => managedDirectory.childDirectory('ephemeral');
 
+  /// The Flutter generated directory for generated Swift Packages.
+  Directory get flutterSwiftPackageDirectory => ephemeralDirectory.childDirectory('Packages');
+
+  /// The Flutter generated directory for the Swift Package handling the Flutter framework.
+  Directory get flutterFrameworkSwiftPackageDirectory =>
+      flutterSwiftPackageDirectory.childDirectory('flutterswiftpackage');
+
   /// The Flutter generated directory for the Swift Package handling plugin
   /// dependencies.
-  Directory get flutterPluginSwiftPackageDirectory => ephemeralDirectory
-      .childDirectory('Packages')
-      .childDirectory('FlutterGeneratedPluginSwiftPackage');
+  Directory get flutterPluginSwiftPackageDirectory =>
+      flutterSwiftPackageDirectory.childDirectory('FlutterGeneratedPluginSwiftPackage');
 
   /// The Flutter generated Swift Package manifest (Package.swift) for plugin
   /// dependencies.
   File get flutterPluginSwiftPackageManifest =>
       flutterPluginSwiftPackageDirectory.childFile('Package.swift');
 
+  /// The Flutter generated Swift Package manifest (Package.swift) for plugin
+  /// dependencies.
+  File get flutterFrameworkSwiftPackageManifest =>
+      flutterFrameworkSwiftPackageDirectory.childFile('Package.swift');
+
   /// Checks if FlutterGeneratedPluginSwiftPackage has been added to the
   /// project's build settings by checking the contents of the pbxproj.
   bool get flutterPluginSwiftPackageInProjectSettings {
     return xcodeProjectInfoFile.existsSync() &&
         xcodeProjectInfoFile.readAsStringSync().contains('FlutterGeneratedPluginSwiftPackage');
+  }
+
+  /// Checks if FlutterGeneratedPluginSwiftPackage has been added to the
+  /// project's build settings by checking the contents of the pbxproj.
+  bool get flutterFrameworkSwiftPackageInProjectSettings {
+    return xcodeProjectInfoFile.existsSync() &&
+        xcodeProjectInfoFile.readAsStringSync().contains('784666492D4C4C64000A1A5F /* flutterswiftpackage */');
   }
 
   /// True if this project doesn't have Swift Package Manager disabled in the
@@ -185,6 +204,29 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
     }
 
     return true;
+  }
+
+  /// If a project has been previously migrated to SwiftPM (indicated by [flutterPluginSwiftPackageInProjectSettings]),
+  /// but is missing the Flutter framework local override (indicated by [flutterFrameworkSwiftPackageInProjectSettings]),
+  /// rerun the migration. If the Flutter framework part of the migration is missing,
+  /// some Xcode commands such as `xcodebuild -list` may fail.
+  Future<void> _updateSwiftPackageManagerMigrationIfNeeded() async {
+    if (usesSwiftPackageManager &&
+        flutterPluginSwiftPackageInProjectSettings &&
+        !flutterFrameworkSwiftPackageInProjectSettings) {
+      final SwiftPackageManagerIntegrationMigration migration =
+          SwiftPackageManagerIntegrationMigration(
+            this,
+            SupportedPlatform.ios,
+            null,
+            xcodeProjectInterpreter: globals.xcodeProjectInterpreter!,
+            logger: globals.logger,
+            fileSystem: globals.fs,
+            plistParser: globals.plistParser,
+            skipSchemeMigration: true,
+          );
+      await migration.migrate();
+    }
   }
 
   Future<XcodeProjectInfo?> projectInfo() async {
@@ -662,6 +704,7 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
       return;
     }
     await _updateGeneratedXcodeConfigIfNeeded();
+    await _updateSwiftPackageManagerMigrationIfNeeded();
   }
 
   /// Check if one the [targets] of the project is a watchOS companion app target.
@@ -965,6 +1008,7 @@ class MacOSProject extends XcodeBasedProject {
   Future<void> ensureReadyForPlatformSpecificTooling() async {
     // TODO(stuartmorgan): Add create-from-template logic here.
     await _updateGeneratedXcodeConfigIfNeeded();
+    await _updateSwiftPackageManagerMigrationIfNeeded();
   }
 
   Future<void> _updateGeneratedXcodeConfigIfNeeded() async {

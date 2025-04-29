@@ -165,7 +165,6 @@ Future<XcodeBuildResult> buildXcodeProject({
       logger: globals.logger,
       fileSystem: globals.fs,
       plistParser: globals.plistParser,
-      features: featureFlags,
     ),
     SwiftPackageManagerGitignoreMigration(project, globals.logger),
     MetalAPIValidationMigrator.ios(app.project, globals.logger),
@@ -185,6 +184,8 @@ Future<XcodeBuildResult> buildXcodeProject({
   if (!_checkXcodeVersion()) {
     return XcodeBuildResult(success: false);
   }
+
+  // TODO: SPM - Make sure build ios --config-only works
 
   await removeFinderExtendedAttributes(
     app.project.parent.directory,
@@ -302,6 +303,19 @@ Future<XcodeBuildResult> buildXcodeProject({
         deploymentTarget: iosDeploymentTarget,
       );
     }
+
+    // Regenerate Flutter framework Swift Package to ensure correct build mode.
+    final SwiftPackageManager swiftPackageManager = SwiftPackageManager(
+      artifacts: globals.artifacts!,
+      cache: globals.cache,
+      fileSystem: globals.fs,
+      templateRenderer: globals.templateRenderer,
+    );
+    await swiftPackageManager.generateFlutterFrameworkSwiftPackage(
+      SupportedPlatform.ios,
+      project.ios,
+      buildMode: buildInfo.mode,
+    );
   }
   await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);
   if (configOnly) {

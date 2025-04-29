@@ -21,7 +21,7 @@ import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
 import '../runner/flutter_command.dart' show DevelopmentArtifact, FlutterCommandResult;
 import '../version.dart';
-import 'build_ios_framework.dart';
+import 'build_darwin_framework.dart';
 
 /// Produces a .framework for integration into a host macOS app. The .framework
 /// contains the Flutter engine and framework code as well as plugins. It can
@@ -291,6 +291,7 @@ end
       'App',
       outputBuildDirectory,
       globals.processManager,
+      sentenceCase(buildInfo.mode.cliName)
     );
     appFramework.deleteSync(recursive: true);
   }
@@ -366,6 +367,7 @@ end
             binaryName,
             modeDirectory,
             globals.processManager,
+            xcodeBuildConfiguration
           );
         }
       }

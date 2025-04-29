@@ -787,7 +787,12 @@ $_dartPluginRegisterWith
 }
 ''';
 
-Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+Future<void> writeIOSPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  File? pluginRegistrantHeader,
+  File? pluginRegistrantImplementation,
+}) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(
     plugins,
     IOSPlugin.kConfigKey,
@@ -801,26 +806,34 @@ Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plug
     'deploymentTarget': '12.0',
     'framework': 'Flutter',
     'methodChannelPlugins': iosPlugins,
+    'usesSwiftPackageManager': project.ios.usesSwiftPackageManager,
   };
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;
-    await _renderTemplateToFile(
-      _pluginRegistrantPodspecTemplate,
-      context,
-      registryDirectory.childFile('FlutterPluginRegistrant.podspec'),
-      globals.templateRenderer,
-    );
+    final File podspecFile = registryDirectory.childFile('FlutterPluginRegistrant.podspec');
+    if (project.ios.usesSwiftPackageManager) {
+      // Swift Package Manager handles the FlutterPluginRegistrant as a Swift Package,
+      // so delete the corresponding Pod.
+      ErrorHandlingFileSystem.deleteIfExists(podspecFile);
+    } else {
+      await _renderTemplateToFile(
+        _pluginRegistrantPodspecTemplate,
+        context,
+        podspecFile,
+        globals.templateRenderer,
+      );
+    }
   }
   await _renderTemplateToFile(
     _objcPluginRegistryHeaderTemplate,
     context,
-    project.ios.pluginRegistrantHeader,
+    pluginRegistrantHeader ?? project.ios.pluginRegistrantHeader,
     globals.templateRenderer,
   );
   await _renderTemplateToFile(
     _objcPluginRegistryImplementationTemplate,
     context,
-    project.ios.pluginRegistrantImplementation,
+    pluginRegistrantImplementation ?? project.ios.pluginRegistrantImplementation,
     globals.templateRenderer,
   );
 }
@@ -1287,7 +1300,7 @@ Future<void> injectPlugins(
     await _writeAndroidPluginRegistrant(project, pluginsByPlatform[AndroidPlugin.kConfigKey]!);
   }
   if (iosPlatform) {
-    await _writeIOSPluginRegistrant(project, pluginsByPlatform[IOSPlugin.kConfigKey]!);
+    await writeIOSPluginRegistrant(project, pluginsByPlatform[IOSPlugin.kConfigKey]!);
   }
   if (linuxPlatform) {
     await _writeLinuxPluginFiles(project, pluginsByPlatform[LinuxPlugin.kConfigKey]!);
@@ -1310,6 +1323,8 @@ Future<void> injectPlugins(
           plugins: plugins,
           cocoapods: globals.cocoaPods!,
           swiftPackageManager: SwiftPackageManager(
+            artifacts: globals.artifacts!,
+            cache: globals.cache,
             fileSystem: globals.fs,
             templateRenderer: globals.templateRenderer,
           ),

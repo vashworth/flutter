@@ -174,7 +174,10 @@ $_doubleIndent
             SwiftPackageProduct(name: 'Product1', targets: <String>['Target1']),
           ],
           dependencies: <SwiftPackagePackageDependency>[
-            SwiftPackagePackageDependency(name: 'Dependency1', path: '/path/to/dependency1'),
+            SwiftPackagePackageDependency.local(
+              packageName: 'Dependency1',
+              localPath: '/path/to/dependency1',
+            ),
           ],
           targets: <SwiftPackageTarget>[
             SwiftPackageTarget.defaultTarget(
@@ -245,8 +248,14 @@ let package = Package(
             SwiftPackageProduct(name: 'Product2', targets: <String>['Target2']),
           ],
           dependencies: <SwiftPackagePackageDependency>[
-            SwiftPackagePackageDependency(name: 'Dependency1', path: '/path/to/dependency1'),
-            SwiftPackagePackageDependency(name: 'Dependency2', path: '/path/to/dependency2'),
+            SwiftPackagePackageDependency.local(
+              packageName: 'Dependency1',
+              localPath: '/path/to/dependency1',
+            ),
+            SwiftPackagePackageDependency.local(
+              packageName: 'Dependency2',
+              localPath: '/path/to/dependency2',
+            ),
           ],
           targets: <SwiftPackageTarget>[
             SwiftPackageTarget.binaryTarget(name: 'Target1', relativePath: '/path/to/target1'),
@@ -301,6 +310,90 @@ let package = Package(
         )
     ]
 )
+''');
+      });
+
+      testWithoutContext('with swift code before package definition', () {
+        final MemoryFileSystem fs = MemoryFileSystem();
+        final File swiftPackageFile = fs.systemTempDirectory.childFile(
+          'Packages/FlutterGeneratedPluginSwiftPackage/Package.swift',
+        );
+        final SwiftPackage swiftPackage = SwiftPackage(
+          manifest: swiftPackageFile,
+          name: 'FlutterGeneratedPluginSwiftPackage',
+          swiftCodeBeforePackageDefinition: 'let mode = "Debug"',
+          platforms: <SwiftPackageSupportedPlatform>[],
+          products: <SwiftPackageProduct>[],
+          dependencies: <SwiftPackagePackageDependency>[],
+          targets: <SwiftPackageTarget>[],
+          templateRenderer: const MustacheTemplateRenderer(),
+        );
+        swiftPackage.createSwiftPackage();
+        expect(swiftPackageFile.readAsStringSync(), '''
+// swift-tools-version: 5.9
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+//
+//  Generated file. Do not edit.
+//
+
+import PackageDescription
+
+let mode = "Debug"
+
+let package = Package(
+    name: "FlutterGeneratedPluginSwiftPackage",
+    products: [
+$_doubleIndent
+    ],
+    dependencies: [
+$_doubleIndent
+    ],
+    targets: [
+$_doubleIndent
+    ]
+)
+''');
+      });
+
+      testWithoutContext('with swift code after package definition', () {
+        final MemoryFileSystem fs = MemoryFileSystem();
+        final File swiftPackageFile = fs.systemTempDirectory.childFile(
+          'Packages/FlutterGeneratedPluginSwiftPackage/Package.swift',
+        );
+        final SwiftPackage swiftPackage = SwiftPackage(
+          manifest: swiftPackageFile,
+          name: 'FlutterGeneratedPluginSwiftPackage',
+          swiftCodeAfterPackageDefinition: '//asdf',
+          platforms: <SwiftPackageSupportedPlatform>[],
+          products: <SwiftPackageProduct>[],
+          dependencies: <SwiftPackagePackageDependency>[],
+          targets: <SwiftPackageTarget>[],
+          templateRenderer: const MustacheTemplateRenderer(),
+        );
+        swiftPackage.createSwiftPackage();
+        expect(swiftPackageFile.readAsStringSync(), '''
+// swift-tools-version: 5.9
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+//
+//  Generated file. Do not edit.
+//
+
+import PackageDescription
+
+let package = Package(
+    name: "FlutterGeneratedPluginSwiftPackage",
+    products: [
+$_doubleIndent
+    ],
+    dependencies: [
+$_doubleIndent
+    ],
+    targets: [
+$_doubleIndent
+    ]
+)
+
+//asdf
 ''');
       });
     });
@@ -363,9 +456,9 @@ let package = Package(
   });
 
   testWithoutContext('Format SwiftPackagePackageDependency', () {
-    final SwiftPackagePackageDependency supportedPlatform = SwiftPackagePackageDependency(
-      name: 'DependencyName',
-      path: '/path/to/dependency',
+    final SwiftPackagePackageDependency supportedPlatform = SwiftPackagePackageDependency.local(
+      packageName: 'DependencyName',
+      localPath: '/path/to/dependency',
     );
     expect(
       supportedPlatform.format(),

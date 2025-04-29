@@ -2,10 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../artifacts.dart';
 import '../base/common.dart';
+import '../base/error_handling_io.dart';
 import '../base/file_system.dart';
 import '../base/template.dart';
+import '../base/utils.dart';
 import '../base/version.dart';
+import '../build_info.dart';
+import '../cache.dart';
 import '../plugins.dart';
 import '../project.dart';
 import 'swift_packages.dart';
@@ -20,11 +25,17 @@ import 'swift_packages.dart';
 ///     documentation on Swift Package Manager manifest file, Package.swift.
 class SwiftPackageManager {
   const SwiftPackageManager({
+    required Artifacts artifacts,
+    required Cache cache,
     required FileSystem fileSystem,
     required TemplateRenderer templateRenderer,
-  }) : _fileSystem = fileSystem,
+  }) : _artifacts = artifacts,
+       _cache = cache,
+       _fileSystem = fileSystem,
        _templateRenderer = templateRenderer;
 
+  final Artifacts _artifacts;
+  final Cache _cache;
   final FileSystem _fileSystem;
   final TemplateRenderer _templateRenderer;
 
@@ -42,6 +53,151 @@ class SwiftPackageManager {
         version: Version(10, 14, null),
       );
 
+  /// Creates a Swift Package that vends the (symlinked) Flutter framework.
+  Future<void> generateFlutterFrameworkSwiftPackage(
+    SupportedPlatform platform,
+    XcodeBasedProject project, {
+    BuildMode buildMode = BuildMode.release,
+    File? overrideManifestPath,
+    bool remoteFramework = false,
+  }) async {
+    _validatePlatform(platform);
+
+    final String engineVersion = _cache.engineRevision;
+    final String buildModeName = sentenceCase(buildMode.cliName);
+
+    // FlutterGeneratedPluginSwiftPackage must be statically linked to ensure
+    // any dynamic dependencies are linked to Runner and prevent undefined symbols.
+    final SwiftPackageProduct generatedProduct = SwiftPackageProduct(
+      name: 'Flutter',
+      targets: <String>['FlutterFramework'],
+    );
+
+    // if (remoteFramework) {
+    //   final SwiftPackageTarget remoteFrameworkTarget = await remoteFlutterFrameworkTarget(
+    //     buildMode,
+    //   );
+    //   final SwiftPackage flutterFrameworkPackage = SwiftPackage(
+    //     manifest: overrideManifestPath ?? project.flutterFrameworkSwiftPackageManifest,
+    //     name: 'Flutter',
+    //     platforms: <SwiftPackageSupportedPlatform>[],
+    //     products: <SwiftPackageProduct>[generatedProduct],
+    //     dependencies: <SwiftPackagePackageDependency>[],
+    //     targets: <SwiftPackageTarget>[
+    //       SwiftPackageTarget.defaultTarget(
+    //         name: 'FlutterFramework',
+    //         dependencies: <SwiftPackageTargetDependency>[SwiftPackageTargetDependency.target(name: 'Flutter')],
+    //       ),
+    //       remoteFrameworkTarget,
+    //     ],
+    //     templateRenderer: _templateRenderer,
+    //   );
+    //   flutterFrameworkPackage.createSwiftPackage();
+    //   return;
+    // }
+
+    final String frameworkName;
+    final List<SwiftPackagePlatform> platformCondition;
+    final String frameworkArtifactPath;
+
+    if (platform == SupportedPlatform.ios) {
+      frameworkName = 'Flutter';
+      platformCondition = <SwiftPackagePlatform>[SwiftPackagePlatform.ios];
+      frameworkArtifactPath = _artifacts.getArtifactPath(
+        Artifact.flutterXcframework,
+        platform: TargetPlatform.ios,
+        mode: BuildMode.release,
+      );
+    } else {
+      frameworkName = 'FlutterMacOS';
+      platformCondition = <SwiftPackagePlatform>[SwiftPackagePlatform.macos];
+      frameworkArtifactPath = _artifacts.getArtifactPath(
+        Artifact.flutterMacOSXcframework,
+        platform: TargetPlatform.darwin,
+        mode: BuildMode.release,
+      );
+    }
+
+    final String xcframeworkName = '$frameworkName.xcframework';
+
+    final SwiftPackage flutterFrameworkPackage = SwiftPackage(
+      manifest: overrideManifestPath ?? project.flutterFrameworkSwiftPackageManifest,
+      name: 'Flutter',
+      swiftCodeBeforePackageDefinition: '''
+let mode = "$buildModeName"
+let engine = "$engineVersion"
+''',
+      platforms: <SwiftPackageSupportedPlatform>[],
+      products: <SwiftPackageProduct>[generatedProduct],
+      dependencies: <SwiftPackagePackageDependency>[],
+      targets: <SwiftPackageTarget>[
+        SwiftPackageTarget.defaultTarget(
+          name: 'FlutterFramework',
+          dependencies: <SwiftPackageTargetDependency>[
+            SwiftPackageTargetDependency.target(
+              name: frameworkName,
+              platformCondition: platformCondition,
+            ),
+          ],
+        ),
+        SwiftPackageTarget.binaryTarget(
+          name: frameworkName,
+          relativePath: '\\(mode)/\\(engine)/$xcframeworkName',
+        ),
+      ],
+      templateRenderer: _templateRenderer,
+    );
+    flutterFrameworkPackage.createSwiftPackage();
+
+    ErrorHandlingFileSystem.deleteIfExists(
+      project.flutterFrameworkSwiftPackageDirectory.childDirectory(buildModeName),
+      recursive: true,
+    );
+    final Link frameworkLink = _fileSystem.link(
+      project.flutterFrameworkSwiftPackageDirectory
+          .childDirectory(buildModeName)
+          .childDirectory(engineVersion)
+          .childDirectory(xcframeworkName)
+          .path,
+    );
+    frameworkLink.createSync(frameworkArtifactPath, recursive: true);
+  }
+
+  // Future<SwiftPackageTarget> remoteFlutterFrameworkTarget(BuildMode mode) async {
+  //   final Status status = globals.logger.startProgress(
+  //     'Downloading Flutter framework to calculate checksum...',
+  //   );
+  //   // TODO(vashworth): Limit to stable/beta branch
+  //   final String artifactsMode = mode == BuildMode.debug ? 'ios' : 'ios-${mode.cliName}';
+  //   final String frameworkArtifactUrl =
+  //       '${cache.storageBaseUrl}/flutter_infra_release/flutter/${cache.engineRevision}/$artifactsMode/artifacts.zip';
+  //   final Directory destination = globals.fs.systemTempDirectory.createTempSync(
+  //     'flutter_framework.',
+  //   );
+  //   await cache.downloadArtifact(
+  //     Uri.parse(frameworkArtifactUrl),
+  //     destination.childFile('artifacts.zip'),
+  //     status,
+  //   );
+  //   status.stop();
+
+  //   final RunResult results = await globals.processUtils.run(<String>[
+  //     'swift',
+  //     'package',
+  //     'compute-checksum',
+  //     destination.childFile('artifacts.zip').path,
+  //   ]);
+  //   if (results.exitCode != 0) {
+  //     throwToolExit('Failed to get checksum for Flutter framework: ${results.stderr}');
+  //   }
+
+  //   return SwiftPackageTarget.remoteBinaryTarget(
+  //     name: 'Flutter',
+  //     zipUrl: frameworkArtifactUrl,
+  //     zipChecksum: results.stdout.trim(),
+  //   );
+  // }
+
   /// Creates a Swift Package called 'FlutterGeneratedPluginSwiftPackage' that
   /// has dependencies on Flutter plugins that are compatible with Swift
   /// Package Manager.
@@ -55,7 +211,7 @@ class SwiftPackageManager {
     final (
       List<SwiftPackagePackageDependency> packageDependencies,
       List<SwiftPackageTargetDependency> targetDependencies,
-    ) = _dependenciesForPlugins(plugins, platform);
+    ) = dependenciesForPlugins(plugins: plugins, platform: platform, fileSystem: _fileSystem);
 
     // If there aren't any Swift Package plugins and the project hasn't been
     // migrated yet, don't generate a Swift package or migrate the app since
@@ -98,30 +254,40 @@ class SwiftPackageManager {
     pluginsPackage.createSwiftPackage();
   }
 
-  (List<SwiftPackagePackageDependency>, List<SwiftPackageTargetDependency>) _dependenciesForPlugins(
-    List<Plugin> plugins,
-    SupportedPlatform platform,
-  ) {
+  /// Generate a list of [SwiftPackagePackageDependency] and [SwiftPackageTargetDependency]
+  /// from a list of [plugins] for the given [platform].
+  ///
+  /// If [alterPath] is provided, alter the [SwiftPackagePackageDependency]'s
+  /// path using the provided function.
+  static (List<SwiftPackagePackageDependency>, List<SwiftPackageTargetDependency>)
+  dependenciesForPlugins({
+    required List<Plugin> plugins,
+    required SupportedPlatform platform,
+    required FileSystem fileSystem,
+    String Function(String)? alterPath,
+  }) {
     final List<SwiftPackagePackageDependency> packageDependencies =
         <SwiftPackagePackageDependency>[];
     final List<SwiftPackageTargetDependency> targetDependencies = <SwiftPackageTargetDependency>[];
 
     for (final Plugin plugin in plugins) {
       final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
-        _fileSystem,
+        fileSystem,
         platform.name,
       );
       if (plugin.platforms[platform.name] == null ||
           pluginSwiftPackageManifestPath == null ||
-          !_fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
+          !fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
         continue;
       }
 
+      String packagePath = fileSystem.file(pluginSwiftPackageManifestPath).parent.path;
+      if (alterPath != null) {
+        packagePath = alterPath(packagePath);
+      }
+
       packageDependencies.add(
-        SwiftPackagePackageDependency(
-          name: plugin.name,
-          path: _fileSystem.file(pluginSwiftPackageManifestPath).parent.path,
-        ),
+        SwiftPackagePackageDependency.local(packageName: plugin.name, localPath: packagePath),
       );
 
       // The target dependency product name is hyphen separated because it's

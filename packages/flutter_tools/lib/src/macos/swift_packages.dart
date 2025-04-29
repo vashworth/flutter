@@ -18,6 +18,7 @@ const String _swiftPackageTemplate = '''
 
 import PackageDescription
 
+{{#hasSwiftCodeBefore}}\n{{swiftCodeBefore}}\n\n{{/hasSwiftCodeBefore}}
 let package = Package(
     name: "{{packageName}}",
     {{#platforms}}
@@ -34,7 +35,7 @@ let package = Package(
     targets: [
         {{targets}}
     ]
-)
+){{#hasSwiftCodeAfter}}\n\n{{swiftCodeAfter}}{{/hasSwiftCodeAfter}}
 ''';
 
 const String _swiftPackageSourceTemplate = '''
@@ -55,32 +56,36 @@ const String _doubleIndent = '$_singleIndent$_singleIndent';
 /// for more information about Swift Packages and Package.swift.
 class SwiftPackage {
   SwiftPackage({
-    required File manifest,
-    required String name,
+    required this.manifest,
+    required this.name,
+    String? swiftCodeBeforePackageDefinition,
+    String? swiftCodeAfterPackageDefinition,
     required List<SwiftPackageSupportedPlatform> platforms,
-    required List<SwiftPackageProduct> products,
+    required this.products,
     required List<SwiftPackagePackageDependency> dependencies,
     required List<SwiftPackageTarget> targets,
     required TemplateRenderer templateRenderer,
-  }) : _manifest = manifest,
-       _name = name,
+  }) : _swiftCodeBeforePackageDefinition = swiftCodeBeforePackageDefinition,
+       _swiftCodeAfterPackageDefinition = swiftCodeAfterPackageDefinition,
        _platforms = platforms,
-       _products = products,
        _dependencies = dependencies,
        _targets = targets,
        _templateRenderer = templateRenderer;
 
   /// [File] for Package.swift.
-  final File _manifest;
+  final File manifest;
 
   /// The name of the Swift package.
-  final String _name;
+  final String name;
+
+  final String? _swiftCodeBeforePackageDefinition;
+  final String? _swiftCodeAfterPackageDefinition;
 
   /// The list of minimum versions for platforms supported by the package.
   final List<SwiftPackageSupportedPlatform> _platforms;
 
   /// The list of products that this package vends and that clients can use.
-  final List<SwiftPackageProduct> _products;
+  final List<SwiftPackageProduct> products;
 
   /// The list of package dependencies.
   final List<SwiftPackagePackageDependency> _dependencies;
@@ -93,12 +98,16 @@ class SwiftPackage {
   /// Context for the [_swiftPackageTemplate] template.
   Map<String, Object> get _templateContext => <String, Object>{
     'swiftToolsVersion': minimumSwiftToolchainVersion,
-    'packageName': _name,
+    'packageName': name,
     // Supported platforms can't be empty, so only include if not null.
     'platforms': _formatPlatforms() ?? false,
+    'hasSwiftCodeBefore': _swiftCodeBeforePackageDefinition != null,
+    'swiftCodeBefore': _swiftCodeBeforePackageDefinition ?? '',
     'products': _formatProducts(),
     'dependencies': _formatDependencies(),
     'targets': _formatTargets(),
+    'hasSwiftCodeAfter': _swiftCodeAfterPackageDefinition != null,
+    'swiftCodeAfter': _swiftCodeAfterPackageDefinition ?? '',
   };
 
   /// Create a Package.swift using settings from [_templateContext].
@@ -110,7 +119,7 @@ class SwiftPackage {
       if (target.targetType == SwiftPackageTargetType.binaryTarget) {
         continue;
       }
-      final Directory targetDirectory = _manifest.parent
+      final Directory targetDirectory = manifest.parent
           .childDirectory('Sources')
           .childDirectory(target.name);
       if (!targetDirectory.existsSync() || targetDirectory.listSync().isEmpty) {
@@ -124,8 +133,10 @@ class SwiftPackage {
       _swiftPackageTemplate,
       _templateContext,
     );
-    _manifest.createSync(recursive: true);
-    _manifest.writeAsStringSync(renderedTemplate);
+    if (!manifest.existsSync()) {
+      manifest.createSync(recursive: true);
+    }
+    manifest.writeAsStringSync(renderedTemplate);
   }
 
   String? _formatPlatforms() {
@@ -138,11 +149,11 @@ class SwiftPackage {
   }
 
   String _formatProducts() {
-    if (_products.isEmpty) {
+    if (products.isEmpty) {
       return '';
     }
     final List<String> libraries =
-        _products.map((SwiftPackageProduct product) => product.format()).toList();
+        products.map((SwiftPackageProduct product) => product.format()).toList();
     return libraries.join(',\n$_doubleIndent');
   }
 
@@ -245,16 +256,43 @@ class SwiftPackageProduct {
 /// Representation of Package.Dependency from
 /// https://developer.apple.com/documentation/packagedescription/package/dependency.
 class SwiftPackagePackageDependency {
-  SwiftPackagePackageDependency({required this.name, required this.path});
+  /// https://developer.apple.com/documentation/packagedescription/package/dependency/package(name:path:)
+  SwiftPackagePackageDependency.local({required String packageName, required String localPath})
+    : name = packageName,
+      path = localPath,
+      url = null,
+      versions = null,
+      locationType = SwiftPackagePackageDependencyLocationType.local;
 
-  final String name;
-  final String path;
+  /// https://developer.apple.com/documentation/packagedescription/package/dependency/package(url:_:)-1r6rc
+  SwiftPackagePackageDependency.remoteClosedRange({
+    required String repositoryUrl,
+    required String lowerLimit,
+    required String upperLimit,
+  }) : name = null,
+       path = null,
+       url = repositoryUrl,
+       versions = '"$lowerLimit"..."$upperLimit"',
+       locationType = SwiftPackagePackageDependencyLocationType.remote;
+
+  final String? name;
+  final String? path;
+  final String? url;
+  final String? versions;
+  final SwiftPackagePackageDependencyLocationType locationType;
 
   String format() {
-    // dependencies: [
-    //     .package(name: "image_picker_ios", path: "/path/to/packages/image_picker/image_picker_ios/ios/image_picker_ios"),
-    // ],
-    return '.package(name: "$name", path: "$path")';
+    if (locationType == SwiftPackagePackageDependencyLocationType.local) {
+      // dependencies: [
+      //     .package(name: "image_picker_ios", path: "/path/to/packages/image_picker/image_picker_ios/ios/image_picker_ios"),
+      // ],
+      return '.package(name: "$name", path: "$path")';
+    } else {
+      // dependencies: [
+      //     .package(url: "https://github.com/flutter/flutter", "0.0.0"..."999.999.999"),
+      // ],
+      return '.package(url: "$url", $versions)';
+    }
   }
 }
 
@@ -262,9 +300,16 @@ class SwiftPackagePackageDependency {
 ///
 /// See https://developer.apple.com/documentation/packagedescription/target for
 /// more information.
+enum SwiftPackagePackageDependencyLocationType { remote, local }
+
+/// Type of Target constructor.
+///
+/// See https://developer.apple.com/documentation/packagedescription/target for
+/// more information.
 enum SwiftPackageTargetType {
   target(name: '.target'),
-  binaryTarget(name: '.binaryTarget');
+  binaryTarget(name: '.binaryTarget'),
+  remoteBinaryTarget(name: '.binaryTarget');
 
   const SwiftPackageTargetType({required this.name});
 
@@ -277,17 +322,32 @@ enum SwiftPackageTargetType {
 /// Representation of Target from
 /// https://developer.apple.com/documentation/packagedescription/target.
 class SwiftPackageTarget {
-  SwiftPackageTarget.defaultTarget({required this.name, this.dependencies})
-    : path = null,
+  SwiftPackageTarget.defaultTarget({required this.name, this.dependencies, this.path})
+    : url = null,
+      checksum = null,
       targetType = SwiftPackageTargetType.target;
 
   SwiftPackageTarget.binaryTarget({required this.name, required String relativePath})
     : path = relativePath,
+      url = null,
+      checksum = null,
       dependencies = null,
       targetType = SwiftPackageTargetType.binaryTarget;
 
+  SwiftPackageTarget.remoteBinaryTarget({
+    required this.name,
+    required String zipUrl,
+    required String zipChecksum,
+  }) : path = null,
+       url = zipUrl,
+       checksum = zipChecksum,
+       dependencies = null,
+       targetType = SwiftPackageTargetType.remoteBinaryTarget;
+
   final String name;
   final String? path;
+  final String? url;
+  final String? checksum;
   final List<SwiftPackageTargetDependency>? dependencies;
   final SwiftPackageTargetType targetType;
 
@@ -313,11 +373,6 @@ class SwiftPackageTarget {
     final String nameString = 'name: "$name"';
     targetDetails.add(nameString);
 
-    if (path != null) {
-      final String pathString = 'path: "$path"';
-      targetDetails.add(pathString);
-    }
-
     if (dependencies != null && dependencies!.isNotEmpty) {
       final List<String> targetDependencies =
           dependencies!
@@ -328,6 +383,21 @@ dependencies: [
 ${targetDependencies.join(",\n")}
 $targetDetailsIndent]''';
       targetDetails.add(dependenciesString);
+    }
+
+    if (url != null) {
+      final String urlString = 'url: "$url"';
+      targetDetails.add(urlString);
+    }
+
+    if (checksum != null) {
+      final String checksumString = 'checksum: "$checksum"';
+      targetDetails.add(checksumString);
+    }
+
+    if (path != null) {
+      final String pathString = 'path: "$path"';
+      targetDetails.add(pathString);
     }
 
     return '''
@@ -356,16 +426,20 @@ enum SwiftPackageTargetDependencyType {
 /// Representation of Target.Dependency from
 /// https://developer.apple.com/documentation/packagedescription/target/dependency.
 class SwiftPackageTargetDependency {
-  SwiftPackageTargetDependency.product({required this.name, required String packageName})
-    : package = packageName,
-      dependencyType = SwiftPackageTargetDependencyType.product;
+  SwiftPackageTargetDependency.product({
+    required this.name,
+    required String packageName,
+    this.platformCondition,
+  }) : package = packageName,
+       dependencyType = SwiftPackageTargetDependencyType.product;
 
-  SwiftPackageTargetDependency.target({required this.name})
+  SwiftPackageTargetDependency.target({required this.name, this.platformCondition})
     : package = null,
       dependencyType = SwiftPackageTargetDependencyType.target;
 
   final String name;
   final String? package;
+  final List<SwiftPackagePlatform>? platformCondition;
   final SwiftPackageTargetDependencyType dependencyType;
 
   String format() {
@@ -373,9 +447,14 @@ class SwiftPackageTargetDependency {
     //             .target(name: "Flutter"),
     //             .product(name: "image_picker_ios", package: "image_picker_ios")
     //         ]
-    if (dependencyType == SwiftPackageTargetDependencyType.product) {
-      return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name", package: "$package")';
+    String conditionString = '';
+    if (platformCondition != null) {
+      conditionString =
+          ', condition: .when(platforms: [${platformCondition!.map((SwiftPackagePlatform platform) => platform.name).join(',')}])';
     }
-    return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name")';
+    if (dependencyType == SwiftPackageTargetDependencyType.product) {
+      return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name", package: "$package"$conditionString)';
+    }
+    return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name"$conditionString)';
   }
 }

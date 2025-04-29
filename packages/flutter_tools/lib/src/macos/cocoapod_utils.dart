@@ -64,6 +64,8 @@ Future<void> processPodsIfNeeded(
 
     // Generate an empty Swift Package Manager manifest to invalidate fingerprinter
     final SwiftPackageManager swiftPackageManager = SwiftPackageManager(
+      artifacts: globals.artifacts!,
+      cache: globals.cache,
       fileSystem: globals.localFileSystem,
       templateRenderer: globals.templateRenderer,
     );
@@ -71,6 +73,7 @@ Future<void> processPodsIfNeeded(
         xcodeProject is IosProject ? SupportedPlatform.ios : SupportedPlatform.macos;
 
     await swiftPackageManager.generatePluginsSwiftPackage(const <Plugin>[], platform, xcodeProject);
+    // TODO: SPM - flutter framework?
   }
 
   // If the Xcode project, Podfile, generated plugin Swift Package, or podhelper

@@ -990,11 +990,14 @@ const String kBuildNumber = 'BuildNumber';
 /// Will be "build" when building and "install" when archiving.
 const String kXcodeAction = 'Action';
 
-/// The define of the Xcode build Pre-action.
+/// The define of the Xcode Build Script.
 ///
-/// Will be "PrepareFramework" when copying the Flutter/FlutterMacOS framework
-/// to the BUILT_PRODUCTS_DIR prior to the build.
-const String kXcodePreAction = 'PreBuildAction';
+/// This may be [kPrepareXcodeBuildScript], [kBuildXcodeBuildScript], or [kEmbedXcodeBuildScript].
+const String kXcodeBuildScript = 'BuildScript';
+const String kBuildXcodeBuildScript = 'build';
+const String kPrepareXcodeBuildScript = 'prepare';
+const String kEmbedXcodeBuildScript = 'embed';
+const String kNativePrepareXcodeBuildScript = 'prepare-native';
 
 // Whether the last Flutter tool invocation enabled dev dependencies.
 const String kDevDependenciesEnabled = 'DevDependenciesEnabled';

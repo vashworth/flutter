@@ -736,8 +736,9 @@ class FlutterBuildSystem extends BuildSystem {
     FileSystem fileSystem,
     Map<String, File> currentOutputs,
   ) {
-    if (environment.defines[kXcodePreAction] == 'PrepareFramework') {
-      // If the current build is the PrepareFramework Xcode pre-action, skip
+    if (environment.defines[kXcodeBuildScript] == kPrepareXcodeBuildScript ||
+        environment.defines[kXcodeBuildScript] == kEmbedXcodeBuildScript) {
+      // If the current build is the prepare Xcode pre-action, skip
       // updating the last build identifier and cleaning up the previous build
       // since this build is not a complete build.
       return;
@@ -894,6 +895,11 @@ class _BuildInstance {
           continue;
         }
         final File previousFile = fileSystem.file(previousOutput);
+        // Don't delete FlutterMacOS binary, even if it's removed from the outputFiles.
+        // Xcode now handles outputting it, so deleting it mid-build can cause issues.
+        if (previousOutput.contains('FlutterMacOS.framework/Versions/A/FlutterMacOS')) {
+          continue;
+        }
         ErrorHandlingFileSystem.deleteIfExists(previousFile);
       }
     } on Exception catch (exception, stackTrace) {
@@ -1163,7 +1169,7 @@ class Node {
     // For each output, first determine if we've already computed the key
     // for it. Then collect it to be sent off for hashing as a group.
     for (final String previousOutput in previousOutputs) {
-      // output paths changed.
+      // Output paths changed - an output was removed.
       if (!currentOutputPaths.contains(previousOutput)) {
         _dirty = true;
         final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetChanged);
@@ -1192,6 +1198,16 @@ class Node {
       }
     }
 
+    for (final String currentOutput in currentOutputPaths) {
+      // Output paths changed - a new output was added.
+      if (!previousOutputs.contains(currentOutput)) {
+        _dirty = true;
+        final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetChanged);
+        reason.data.add(currentOutput);
+        // if this isn't a current output file there is no reason to compute the key.
+        continue;
+      }
+    }
     // If we depend on a file that doesn't exist on disk, mark the build as
     // dirty. if the rule is not correctly specified, this will result in it
     // always being rerun.
@@ -1237,7 +1253,7 @@ class InvalidatedReason {
       InvalidatedReasonKind.outputMissing =>
         'The following outputs were missing: ${data.join(',')}',
       InvalidatedReasonKind.outputSetChanged =>
-        'The following outputs were removed from the output set: ${data.join(',')}',
+        'The following outputs were added or removed from the output set: ${data.join(',')}',
       InvalidatedReasonKind.buildKeyChanged => 'The target build key changed.',
     };
   }

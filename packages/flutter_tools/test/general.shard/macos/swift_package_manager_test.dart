@@ -4,6 +4,8 @@
 
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
+import 'package:flutter_tools/src/artifacts.dart';
+import 'package:flutter_tools/src/cache.dart';
 import 'package:flutter_tools/src/isolated/mustache_template.dart';
 import 'package:flutter_tools/src/macos/swift_package_manager.dart';
 import 'package:flutter_tools/src/platform_plugins.dart';
@@ -33,6 +35,8 @@ void main() {
             );
 
             final SwiftPackageManager spm = SwiftPackageManager(
+              artifacts: FakeArtifacts(),
+              cache: FakeCache(),
               fileSystem: fs,
               templateRenderer: const MustacheTemplateRenderer(),
             );
@@ -54,6 +58,8 @@ void main() {
             );
 
             final SwiftPackageManager spm = SwiftPackageManager(
+              artifacts: FakeArtifacts(),
+              cache: FakeCache(),
               fileSystem: fs,
               templateRenderer: const MustacheTemplateRenderer(),
             );
@@ -74,6 +80,8 @@ void main() {
 ''');
 
             final SwiftPackageManager spm = SwiftPackageManager(
+              artifacts: FakeArtifacts(),
+              cache: FakeCache(),
               fileSystem: fs,
               templateRenderer: const MustacheTemplateRenderer(),
             );
@@ -127,6 +135,8 @@ $_doubleIndent
               pluginSwiftPackageManifestPath: validPlugin1Manifest.path,
             );
             final SwiftPackageManager spm = SwiftPackageManager(
+              artifacts: FakeArtifacts(),
+              cache: FakeCache(),
               fileSystem: fs,
               templateRenderer: const MustacheTemplateRenderer(),
             );
@@ -207,6 +217,8 @@ let package = Package(
             );
 
             final SwiftPackageManager spm = SwiftPackageManager(
+              artifacts: FakeArtifacts(),
+              cache: FakeCache(),
               fileSystem: fs,
               templateRenderer: const MustacheTemplateRenderer(),
             );
@@ -412,3 +424,7 @@ class FakePlugin extends Fake implements Plugin {
 }
 
 class FakePluginPlatform extends Fake implements PluginPlatform {}
+
+class FakeArtifacts extends Fake implements Artifacts {}
+
+class FakeCache extends Fake implements Cache {}

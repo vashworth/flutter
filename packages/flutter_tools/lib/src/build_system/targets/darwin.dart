@@ -2,13 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:io';
+
 import 'package:meta/meta.dart';
 
+import '../../artifacts.dart';
 import '../../base/common.dart';
 import '../../base/file_system.dart';
 import '../../build_info.dart';
 import '../../flutter_plugins.dart';
 import '../../globals.dart' as globals;
+import '../../plugins.dart';
 import '../../project.dart';
 import '../build_system.dart';
 import '../exceptions.dart';
@@ -150,5 +154,172 @@ abstract class CheckDevDependencies extends Target {
 
   void _printXcodeError(String message) {
     globals.stdio.stderrWrite('error: $message');
+  }
+}
+
+abstract class UnpackDarwin extends Target {
+  const UnpackDarwin();
+
+  // TODO: SPM - does macOS need too?
+  @override
+  bool canSkip(Environment environment) =>
+      environment.defines[kXcodeBuildScript] == kNativePrepareXcodeBuildScript;
+
+  Future<bool> shouldSkip(Environment environment, XcodeBasedProject xcodeProject) async {
+    // buildPhase may be null if this target is not called from a Xcode Build Script.
+    // For example, this target is called directly in `flutter build ios-framework`.
+    final String? buildPhase = environment.defines[kXcodeBuildScript];
+    if (buildPhase == kPrepareXcodeBuildScript) {
+      final bool valid = await _validateSwiftPackagePlugins(environment, xcodeProject);
+      // If all plugins are valid, they do not rely on the prepare action, so it can be skipped.
+      if (valid) {
+        return true;
+      }
+    } else if (xcodeProject.usesSwiftPackageManager) {
+      // Skip copying the Flutter framework during the build Run Script if Swift Package Manager is being used.
+      // Swift Package Manager now handles the Flutter framework.
+      return true;
+    }
+    return false;
+  }
+
+  /// Validates that all Swift Package plugins have a dependency on the Flutter framework.
+  /// If they don't, give a warning.
+  Future<bool> _validateSwiftPackagePlugins(
+    Environment environment,
+    XcodeBasedProject xcodeProject,
+  ) async {
+    bool valid = true;
+    bool hasFlutterFrameworkRemoteDependency = false;
+    final List<Plugin> plugins = await findPlugins(xcodeProject.parent);
+    for (final Plugin plugin in plugins) {
+      final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
+        environment.fileSystem,
+        'ios',
+      );
+      if (pluginSwiftPackageManifestPath == null) {
+        continue;
+      }
+      final File swiftManifest = environment.fileSystem.file(pluginSwiftPackageManifestPath);
+      if (plugin.platforms['ios'] == null || !swiftManifest.existsSync()) {
+        continue;
+      }
+
+      // If the plugin has a Package.swift, ensure that it has a dependency on Flutter
+      // This check is not perfect and may not catch all cases.
+      if (!swiftManifest.readAsStringSync().contains('https://github.com/flutter/flutter')) {
+        _printXcodeWarning(
+          '${plugin.name} does not have an explicit dependency on Flutter. This will not be supported in a future version of Flutter. Please file an issue with the plugin author to upgrade their plugin Package.swift.',
+        );
+        valid = false;
+      } else {
+        hasFlutterFrameworkRemoteDependency = true;
+      }
+    }
+
+    // TODO: SPM - macos
+    // TODO: error?
+    if (xcodeProject.flutterFrameworkSwiftPackageInProjectSettings &&
+        hasFlutterFrameworkRemoteDependency) {
+      _printXcodeWarning(
+        'You project is missing settings. Please run "flutter build ios --config-only".',
+      );
+    }
+    return valid;
+  }
+
+  Future<void> copyFramework(
+    Environment environment, {
+    EnvironmentType? environmentType,
+    required TargetPlatform targetPlatform,
+    required BuildMode buildMode,
+  }) async {
+    // Copy Flutter framework.
+    final String basePath = environment.artifacts.getArtifactPath(
+      targetPlatform == TargetPlatform.ios
+          ? Artifact.flutterFramework
+          : Artifact.flutterMacOSFramework,
+      platform: targetPlatform,
+      mode: buildMode,
+      environmentType: environmentType,
+    );
+
+    final ProcessResult result = await environment.processManager.run(<String>[
+      'rsync',
+      '-av',
+      '--delete',
+      '--filter',
+      '- .DS_Store/',
+      '--chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r',
+      basePath,
+      environment.outputDir.path,
+    ]);
+    if (result.exitCode != 0) {
+      throw Exception(
+        'Failed to copy framework (exit ${result.exitCode}:\n'
+        '${result.stdout}\n---\n${result.stderr}',
+      );
+    }
+  }
+
+  /// Destructively thin Flutter.framework to include only the specified architectures.
+  Future<void> thinFramework(
+    Environment environment,
+    String frameworkBinaryPath,
+    String archs,
+  ) async {
+    final List<String> archList = archs.split(' ').toList();
+    final ProcessResult infoResult = await environment.processManager.run(<String>[
+      'lipo',
+      '-info',
+      frameworkBinaryPath,
+    ]);
+    final String lipoInfo = infoResult.stdout as String;
+
+    final ProcessResult verifyResult = await environment.processManager.run(<String>[
+      'lipo',
+      frameworkBinaryPath,
+      '-verify_arch',
+      ...archList,
+    ]);
+
+    if (verifyResult.exitCode != 0) {
+      throw Exception(
+        'Binary $frameworkBinaryPath does not contain architectures "$archs".\n'
+        '\n'
+        'lipo -info:\n'
+        '$lipoInfo',
+      );
+    }
+
+    // Skip thinning for non-fat executables.
+    if (lipoInfo.startsWith('Non-fat file:')) {
+      environment.logger.printTrace('Skipping lipo for non-fat file $frameworkBinaryPath');
+      return;
+    }
+
+    // Thin in-place.
+    final ProcessResult extractResult = await environment.processManager.run(<String>[
+      'lipo',
+      '-output',
+      frameworkBinaryPath,
+      for (final String arch in archList) ...<String>['-extract', arch],
+      ...<String>[frameworkBinaryPath],
+    ]);
+
+    if (extractResult.exitCode != 0) {
+      throw Exception(
+        'Failed to extract architectures "$archs" for $frameworkBinaryPath.\n'
+        '\n'
+        'stderr:\n'
+        '${extractResult.stderr}\n\n'
+        'lipo -info:\n'
+        '$lipoInfo',
+      );
+    }
+  }
+
+  void _printXcodeWarning(String message) {
+    globals.stdio.stderrWrite('warning: $message');
   }
 }

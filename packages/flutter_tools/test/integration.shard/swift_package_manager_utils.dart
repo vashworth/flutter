@@ -290,6 +290,7 @@ class SwiftPackageManagerUtils {
       expectedLines.addAll(<String>[
         'FlutterGeneratedPluginSwiftPackage: $appPlatformDirectoryPath/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage',
         "➜ Explicit dependency on target 'FlutterGeneratedPluginSwiftPackage' in project 'FlutterGeneratedPluginSwiftPackage'",
+        "➜ Explicit dependency on target 'FlutterFramework' in project 'Flutter'"
       ]);
     }
     if (swiftPackagePlugin != null) {
@@ -300,6 +301,7 @@ class SwiftPackageManagerUtils {
             '${swiftPackagePlugin.pluginName}: [/private]*${swiftPackagePlugin.pluginPath}/$platform/${swiftPackagePlugin.pluginName} @ local',
           ),
           "➜ Explicit dependency on target '${swiftPackagePlugin.pluginName}' in project '${swiftPackagePlugin.pluginName}'",
+          "➜ Explicit dependency on target 'Flutter' in project 'Flutter'"
         ]);
       } else {
         expectedLines.addAll(<String>[

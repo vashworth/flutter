@@ -102,7 +102,6 @@ Future<void> buildMacOS({
       logger: globals.logger,
       fileSystem: globals.fs,
       plistParser: globals.plistParser,
-      features: featureFlags,
     ),
     SwiftPackageManagerGitignoreMigration(flutterProject, globals.logger),
     MetalAPIValidationMigrator.macos(flutterProject.macos, globals.logger),
@@ -163,6 +162,19 @@ Future<void> buildMacOS({
         deploymentTarget: macOSDeploymentTarget,
       );
     }
+
+    // Regenerate Flutter framework Swift Package to ensure correct build mode.
+    final SwiftPackageManager swiftPackageManager = SwiftPackageManager(
+      artifacts: globals.artifacts!,
+      cache: globals.cache,
+      fileSystem: globals.fs,
+      templateRenderer: globals.templateRenderer,
+    );
+    await swiftPackageManager.generateFlutterFrameworkSwiftPackage(
+      SupportedPlatform.macos,
+      flutterProject.macos,
+      buildMode: buildInfo.mode,
+    );
   }
 
   await processPodsIfNeeded(flutterProject.macos, getMacOSBuildDirectory(), buildInfo.mode);
