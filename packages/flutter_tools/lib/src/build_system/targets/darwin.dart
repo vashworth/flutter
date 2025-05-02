@@ -9,6 +9,7 @@ import 'package:meta/meta.dart';
 import '../../artifacts.dart';
 import '../../base/common.dart';
 import '../../base/file_system.dart';
+import '../../base/io.dart';
 import '../../build_info.dart';
 import '../../flutter_plugins.dart';
 import '../../globals.dart' as globals;
@@ -228,17 +229,18 @@ abstract class UnpackDarwin extends Target {
     return valid;
   }
 
+  /// Copies the [framework] artifact using `rsync` to the [environment.outputDir].
+  /// Throws an error if copy fails.
+  @protected
   Future<void> copyFramework(
     Environment environment, {
     EnvironmentType? environmentType,
-    required TargetPlatform targetPlatform,
+    TargetPlatform? targetPlatform,
+    required Artifact framework,
     required BuildMode buildMode,
   }) async {
-    // Copy Flutter framework.
     final String basePath = environment.artifacts.getArtifactPath(
-      targetPlatform == TargetPlatform.ios
-          ? Artifact.flutterFramework
-          : Artifact.flutterMacOSFramework,
+      framework,
       platform: targetPlatform,
       mode: buildMode,
       environmentType: environmentType,
@@ -262,7 +264,14 @@ abstract class UnpackDarwin extends Target {
     }
   }
 
-  /// Destructively thin Flutter.framework to include only the specified architectures.
+  /// Verifies and destructively thins the framework binary found at [frameworkBinaryPath]
+  /// to include only the architectures specified in [archs].
+  ///
+  /// [archs] should be a space separated list passed from Xcode containing one or
+  /// more architectures (e.g. "x86_64 arm64", "arm64", "x86_64").
+  ///
+  /// Throws an error if the binary does not contain the [archs] or fails to thin.
+  @protected
   Future<void> thinFramework(
     Environment environment,
     String frameworkBinaryPath,
@@ -304,7 +313,7 @@ abstract class UnpackDarwin extends Target {
       '-output',
       frameworkBinaryPath,
       for (final String arch in archList) ...<String>['-extract', arch],
-      ...<String>[frameworkBinaryPath],
+      frameworkBinaryPath,
     ]);
 
     if (extractResult.exitCode != 0) {

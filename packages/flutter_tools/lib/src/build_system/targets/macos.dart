@@ -82,9 +82,13 @@ abstract class UnpackMacOS extends UnpackDarwin {
       throw MissingDefineException(kBuildMode, 'unpack_macos');
     }
 
-    // Copy Flutter framework.
+    // Copy FlutterMacOS framework.
     final BuildMode buildMode = BuildMode.fromCliName(buildModeEnvironment);
-    await copyFramework(environment, targetPlatform: TargetPlatform.darwin, buildMode: buildMode);
+    await copyFramework(
+      environment,
+      framework: Artifact.flutterMacOSFramework,
+      buildMode: buildMode,
+    );
 
     _removeDenylistedFiles(environment.outputDir);
 

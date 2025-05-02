@@ -15,6 +15,7 @@ import 'base/file_system.dart';
 import 'base/os.dart';
 import 'base/platform.dart';
 import 'base/template.dart';
+import 'base/utils.dart';
 import 'base/version.dart';
 import 'cache.dart';
 import 'compute_dev_dependencies.dart';
@@ -30,6 +31,14 @@ import 'platform_plugins.dart';
 import 'plugins.dart';
 import 'project.dart';
 
+Future<bool> _fileContentsUnchanged(File file, String renderedTemplate) async {
+  if (!await file.exists()) {
+    return false;
+  }
+  final List<int> fileBytes = await file.readAsBytes();
+  return listEquals(fileBytes, renderedTemplate.codeUnits);
+}
+
 Future<void> _renderTemplateToFile(
   String template,
   Object? context,
@@ -37,6 +46,10 @@ Future<void> _renderTemplateToFile(
   TemplateRenderer templateRenderer,
 ) async {
   final String renderedTemplate = templateRenderer.renderString(template, context);
+  if (await _fileContentsUnchanged(file, renderedTemplate)) {
+    globals.printTrace('Skipping generating ${file.basename} because it is up-to-date.');
+    return;
+  }
   await file.create(recursive: true);
   await file.writeAsString(renderedTemplate);
 }
@@ -803,7 +816,7 @@ Future<void> writeIOSPluginRegistrant(
   );
   final Map<String, Object> context = <String, Object>{
     'os': 'ios',
-    'deploymentTarget': '12.0',
+    'deploymentTarget': '13.0',
     'framework': 'Flutter',
     'methodChannelPlugins': iosPlugins,
     'usesSwiftPackageManager': project.ios.usesSwiftPackageManager,
@@ -1329,7 +1342,9 @@ Future<void> injectPlugins(
             templateRenderer: globals.templateRenderer,
           ),
           fileSystem: globals.fs,
+          featureFlags: featureFlags,
           logger: globals.logger,
+          analytics: globals.analytics,
         );
     if (iosPlatform) {
       await darwinDependencyManagerSetup.setUp(platform: SupportedPlatform.ios);
