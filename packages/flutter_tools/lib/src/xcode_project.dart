@@ -136,6 +136,8 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// checked in should live here.
   Directory get ephemeralDirectory => managedDirectory.childDirectory('ephemeral');
 
+  SupportedPlatform get supportedPlatform;
+
   /// The Flutter generated directory for generated Swift Packages.
   Directory get flutterSwiftPackageDirectory => ephemeralDirectory.childDirectory('Packages');
 
@@ -217,7 +219,7 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
       final SwiftPackageManagerIntegrationMigration migration =
           SwiftPackageManagerIntegrationMigration(
             this,
-            SupportedPlatform.ios,
+            supportedPlatform,
             null,
             xcodeProjectInterpreter: globals.xcodeProjectInterpreter!,
             logger: globals.logger,
@@ -462,6 +464,9 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
 
   /// Whether the Flutter application has an iOS project.
   bool get exists => hostAppRoot.existsSync();
+
+  @override
+  SupportedPlatform get supportedPlatform => SupportedPlatform.ios;
 
   @override
   Directory get managedDirectory => _flutterLibRoot.childDirectory('Flutter');
@@ -970,6 +975,9 @@ class MacOSProject extends XcodeBasedProject {
 
   @override
   bool existsSync() => hostAppRoot.existsSync();
+
+  @override
+  SupportedPlatform get supportedPlatform => SupportedPlatform.macos;
 
   @override
   Directory get hostAppRoot => parent.directory.childDirectory('macos');
