@@ -208,10 +208,24 @@ let engine = "$engineVersion"
   ) async {
     _validatePlatform(platform);
 
+    final Directory symlinksDir = project.flutterSwiftPackageDirectory.childDirectory('.symlinks');
+    ErrorHandlingFileSystem.deleteIfExists(symlinksDir, recursive: true);
+    symlinksDir.createSync(recursive: true);
+
     final (
       List<SwiftPackagePackageDependency> packageDependencies,
       List<SwiftPackageTargetDependency> targetDependencies,
-    ) = dependenciesForPlugins(plugins: plugins, platform: platform, fileSystem: _fileSystem);
+    ) = dependenciesForPlugins(
+      plugins: plugins,
+      platform: platform,
+      fileSystem: _fileSystem,
+      symlinkDirectory: symlinksDir,
+      alterPath:
+          (String path) => _fileSystem.path.relative(
+            path,
+            from: project.flutterPluginSwiftPackageManifest.parent.path,
+          ),
+    );
 
     // If there aren't any Swift Package plugins and the project hasn't been
     // migrated yet, don't generate a Swift package or migrate the app since
@@ -265,6 +279,7 @@ let engine = "$engineVersion"
     required SupportedPlatform platform,
     required FileSystem fileSystem,
     String Function(String)? alterPath,
+    Directory? symlinkDirectory,
   }) {
     final List<SwiftPackagePackageDependency> packageDependencies =
         <SwiftPackagePackageDependency>[];
@@ -282,6 +297,11 @@ let engine = "$engineVersion"
       }
 
       String packagePath = fileSystem.file(pluginSwiftPackageManifestPath).parent.path;
+      if (symlinkDirectory != null) {
+        final Link pluginSymlink = symlinkDirectory.childLink(plugin.name);
+        pluginSymlink.createSync(packagePath);
+        packagePath = pluginSymlink.path;
+      }
       if (alterPath != null) {
         packagePath = alterPath(packagePath);
       }
