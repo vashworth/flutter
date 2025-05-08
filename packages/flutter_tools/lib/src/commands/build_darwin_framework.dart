@@ -401,7 +401,7 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
       plugins: dependencies,
       platform: platform,
       fileSystem: fileSystem,
-      alterPath: (String path) => fileSystem.path.relative(path, from: manifestFile.parent.path),
+      pathRelativeTo: manifestFile.parent.path,
     );
 
     final (
@@ -411,7 +411,7 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
       plugins: devDependencies,
       platform: platform,
       fileSystem: fileSystem,
-      alterPath: (String path) => fileSystem.path.relative(path, from: manifestFile.parent.path),
+      pathRelativeTo: manifestFile.parent.path,
     );
 
     // Add CocoaPods plugins to Package.swift

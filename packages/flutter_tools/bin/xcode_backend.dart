@@ -291,7 +291,7 @@ class Context {
 
         // If the Flutter framework in the Runner.app has the correct build mode and engine version, we don't need to copy it.
         if (engineVersionInBuild == engineVersionFromCache && engineBuildMode == currentBuildMode) {
-          // TODO: SPM - validate local engine doesn't skip. Is a new engine version used each time it builds?
+          // TODO: SPM - validate local engine
           skipFlutterFrameworkCopy = true;
         }
       } on Exception catch (e) {

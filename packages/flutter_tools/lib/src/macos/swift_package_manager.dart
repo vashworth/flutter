@@ -53,6 +53,15 @@ class SwiftPackageManager {
         version: Version(10, 15, null),
       );
 
+  Future<void> generateFlutterSwiftPackages(
+    SupportedPlatform platform,
+    XcodeBasedProject xcodeProject,
+    List<Plugin> plugins,
+  ) async {
+    await generateFlutterFrameworkSwiftPackage(platform, xcodeProject);
+    await _generatePluginsSwiftPackage(plugins, platform, xcodeProject);
+  }
+
   /// Creates a Swift Package that vends the (symlinked) Flutter framework.
   Future<void> generateFlutterFrameworkSwiftPackage(
     SupportedPlatform platform,
@@ -201,7 +210,7 @@ let engine = "$engineVersion"
   /// Creates a Swift Package called 'FlutterGeneratedPluginSwiftPackage' that
   /// has dependencies on Flutter plugins that are compatible with Swift
   /// Package Manager.
-  Future<void> generatePluginsSwiftPackage(
+  Future<void> _generatePluginsSwiftPackage(
     List<Plugin> plugins,
     SupportedPlatform platform,
     XcodeBasedProject project,
@@ -220,11 +229,7 @@ let engine = "$engineVersion"
       platform: platform,
       fileSystem: _fileSystem,
       symlinkDirectory: symlinksDir,
-      alterPath:
-          (String path) => _fileSystem.path.relative(
-            path,
-            from: project.flutterPluginSwiftPackageManifest.parent.path,
-          ),
+      pathRelativeTo: project.flutterPluginSwiftPackageDirectory.path,
     );
 
     // If there aren't any Swift Package plugins and the project hasn't been
@@ -280,6 +285,7 @@ let engine = "$engineVersion"
     required FileSystem fileSystem,
     String Function(String)? alterPath,
     Directory? symlinkDirectory,
+    String? pathRelativeTo,
   }) {
     final List<SwiftPackagePackageDependency> packageDependencies =
         <SwiftPackagePackageDependency>[];
@@ -302,8 +308,8 @@ let engine = "$engineVersion"
         pluginSymlink.createSync(packagePath);
         packagePath = pluginSymlink.path;
       }
-      if (alterPath != null) {
-        packagePath = alterPath(packagePath);
+      if (pathRelativeTo != null) {
+        packagePath = fileSystem.path.relative(packagePath, from: pathRelativeTo);
       }
 
       packageDependencies.add(

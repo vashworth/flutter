@@ -72,8 +72,7 @@ Future<void> processPodsIfNeeded(
     final SupportedPlatform platform =
         xcodeProject is IosProject ? SupportedPlatform.ios : SupportedPlatform.macos;
 
-    await swiftPackageManager.generatePluginsSwiftPackage(const <Plugin>[], platform, xcodeProject);
-    // TODO: SPM - flutter framework?
+    await swiftPackageManager.generateFlutterSwiftPackages(platform, xcodeProject, <Plugin>[]);
   }
 
   // If the Xcode project, Podfile, generated plugin Swift Package, or podhelper
