@@ -657,7 +657,7 @@ end
     final Status status = globals.logger.startProgress(
       ' ├─Creating Flutter Framework Swift Package...',
     );
-    final Directory flutterFrameworkSwiftPackage = outputDirectory.childDirectory('flutterswiftpackage');
+    final Directory flutterFrameworkSwiftPackage = outputDirectory.childDirectory('FlutterFramework');
     // ErrorHandlingFileSystem.deleteIfExists(flutterFrameworkSwiftPackage, recursive: true);
     for (final BuildInfo buildInfo in buildInfos) {
       final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);

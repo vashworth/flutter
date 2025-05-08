@@ -150,7 +150,7 @@ abstract class Target {
   ///
   /// Returning `true` will cause [build] to be skipped. This is equivalent
   /// to a build that produces no outputs.
-  bool canSkip(Environment environment) => false;
+  Future<bool> canSkip(Environment environment) async => false;
 
   /// The action which performs this build step.
   Future<void> build(Environment environment);
@@ -865,7 +865,7 @@ class _BuildInstance {
       node.outputs.clear();
 
       // Check if we can skip via runtime dependencies.
-      final bool runtimeSkip = node.target.canSkip(environment);
+      final bool runtimeSkip = await node.target.canSkip(environment);
       if (runtimeSkip) {
         logger.printTrace('Skipping target: ${node.target.name}');
         skipped = true;

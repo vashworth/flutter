@@ -208,7 +208,7 @@ let engine = "$engineVersion"
   ) async {
     _validatePlatform(platform);
 
-    final Directory symlinksDir = project.flutterSwiftPackageDirectory.childDirectory('.symlinks');
+    final Directory symlinksDir = project.flutterSwiftPackagesDirectory.childDirectory('.symlinks');
     ErrorHandlingFileSystem.deleteIfExists(symlinksDir, recursive: true);
     symlinksDir.createSync(recursive: true);
 

@@ -57,9 +57,9 @@ class SwiftPackageManagerIntegrationMigration extends ProjectMigrator {
   static const String _flutterPluginsSwiftPackageProductDependencyIdentifier =
       '78A3181F2AECB46A00862997';
 
-  /// New identifier for flutterswiftpackage PBXFileReference.
+  /// New identifier for FlutterFramework PBXFileReference.
   static const String _flutterFrameworkSwiftPackageFileIdentifier = '784666492D4C4C64000A1A5F';
-  static const String _flutterFrameworkSwiftPackageName = 'flutterswiftpackage';
+  static const String _flutterFrameworkSwiftPackageName = 'FlutterFramework';
 
   /// New identifier for FlutterGeneratedPluginSwiftPackage PBXFileReference.
   static const String _flutterPluginsSwiftPackageFileIdentifer = '78E0A7A72DC9AD7400C4905E';

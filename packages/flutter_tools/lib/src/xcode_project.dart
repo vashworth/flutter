@@ -139,16 +139,16 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   SupportedPlatform get supportedPlatform;
 
   /// The Flutter generated directory for generated Swift Packages.
-  Directory get flutterSwiftPackageDirectory => ephemeralDirectory.childDirectory('Packages');
+  Directory get flutterSwiftPackagesDirectory => ephemeralDirectory.childDirectory('Packages');
 
   /// The Flutter generated directory for the Swift Package handling the Flutter framework.
   Directory get flutterFrameworkSwiftPackageDirectory =>
-      flutterSwiftPackageDirectory.childDirectory('flutterswiftpackage');
+      flutterSwiftPackagesDirectory.childDirectory('FlutterFramework');
 
   /// The Flutter generated directory for the Swift Package handling plugin
   /// dependencies.
   Directory get flutterPluginSwiftPackageDirectory =>
-      flutterSwiftPackageDirectory.childDirectory('FlutterGeneratedPluginSwiftPackage');
+      flutterSwiftPackagesDirectory.childDirectory('FlutterGeneratedPluginSwiftPackage');
 
   /// The Flutter generated Swift Package manifest (Package.swift) for plugin
   /// dependencies.
@@ -171,7 +171,7 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// project's build settings by checking the contents of the pbxproj.
   bool get flutterFrameworkSwiftPackageInProjectSettings {
     return xcodeProjectInfoFile.existsSync() &&
-        xcodeProjectInfoFile.readAsStringSync().contains('784666492D4C4C64000A1A5F /* flutterswiftpackage */');
+        xcodeProjectInfoFile.readAsStringSync().contains('784666492D4C4C64000A1A5F /* FlutterFramework */');
   }
 
   /// True if this project doesn't have Swift Package Manager disabled in the

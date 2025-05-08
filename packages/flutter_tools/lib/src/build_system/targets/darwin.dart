@@ -161,22 +161,30 @@ abstract class CheckDevDependencies extends Target {
 abstract class UnpackDarwin extends Target {
   const UnpackDarwin();
 
-  // TODO: SPM - does macOS need too?
-  @override
-  bool canSkip(Environment environment) =>
-      environment.defines[kXcodeBuildScript] == kNativePrepareXcodeBuildScript;
+  @visibleForOverriding
+  SupportedPlatform get supportedPlatform;
 
-  Future<bool> shouldSkip(Environment environment, XcodeBasedProject xcodeProject) async {
-    // buildPhase may be null if this target is not called from a Xcode Build Script.
-    // For example, this target is called directly in `flutter build ios-framework`.
-    final String? buildPhase = environment.defines[kXcodeBuildScript];
-    if (buildPhase == kPrepareXcodeBuildScript) {
+  @override
+  Future<bool> canSkip(Environment environment) async {
+    final String? buildScript = environment.defines[kXcodeBuildScript];
+    if (buildScript == kNativePrepareXcodeBuildScript) {
+      return true;
+    }
+    final FlutterProject flutterProject = FlutterProject.fromDirectory(environment.projectDir);
+    final XcodeBasedProject xcodeProject;
+    if (supportedPlatform == SupportedPlatform.ios) {
+      xcodeProject = flutterProject.ios;
+    } else {
+      xcodeProject = flutterProject.macos;
+    }
+
+    if (buildScript == kPrepareXcodeBuildScript) {
       final bool valid = await _validateSwiftPackagePlugins(environment, xcodeProject);
       // If all plugins are valid, they do not rely on the prepare action, so it can be skipped.
       if (valid) {
         return true;
       }
-    } else if (xcodeProject.usesSwiftPackageManager) {
+    } else if (buildScript == kBuildXcodeBuildScript && xcodeProject.usesSwiftPackageManager) {
       // Skip copying the Flutter framework during the build Run Script if Swift Package Manager is being used.
       // Swift Package Manager now handles the Flutter framework.
       return true;
@@ -196,13 +204,13 @@ abstract class UnpackDarwin extends Target {
     for (final Plugin plugin in plugins) {
       final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
         environment.fileSystem,
-        'ios',
+        supportedPlatform.name,
       );
       if (pluginSwiftPackageManifestPath == null) {
         continue;
       }
       final File swiftManifest = environment.fileSystem.file(pluginSwiftPackageManifestPath);
-      if (plugin.platforms['ios'] == null || !swiftManifest.existsSync()) {
+      if (plugin.platforms[supportedPlatform.name] == null || !swiftManifest.existsSync()) {
         continue;
       }
 
@@ -218,12 +226,11 @@ abstract class UnpackDarwin extends Target {
       }
     }
 
-    // TODO: SPM - macos
-    // TODO: error?
+    // TODO: SPM - error?
     if (xcodeProject.flutterFrameworkSwiftPackageInProjectSettings &&
         hasFlutterFrameworkRemoteDependency) {
       _printXcodeWarning(
-        'You project is missing settings. Please run "flutter build ios --config-only".',
+        'You project is missing settings. Please run "flutter build ${supportedPlatform.name} --config-only".',
       );
     }
     return valid;
@@ -329,6 +336,6 @@ abstract class UnpackDarwin extends Target {
   }
 
   void _printXcodeWarning(String message) {
-    globals.stdio.stderrWrite('warning: $message');
+    globals.stdio.stderrWrite('warning: $message\n');
   }
 }

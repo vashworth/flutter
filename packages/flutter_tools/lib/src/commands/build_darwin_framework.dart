@@ -429,15 +429,16 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     targetDependencies.add(SwiftPackageTargetDependency.target(name: 'App'));
 
     // Add Flutter framework as a dependency
+    // TODO: SPM - relative paths
     packageDependencies.add(
       SwiftPackagePackageDependency.remoteClosedRange(
-        repositoryUrl: 'https://github.com/flutter/flutterswiftpackage',
+        repositoryUrl: 'https://github.com/flutter/FlutterFramework',
         lowerLimit: '0.0.0',
         upperLimit: '999.999.999',
       ),
     );
     targetDependencies.add(
-      SwiftPackageTargetDependency.product(name: 'Flutter', packageName: 'flutterswiftpackage'),
+      SwiftPackageTargetDependency.product(name: 'Flutter', packageName: 'FlutterFramework'),
     );
 
     final List<SwiftPackageTarget> targets = <SwiftPackageTarget>[

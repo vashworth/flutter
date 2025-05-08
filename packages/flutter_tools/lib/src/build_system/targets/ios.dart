@@ -249,7 +249,7 @@ abstract class UnpackIOS extends UnpackDarwin {
     ),
     Source.artifact(Artifact.flutterXcframework, platform: TargetPlatform.ios, mode: buildMode),
 
-    // TODO: SPM - test
+    // Rerun target if dependencies change because [canSkip] might differ.
     Source.fromProject((FlutterProject project) => project.flutterPluginsDependenciesFile),
   ];
 
@@ -265,12 +265,10 @@ abstract class UnpackIOS extends UnpackDarwin {
   BuildMode get buildMode;
 
   @override
-  Future<void> build(Environment environment) async {
-    final FlutterProject flutterProject = FlutterProject.fromDirectory(environment.projectDir);
-    if (await shouldSkip(environment, flutterProject.ios)) {
-      return;
-    }
+  SupportedPlatform get supportedPlatform => SupportedPlatform.ios;
 
+  @override
+  Future<void> build(Environment environment) async {
     final String? sdkRoot = environment.defines[kSdkRoot];
     if (sdkRoot == null) {
       throw MissingDefineException(kSdkRoot, name);

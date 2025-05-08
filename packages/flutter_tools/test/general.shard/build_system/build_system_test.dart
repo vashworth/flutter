@@ -791,7 +791,7 @@ class TestTarget extends Target {
   final bool Function(Environment environment)? _canSkip;
 
   @override
-  bool canSkip(Environment environment) {
+  Future<bool> canSkip(Environment environment) async {
     if (_canSkip != null) {
       return _canSkip(environment);
     }

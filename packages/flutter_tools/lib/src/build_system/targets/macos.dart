@@ -41,9 +41,9 @@ abstract class UnpackMacOS extends UnpackDarwin {
       '{FLUTTER_ROOT}/packages/flutter_tools/lib/src/build_system/targets/macos.dart',
     ),
 
-    // TODO: SPM - test
+    // Rerun target if dependencies change because [canSkip] might differ.
     Source.fromProject((FlutterProject project) => project.flutterPluginsDependenciesFile),
-    Source.fromProject((FlutterProject project) => project.macos.flutterPluginSwiftPackageManifest),
+    // Source.fromProject((FlutterProject project) => project.macos.flutterPluginSwiftPackageManifest),
   ];
 
   @override
@@ -53,12 +53,13 @@ abstract class UnpackMacOS extends UnpackDarwin {
     // the framework, the build will fail with an error about multiple commands
     // producing the same output. Only output the framework if the
     // FlutterGeneratedPluginSwiftPackage package doesn't depend on any plugins.
-
-    // TODO: SPM - checking by flutterFrameworkSwiftPackageManifest doesn't work when there are no plugins
     final FlutterProject flutterProject = FlutterProject.current();
     if (flutterProject.macos.usesSwiftPackageManager) {
-      final File swiftPackage = flutterProject.macos.flutterFrameworkSwiftPackageManifest;
-      if (swiftPackage.existsSync()) {
+      final File swiftPackage = flutterProject.macos.flutterPluginSwiftPackageManifest;
+      if (swiftPackage.existsSync() &&
+          swiftPackage
+              .readAsStringSync()
+              .contains('package:')) {
         return <Source>[];
       }
     }
@@ -71,12 +72,10 @@ abstract class UnpackMacOS extends UnpackDarwin {
   List<Target> get dependencies => <Target>[];
 
   @override
-  Future<void> build(Environment environment) async {
-    final FlutterProject flutterProject = FlutterProject.fromDirectory(environment.projectDir);
-    if (await shouldSkip(environment, flutterProject.macos)) {
-      return;
-    }
+  SupportedPlatform get supportedPlatform => SupportedPlatform.macos;
 
+  @override
+  Future<void> build(Environment environment) async {
     final String? buildModeEnvironment = environment.defines[kBuildMode];
     if (buildModeEnvironment == null) {
       throw MissingDefineException(kBuildMode, 'unpack_macos');

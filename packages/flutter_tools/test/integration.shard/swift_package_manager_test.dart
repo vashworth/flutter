@@ -93,7 +93,7 @@ void main() {
                 .childDirectory('Flutter')
                 .childDirectory('ephemeral')
                 .childDirectory('Packages')
-                .childDirectory('flutterswiftpackage'),
+                .childDirectory('FlutterFramework'),
             isNot(exists),
           );
 
@@ -155,7 +155,7 @@ void main() {
                 .childDirectory('Flutter')
                 .childDirectory('ephemeral')
                 .childDirectory('Packages')
-                .childDirectory('flutterswiftpackage'),
+                .childDirectory('FlutterFramework'),
             exists,
           );
 
@@ -208,7 +208,7 @@ void main() {
                 .childDirectory('Flutter')
                 .childDirectory('ephemeral')
                 .childDirectory('Packages')
-                .childDirectory('flutterswiftpackage'),
+                .childDirectory('FlutterFramework'),
             exists,
           );
 

@@ -256,6 +256,12 @@ Future<List<String>> _xcodeBuildSettingsLines({
     xcodeBuildSettings.add('EXCLUDED_ARCHS[sdk=iphoneos*]=armv7');
   }
 
+  if (useMacOSConfig) {
+    xcodeBuildSettings.add('FLUTTER_SWIFT_PACKAGE_MANAGER_ENABLED=${project.macos.usesSwiftPackageManager}');
+  } else {
+    xcodeBuildSettings.add('FLUTTER_SWIFT_PACKAGE_MANAGER_ENABLED=${project.ios.usesSwiftPackageManager}');
+  }
+
   for (final MapEntry<String, String> config in buildInfo.toEnvironmentConfig().entries) {
     xcodeBuildSettings.add('${config.key}=${config.value}');
   }
