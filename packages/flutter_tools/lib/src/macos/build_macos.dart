@@ -157,7 +157,7 @@ Future<void> buildMacOS({
     final String? macOSDeploymentTarget = buildSettings['MACOSX_DEPLOYMENT_TARGET'];
     if (macOSDeploymentTarget != null) {
       SwiftPackageManager.updateMinimumDeployment(
-        platform: SupportedPlatform.macos,
+        platform: DarwinPlatform.macos,
         project: flutterProject.macos,
         deploymentTarget: macOSDeploymentTarget,
       );
@@ -171,7 +171,7 @@ Future<void> buildMacOS({
       templateRenderer: globals.templateRenderer,
     );
     await swiftPackageManager.generateFlutterFrameworkSwiftPackage(
-      SupportedPlatform.macos,
+      DarwinPlatform.macos,
       flutterProject.macos,
       buildMode: buildInfo.mode,
     );

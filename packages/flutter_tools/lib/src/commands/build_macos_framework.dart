@@ -19,6 +19,7 @@ import '../features.dart';
 import '../flutter_plugins.dart';
 import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
+import '../macos/swift_package_manager.dart';
 import '../runner/flutter_command.dart' show DevelopmentArtifact, FlutterCommandResult;
 import '../version.dart';
 import 'build_darwin_framework.dart';
@@ -52,6 +53,10 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
   };
 
   @override
+  List<DarwinPlatform> get targetPlatforms => <DarwinPlatform>[DarwinPlatform.macos];
+
+
+  @override
   bool get regeneratePlatformSpecificToolingDuringVerify => false;
 
   @override
@@ -73,6 +78,11 @@ class BuildMacOSFrameworkCommand extends BuildFrameworkCommand {
     );
 
     final List<BuildInfo> buildInfos = await getBuildInfos();
+
+    if (project.ios.usesSwiftPackageManager) {
+      return buildWithSwiftPM(buildInfos: buildInfos, outputDirectory: outputDirectory);
+    }
+
     for (final BuildInfo buildInfo in buildInfos) {
       globals.printStatus('Building macOS frameworks in ${buildInfo.mode.cliName} mode...');
       // Create the build-mode specific metadata.
@@ -290,6 +300,7 @@ end
       <Directory>[appFramework],
       'App',
       outputBuildDirectory,
+      globals.fs.directory(getMacOSBuildDirectory()),
       globals.processManager,
       sentenceCase(buildInfo.mode.cliName)
     );
@@ -366,6 +377,7 @@ end
             <Directory>[podProduct as Directory],
             binaryName,
             modeDirectory,
+            globals.fs.directory(getMacOSBuildDirectory()),
             globals.processManager,
             xcodeBuildConfiguration
           );

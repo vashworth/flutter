@@ -298,7 +298,7 @@ Future<XcodeBuildResult> buildXcodeProject({
     final String? iosDeploymentTarget = buildSettings['IPHONEOS_DEPLOYMENT_TARGET'];
     if (iosDeploymentTarget != null) {
       SwiftPackageManager.updateMinimumDeployment(
-        platform: SupportedPlatform.ios,
+        platform: DarwinPlatform.ios,
         project: project.ios,
         deploymentTarget: iosDeploymentTarget,
       );
@@ -312,7 +312,7 @@ Future<XcodeBuildResult> buildXcodeProject({
       templateRenderer: globals.templateRenderer,
     );
     await swiftPackageManager.generateFlutterFrameworkSwiftPackage(
-      SupportedPlatform.ios,
+      DarwinPlatform.ios,
       project.ios,
       buildMode: buildInfo.mode,
     );

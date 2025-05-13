@@ -6,11 +6,14 @@ import '../artifacts.dart';
 import '../base/common.dart';
 import '../base/error_handling_io.dart';
 import '../base/file_system.dart';
+import '../base/logger.dart';
+import '../base/process.dart';
 import '../base/template.dart';
 import '../base/utils.dart';
 import '../base/version.dart';
 import '../build_info.dart';
 import '../cache.dart';
+import '../globals.dart' as globals;
 import '../plugins.dart';
 import '../project.dart';
 import 'swift_packages.dart';
@@ -54,7 +57,7 @@ class SwiftPackageManager {
       );
 
   Future<void> generateFlutterSwiftPackages(
-    SupportedPlatform platform,
+    DarwinPlatform platform,
     XcodeBasedProject xcodeProject,
     List<Plugin> plugins,
   ) async {
@@ -62,75 +65,71 @@ class SwiftPackageManager {
     await _generatePluginsSwiftPackage(plugins, platform, xcodeProject);
   }
 
-  /// Creates a Swift Package that vends the (symlinked) Flutter framework.
   Future<void> generateFlutterFrameworkSwiftPackage(
-    SupportedPlatform platform,
+    DarwinPlatform platform,
     XcodeBasedProject project, {
     BuildMode buildMode = BuildMode.release,
-    File? overrideManifestPath,
+  }) async {
+    await generateConditionalFlutterFrameworkSwiftPackage(
+      project.parent,
+      platforms: <DarwinPlatform>[platform],
+      buildMode: buildMode,
+      manifestPath: project.flutterFrameworkSwiftPackageManifest,
+    );
+  }
+
+  /// Creates a Swift Package that vends the (symlinked) Flutter framework.
+  Future<void> generateConditionalFlutterFrameworkSwiftPackage(
+    FlutterProject project, {
+    required List<DarwinPlatform> platforms,
+    BuildMode buildMode = BuildMode.release,
+    required File manifestPath,
     bool remoteFramework = false,
   }) async {
-    _validatePlatform(platform);
-
     final String engineVersion = _cache.engineRevision;
     final String buildModeName = sentenceCase(buildMode.cliName);
 
-    // FlutterGeneratedPluginSwiftPackage must be statically linked to ensure
-    // any dynamic dependencies are linked to Runner and prevent undefined symbols.
     final SwiftPackageProduct generatedProduct = SwiftPackageProduct(
       name: 'Flutter',
       targets: <String>['FlutterFramework'],
     );
 
-    // if (remoteFramework) {
-    //   final SwiftPackageTarget remoteFrameworkTarget = await remoteFlutterFrameworkTarget(
-    //     buildMode,
-    //   );
-    //   final SwiftPackage flutterFrameworkPackage = SwiftPackage(
-    //     manifest: overrideManifestPath ?? project.flutterFrameworkSwiftPackageManifest,
-    //     name: 'Flutter',
-    //     platforms: <SwiftPackageSupportedPlatform>[],
-    //     products: <SwiftPackageProduct>[generatedProduct],
-    //     dependencies: <SwiftPackagePackageDependency>[],
-    //     targets: <SwiftPackageTarget>[
-    //       SwiftPackageTarget.defaultTarget(
-    //         name: 'FlutterFramework',
-    //         dependencies: <SwiftPackageTargetDependency>[SwiftPackageTargetDependency.target(name: 'Flutter')],
-    //       ),
-    //       remoteFrameworkTarget,
-    //     ],
-    //     templateRenderer: _templateRenderer,
-    //   );
-    //   flutterFrameworkPackage.createSwiftPackage();
-    //   return;
-    // }
+    final List<SwiftPackageTargetDependency> targetDependencies = <SwiftPackageTargetDependency>[];
+    final List<SwiftPackageTarget> binaryTargets = <SwiftPackageTarget>[];
 
-    final String frameworkName;
-    final List<SwiftPackagePlatform> platformCondition;
-    final String frameworkArtifactPath;
-
-    if (platform == SupportedPlatform.ios) {
-      frameworkName = 'Flutter';
-      platformCondition = <SwiftPackagePlatform>[SwiftPackagePlatform.ios];
-      frameworkArtifactPath = _artifacts.getArtifactPath(
-        Artifact.flutterXcframework,
-        platform: TargetPlatform.ios,
-        mode: BuildMode.release,
+    if (platforms.contains(DarwinPlatform.ios)) {
+      final (
+        SwiftPackageTargetDependency iosTargetDependencies,
+        SwiftPackageTarget iosBinaryTarget,
+      ) = await _createFrameworkDependency(
+        project: project.ios,
+        platform: DarwinPlatform.ios,
+        buildMode: buildMode,
+        buildModeName: buildModeName,
+        engineVersion: engineVersion,
+        remoteFramework: remoteFramework,
       );
-    } else {
-      frameworkName = 'FlutterMacOS';
-      platformCondition = <SwiftPackagePlatform>[SwiftPackagePlatform.macos];
-      frameworkArtifactPath = _artifacts.getArtifactPath(
-        Artifact.flutterMacOSXcframework,
-        platform: TargetPlatform.darwin,
-        mode: BuildMode.release,
+      targetDependencies.add(iosTargetDependencies);
+      binaryTargets.add(iosBinaryTarget);
+    }
+    if (platforms.contains(DarwinPlatform.macos)) {
+      final (
+        SwiftPackageTargetDependency macosTargetDependencies,
+        SwiftPackageTarget macosBinaryTarget,
+      ) = await _createFrameworkDependency(
+        project: project.macos,
+        platform: DarwinPlatform.macos,
+        buildMode: buildMode,
+        buildModeName: buildModeName,
+        engineVersion: engineVersion,
+        remoteFramework: remoteFramework,
       );
+      targetDependencies.add(macosTargetDependencies);
+      binaryTargets.add(macosBinaryTarget);
     }
 
-    final String xcframeworkName = '$frameworkName.xcframework';
-
     final SwiftPackage flutterFrameworkPackage = SwiftPackage(
-      manifest: overrideManifestPath ?? project.flutterFrameworkSwiftPackageManifest,
+      manifest: manifestPath,
       name: 'Flutter',
       swiftCodeBeforePackageDefinition: '''
 let mode = "$buildModeName"
@@ -142,21 +141,48 @@ let engine = "$engineVersion"
       targets: <SwiftPackageTarget>[
         SwiftPackageTarget.defaultTarget(
           name: 'FlutterFramework',
-          dependencies: <SwiftPackageTargetDependency>[
-            SwiftPackageTargetDependency.target(
-              name: frameworkName,
-              platformCondition: platformCondition,
-            ),
-          ],
+          dependencies: targetDependencies,
         ),
-        SwiftPackageTarget.binaryTarget(
-          name: frameworkName,
-          relativePath: '\\(mode)/\\(engine)/$xcframeworkName',
-        ),
+        ...binaryTargets,
       ],
       templateRenderer: _templateRenderer,
     );
     flutterFrameworkPackage.createSwiftPackage();
+  }
+
+  Future<(SwiftPackageTargetDependency, SwiftPackageTarget)> _createFrameworkDependency({
+    required XcodeBasedProject project,
+    required DarwinPlatform platform,
+    required BuildMode buildMode,
+    required String buildModeName,
+    required String engineVersion,
+    required bool remoteFramework,
+  }) async {
+    final String frameworkName = platform.frameworkName;
+    final SwiftPackageTargetDependency frameworkTarget = SwiftPackageTargetDependency.target(
+      name: frameworkName,
+      platformCondition: <SwiftPackagePlatform>[platform.packagePlatform],
+    );
+
+    if (remoteFramework) {
+      return (frameworkTarget, await _remoteFlutterFrameworkTarget(platform, buildMode));
+    }
+
+    final String frameworkArtifactPath;
+    if (platform == DarwinPlatform.ios) {
+      frameworkArtifactPath = _artifacts.getArtifactPath(
+        Artifact.flutterXcframework,
+        platform: TargetPlatform.ios,
+        mode: buildMode,
+      );
+    } else {
+      frameworkArtifactPath = _artifacts.getArtifactPath(
+        Artifact.flutterMacOSXcframework,
+        platform: TargetPlatform.darwin,
+        mode: buildMode,
+      );
+    }
+    final String xcframeworkName = '$frameworkName.xcframework';
 
     ErrorHandlingFileSystem.deleteIfExists(
       project.flutterFrameworkSwiftPackageDirectory.childDirectory(buildModeName),
@@ -170,53 +196,66 @@ let engine = "$engineVersion"
           .path,
     );
     frameworkLink.createSync(frameworkArtifactPath, recursive: true);
+
+    return (
+      frameworkTarget,
+      SwiftPackageTarget.binaryTarget(
+        name: frameworkName,
+        relativePath: '\\(mode)/\\(engine)/$xcframeworkName',
+      ),
+    );
   }
 
-  // Future<SwiftPackageTarget> remoteFlutterFrameworkTarget(BuildMode mode) async {
-  //   final Status status = globals.logger.startProgress(
-  //     'Downloading Flutter framework to calculate checksum...',
-  //   );
-  //   // TODO(vashworth): Limit to stable/beta branch
-  //   final String artifactsMode = mode == BuildMode.debug ? 'ios' : 'ios-${mode.cliName}';
-  //   final String frameworkArtifactUrl =
-  //       '${cache.storageBaseUrl}/flutter_infra_release/flutter/${cache.engineRevision}/$artifactsMode/artifacts.zip';
-  //   final Directory destination = globals.fs.systemTempDirectory.createTempSync(
-  //     'flutter_framework.',
-  //   );
-  //   await cache.downloadArtifact(
-  //     Uri.parse(frameworkArtifactUrl),
-  //     destination.childFile('artifacts.zip'),
-  //     status,
-  //   );
-  //   status.stop();
+  Future<SwiftPackageTarget> _remoteFlutterFrameworkTarget(
+    DarwinPlatform platform,
+    BuildMode mode,
+  ) async {
+    final Status status = globals.logger.startProgress(
+      'Downloading Flutter framework to calculate checksum...',
+    );
 
-  //   final RunResult results = await globals.processUtils.run(<String>[
-  //     'swift',
-  //     'package',
-  //     'compute-checksum',
-  //     destination.childFile('artifacts.zip').path,
-  //   ]);
-  //   if (results.exitCode != 0) {
-  //     throwToolExit('Failed to get checksum for Flutter framework: ${results.stderr}');
-  //   }
+    final String artifactName = platform.artifactName;
+    final String artifactZip = platform.artifactZip;
 
-  //   return SwiftPackageTarget.remoteBinaryTarget(
-  //     name: 'Flutter',
-  //     zipUrl: frameworkArtifactUrl,
-  //     zipChecksum: results.stdout.trim(),
-  //   );
-  // }
+    final String artifactsMode =
+        mode == BuildMode.debug ? artifactName : '$artifactName-${mode.cliName}';
+    final String frameworkArtifactUrl =
+        '${_cache.storageBaseUrl}/flutter_infra_release/flutter/${_cache.engineRevision}/$artifactsMode/$artifactZip';
+    final Directory destination = globals.fs.systemTempDirectory.createTempSync(
+      'flutter_framework.',
+    );
+    await _cache.downloadArtifact(
+      Uri.parse(frameworkArtifactUrl),
+      destination.childFile(artifactZip),
+      status,
+    );
+    status.stop();
+
+    final RunResult results = await globals.processUtils.run(<String>[
+      'swift',
+      'package',
+      'compute-checksum',
+      destination.childFile(artifactZip).path,
+    ]);
+    if (results.exitCode != 0) {
+      throwToolExit('Failed to get checksum for Flutter framework: ${results.stderr}');
+    }
+
+    return SwiftPackageTarget.remoteBinaryTarget(
+      name: platform.frameworkName,
+      zipUrl: frameworkArtifactUrl,
+      zipChecksum: results.stdout.trim(),
+    );
+  }
 
   /// Creates a Swift Package called 'FlutterGeneratedPluginSwiftPackage' that
   /// has dependencies on Flutter plugins that are compatible with Swift
   /// Package Manager.
   Future<void> _generatePluginsSwiftPackage(
     List<Plugin> plugins,
-    SupportedPlatform platform,
+    DarwinPlatform platform,
     XcodeBasedProject project,
   ) async {
-    _validatePlatform(platform);
-
     final Directory symlinksDir = project.flutterSwiftPackagesDirectory.childDirectory('.symlinks');
     ErrorHandlingFileSystem.deleteIfExists(symlinksDir, recursive: true);
     symlinksDir.createSync(recursive: true);
@@ -226,7 +265,7 @@ let engine = "$engineVersion"
       List<SwiftPackageTargetDependency> targetDependencies,
     ) = dependenciesForPlugins(
       plugins: plugins,
-      platform: platform,
+      platforms: <DarwinPlatform>[platform],
       fileSystem: _fileSystem,
       symlinkDirectory: symlinksDir,
       pathRelativeTo: project.flutterPluginSwiftPackageDirectory.path,
@@ -242,7 +281,7 @@ let engine = "$engineVersion"
     }
 
     final SwiftPackageSupportedPlatform swiftSupportedPlatform;
-    if (platform == SupportedPlatform.ios) {
+    if (platform == DarwinPlatform.ios) {
       swiftSupportedPlatform = iosSwiftPackageSupportedPlatform;
     } else {
       swiftSupportedPlatform = macosSwiftPackageSupportedPlatform;
@@ -275,15 +314,11 @@ let engine = "$engineVersion"
 
   /// Generate a list of [SwiftPackagePackageDependency] and [SwiftPackageTargetDependency]
   /// from a list of [plugins] for the given [platform].
-  ///
-  /// If [alterPath] is provided, alter the [SwiftPackagePackageDependency]'s
-  /// path using the provided function.
   static (List<SwiftPackagePackageDependency>, List<SwiftPackageTargetDependency>)
   dependenciesForPlugins({
     required List<Plugin> plugins,
-    required SupportedPlatform platform,
+    required List<DarwinPlatform> platforms,
     required FileSystem fileSystem,
-    String Function(String)? alterPath,
     Directory? symlinkDirectory,
     String? pathRelativeTo,
   }) {
@@ -292,29 +327,39 @@ let engine = "$engineVersion"
     final List<SwiftPackageTargetDependency> targetDependencies = <SwiftPackageTargetDependency>[];
 
     for (final Plugin plugin in plugins) {
-      final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
-        fileSystem,
-        platform.name,
-      );
-      if (plugin.platforms[platform.name] == null ||
-          pluginSwiftPackageManifestPath == null ||
-          !fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
-        continue;
-      }
+      final List<SwiftPackagePlatform> supportedPlatforms = <SwiftPackagePlatform>[];
+      final Set<String> manifests = <String>{};
+      for (final DarwinPlatform platform in platforms) {
+        final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
+          fileSystem,
+          platform.name,
+        );
+        if (plugin.platforms[platform.name] == null ||
+            pluginSwiftPackageManifestPath == null ||
+            !fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
+          continue;
+        }
+        supportedPlatforms.add(platform.packagePlatform);
+        if (manifests.contains(pluginSwiftPackageManifestPath)) {
+          continue;
+        }
+        manifests.add(pluginSwiftPackageManifestPath);
+        String packagePath = fileSystem.file(pluginSwiftPackageManifestPath).parent.path;
+        if (symlinkDirectory != null) {
+          final Link pluginSymlink = symlinkDirectory.childLink(plugin.name);
+          ErrorHandlingFileSystem.deleteIfExists(pluginSymlink);
+          pluginSymlink.createSync(packagePath);
+          packagePath = pluginSymlink.path;
+        }
 
-      String packagePath = fileSystem.file(pluginSwiftPackageManifestPath).parent.path;
-      if (symlinkDirectory != null) {
-        final Link pluginSymlink = symlinkDirectory.childLink(plugin.name);
-        pluginSymlink.createSync(packagePath);
-        packagePath = pluginSymlink.path;
-      }
-      if (pathRelativeTo != null) {
-        packagePath = fileSystem.path.relative(packagePath, from: pathRelativeTo);
-      }
+        if (pathRelativeTo != null) {
+          packagePath = fileSystem.path.relative(packagePath, from: pathRelativeTo);
+        }
 
-      packageDependencies.add(
-        SwiftPackagePackageDependency.local(packageName: plugin.name, localPath: packagePath),
-      );
+        packageDependencies.add(
+          SwiftPackagePackageDependency.local(packageName: plugin.name, localPath: packagePath),
+        );
+      }
 
       // The target dependency product name is hyphen separated because it's
       // the dependency's library name, which Swift Package Manager will
@@ -324,25 +369,16 @@ let engine = "$engineVersion"
         SwiftPackageTargetDependency.product(
           name: plugin.name.replaceAll('_', '-'),
           packageName: plugin.name,
+          platformCondition: supportedPlatforms,
         ),
       );
     }
     return (packageDependencies, targetDependencies);
   }
 
-  /// Validates the platform is either iOS or macOS, otherwise throw an error.
-  static void _validatePlatform(SupportedPlatform platform) {
-    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
-      throwToolExit(
-        'The platform ${platform.name} is not compatible with Swift Package Manager. '
-        'Only iOS and macOS are allowed.',
-      );
-    }
-  }
-
   /// If the project's IPHONEOS_DEPLOYMENT_TARGET/MACOSX_DEPLOYMENT_TARGET is
   /// higher than the FlutterGeneratedPluginSwiftPackage's default
-  /// SupportedPlatform, increase the SupportedPlatform to match the project's
+  /// DarwinPlatform, increase the DarwinPlatform to match the project's
   /// deployment target.
   ///
   /// This is done for the use case of a plugin requiring a higher iOS/macOS
@@ -358,18 +394,16 @@ let engine = "$engineVersion"
   /// deployment target for FlutterGeneratedPluginSwiftPackage.
   static void updateMinimumDeployment({
     required XcodeBasedProject project,
-    required SupportedPlatform platform,
+    required DarwinPlatform platform,
     required String deploymentTarget,
   }) {
     final Version? projectDeploymentTargetVersion = Version.parse(deploymentTarget);
     final SwiftPackageSupportedPlatform defaultPlatform;
-    final SwiftPackagePlatform packagePlatform;
-    if (platform == SupportedPlatform.ios) {
+    final SwiftPackagePlatform packagePlatform = platform.packagePlatform;
+    if (platform == DarwinPlatform.ios) {
       defaultPlatform = iosSwiftPackageSupportedPlatform;
-      packagePlatform = SwiftPackagePlatform.ios;
     } else {
       defaultPlatform = macosSwiftPackageSupportedPlatform;
-      packagePlatform = SwiftPackagePlatform.macos;
     }
 
     if (projectDeploymentTargetVersion == null ||
@@ -379,15 +413,78 @@ let engine = "$engineVersion"
     }
 
     final String manifestContents = project.flutterPluginSwiftPackageManifest.readAsStringSync();
-    final String oldSupportedPlatform = defaultPlatform.format();
-    final String newSupportedPlatform =
+    final String oldDarwinPlatform = defaultPlatform.format();
+    final String newDarwinPlatform =
         SwiftPackageSupportedPlatform(
           platform: packagePlatform,
           version: projectDeploymentTargetVersion,
         ).format();
 
     project.flutterPluginSwiftPackageManifest.writeAsStringSync(
-      manifestContents.replaceFirst(oldSupportedPlatform, newSupportedPlatform),
+      manifestContents.replaceFirst(oldDarwinPlatform, newDarwinPlatform),
     );
   }
+}
+
+enum DarwinPlatform {
+  ios(
+    name: 'ios',
+    frameworkName: 'Flutter',
+    targetPlatform: TargetPlatform.ios,
+    packagePlatform: SwiftPackagePlatform.ios,
+    artifactName: 'ios',
+    artifactZip: 'artifacts.zip',
+    xcframeworkArtifact: Artifact.flutterXcframework,
+    sdks: <DarwinSDK>[DarwinSDK.iphoneos, DarwinSDK.iphonesimulator],
+  ),
+  macos(
+    name: 'macos',
+    frameworkName: 'FlutterMacOS',
+    targetPlatform: TargetPlatform.darwin,
+    packagePlatform: SwiftPackagePlatform.macos,
+    artifactName: 'darwin-x64',
+    artifactZip: 'framework.zip',
+    xcframeworkArtifact: Artifact.flutterMacOSXcframework,
+    sdks: <DarwinSDK>[DarwinSDK.macos],
+  );
+
+  const DarwinPlatform({
+    required this.name,
+    required this.frameworkName,
+    required this.targetPlatform,
+    required this.packagePlatform,
+    required this.artifactName,
+    required this.artifactZip,
+    required this.xcframeworkArtifact,
+    required this.sdks,
+  });
+
+  final String name;
+  final String frameworkName;
+  final TargetPlatform targetPlatform;
+  final SwiftPackagePlatform packagePlatform;
+  final String artifactName;
+  final String artifactZip;
+  final Artifact xcframeworkArtifact;
+  final List<DarwinSDK> sdks;
+
+  XcodeBasedProject xcodeProject(FlutterProject project) {
+    switch (this) {
+      case DarwinPlatform.ios:
+        return project.ios;
+      case DarwinPlatform.macos:
+        return project.macos;
+    }
+  }
+}
+
+enum DarwinSDK {
+  iphoneos(name: 'iphoneos', sdkType: EnvironmentType.physical),
+  iphonesimulator(name: 'iphonesimulator', sdkType: EnvironmentType.simulator),
+  macos(name: 'macosx');
+
+  const DarwinSDK({required this.name, this.sdkType});
+
+  final String name;
+  final EnvironmentType? sdkType;
 }

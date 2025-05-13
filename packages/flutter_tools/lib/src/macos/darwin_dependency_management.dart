@@ -57,19 +57,13 @@ class DarwinDependencyManagement {
   /// Swift Package Manager requires a generated Package.swift and certain
   /// settings in the Xcode project's project.pbxproj and xcscheme (done later
   /// before build).
-  Future<void> setUp({required SupportedPlatform platform}) async {
-    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
-      throwToolExit(
-        'The platform ${platform.name} is incompatible with Darwin Dependency Managers. Only iOS and macOS are allowed.',
-      );
-    }
-    final XcodeBasedProject xcodeProject =
-        platform == SupportedPlatform.ios ? _project.ios : _project.macos;
+  Future<void> setUp({required DarwinPlatform platform}) async {
+    final XcodeBasedProject xcodeProject = platform.xcodeProject(_project);
     if (xcodeProject.usesSwiftPackageManager) {
       await _swiftPackageManager.generateFlutterSwiftPackages(platform, xcodeProject, _plugins);
       // When using SwiftPM, Xcode outputs the FlutterMacOS framework binary, so
       // reset the output list file to avoid conflicts.
-      if (platform == SupportedPlatform.macos &&
+      if (platform == DarwinPlatform.macos &&
           _project.macos.outputFileList.existsSync() &&
           _project.macos.outputFileList.readAsStringSync().contains('FlutterMacOS')) {
         _project.macos.outputFileList.writeAsStringSync('');
@@ -141,7 +135,7 @@ class DarwinDependencyManagement {
   /// Prints message prompting the user to deintegrate CocoaPods if using all
   /// Swift Package plugins.
   Future<({int totalCount, int swiftPackageCount, int podCount})> _evaluatePluginsAndPrintWarnings({
-    required SupportedPlatform platform,
+    required DarwinPlatform platform,
     required XcodeBasedProject xcodeProject,
   }) async {
     int pluginCount = 0;

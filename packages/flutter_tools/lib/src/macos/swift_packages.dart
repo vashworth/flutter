@@ -448,9 +448,9 @@ class SwiftPackageTargetDependency {
     //             .product(name: "image_picker_ios", package: "image_picker_ios")
     //         ]
     String conditionString = '';
-    if (platformCondition != null) {
+    if (platformCondition != null && platformCondition!.isNotEmpty) {
       conditionString =
-          ', condition: .when(platforms: [${platformCondition!.map((SwiftPackagePlatform platform) => platform.name).join(',')}])';
+          ', condition: .when(platforms: [${platformCondition!.map((SwiftPackagePlatform platform) => platform.name).join(', ')}])';
     }
     if (dependencyType == SwiftPackageTargetDependencyType.product) {
       return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name", package: "$package"$conditionString)';

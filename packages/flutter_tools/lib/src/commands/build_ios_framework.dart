@@ -9,7 +9,6 @@ import 'package:meta/meta.dart';
 import '../artifacts.dart';
 import '../base/common.dart';
 import '../base/file_system.dart';
-import '../base/fingerprint.dart';
 import '../base/logger.dart';
 import '../base/utils.dart';
 import '../build_info.dart';
@@ -21,8 +20,8 @@ import '../flutter_plugins.dart';
 import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
 import '../macos/swift_package_manager.dart';
+import '../macos/swift_packages.dart';
 import '../plugins.dart';
-import '../project.dart';
 import '../runner/flutter_command.dart' show DevelopmentArtifact, FlutterCommandResult;
 import '../version.dart';
 import 'build_darwin_framework.dart';
@@ -50,7 +49,7 @@ class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
       )
       ..addFlag(
         'xcframework',
-        help: 'Produce xcframeworks that include all valid architectures.',
+        help: '(deprecated) Produce xcframeworks that include all valid architectures.',
         negatable: false,
         defaultsTo: true,
         hide: !verboseHelp,
@@ -70,6 +69,10 @@ class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
   Future<Set<DevelopmentArtifact>> get requiredArtifacts async => const <DevelopmentArtifact>{
     DevelopmentArtifact.iOS,
   };
+
+  @override
+  List<DarwinPlatform> get targetPlatforms => <DarwinPlatform>[DarwinPlatform.ios];
+
 
   @override
   Future<void> validateCommand() async {
@@ -103,7 +106,7 @@ class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
     final List<BuildInfo> buildInfos = await getBuildInfos();
 
     if (project.ios.usesSwiftPackageManager) {
-      return _buildWithSwiftPM(buildInfos: buildInfos, outputDirectory: outputDirectory);
+      return buildWithSwiftPM(buildInfos: buildInfos, outputDirectory: outputDirectory);
     } else {
       return _buildWithCocoaPods(buildInfos: buildInfos, outputDirectory: outputDirectory);
     }
@@ -256,152 +259,13 @@ class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
     return FlutterCommandResult.success();
   }
 
-  Future<FlutterCommandResult> _buildWithSwiftPM({
-    required List<BuildInfo> buildInfos,
-    required Directory outputDirectory,
-  }) async {
-
-    print(Platform.environment['FLUTTER_BUILD_MODE']);
-    /*
-    FlutterGeneratedPluginRegistrant/
-      Package.swift
-      FlutterPlugins/
-        plugin_a/
-      Debug/
-        Sources/
-          FlutterGeneratedPluginRegistrant/
-            GeneratedPluginRegistrant.m
-            include/
-              GeneratedPluginRegistrant.h
-        App.xcframework
-        CocoaPodsFrameworks
-          plugin_b.xcframework
-    flutter
-      Package.swift
-      Debug
-        21f7283f5dfb70b4df266d1ca1c068e067ab2854 (engine version)
-          Flutter.xcframework
-          FlutterMacOS.xcframework
-    */
-
-    await regeneratePlatformSpecificToolingIfApplicable(project, releaseMode: false);
-
-    // Create Flutter Framework Swift Package
-    await _produceFlutterFrameworkSwiftPackage(
-      buildInfos: buildInfos,
-      outputDirectory: outputDirectory,
-    );
-
-    final Directory flutterPluginsSwiftPackage = outputDirectory.childDirectory(
-      kPluginSwiftPackageName,
-    );
-
-    // TODO: SPM - If detects legacy files, delete them
-
-    // ErrorHandlingFileSystem.deleteIfExists(flutterPluginsSwiftPackage, recursive: true);
-
-    for (final BuildInfo buildInfo in buildInfos) {
-      final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);
-      final Directory modeDirectory = flutterPluginsSwiftPackage.childDirectory(
-        xcodeBuildConfiguration,
-      );
-
-      // Build aot, create module.framework and copy.
-      final Directory iPhoneBuildOutput = modeDirectory.childDirectory('iphoneos');
-      final Directory simulatorBuildOutput = modeDirectory.childDirectory('iphonesimulator');
-      await _produceAppFramework(
-        buildInfo,
-        modeDirectory,
-        iPhoneBuildOutput,
-        simulatorBuildOutput,
-        xcodeBuildConfiguration,
-      );
-
-      final String buildDirectory = getIosBuildDirectory();
-      final Fingerprinter fingerprinter = cocoapodsFingerprinter(
-        project.ios,
-        buildDirectory,
-        modeDirectory,
-      );
-      final bool dependenciesChanged = !fingerprinter.doesFingerprintMatch();
-
-      // Build and copy CocoaPod-only plugins.
-      await processPodsIfNeeded(project.ios, buildDirectory, buildInfo.mode);
-
-      if (boolArg('plugins') && hasPlugins(project) && dependenciesChanged) {
-        await _producePlugins(
-          xcodeBuildConfiguration,
-          iPhoneBuildOutput,
-          simulatorBuildOutput,
-          modeDirectory.childDirectory('CocoaPodsFrameworks'),
-        );
-        fingerprinter.writeFingerprint();
-      }
-
-      // Copy the native assets. The native assets have already been signed in
-      // buildNativeAssetsMacOS.
-      final Directory nativeAssetsDirectory = globals.fs
-          .directory(getBuildDirectory())
-          .childDirectory('native_assets/ios/');
-      if (await nativeAssetsDirectory.exists()) {
-        final ProcessResult rsyncResult = await globals.processManager.run(<Object>[
-          'rsync',
-          '-av',
-          '--filter',
-          '- .DS_Store',
-          '--filter',
-          '- native_assets.yaml',
-          '--filter',
-          '- native_assets.json',
-          nativeAssetsDirectory.path,
-          modeDirectory.path,
-        ]);
-        if (rsyncResult.exitCode != 0) {
-          throwToolExit('Failed to copy native assets:\n${rsyncResult.stderr}');
-        }
-      }
-      try {
-        // Delete the intermediaries since they would have been copied into our
-        // output frameworks.
-        if (iPhoneBuildOutput.existsSync()) {
-          iPhoneBuildOutput.deleteSync(recursive: true);
-        }
-        if (simulatorBuildOutput.existsSync()) {
-          simulatorBuildOutput.deleteSync(recursive: true);
-        }
-      } finally {
-        // status.stop();
-      }
-    }
-
-    // Create FlutterGeneratedPluginRegistrant Swift Package
-    await produceSwiftPackages(
-      project: project.ios,
-      buildInfos: buildInfos,
-      flutterPluginsSwiftPackage: flutterPluginsSwiftPackage,
-      platform: SupportedPlatform.ios,
-      fileSystem: globals.fs,
-    );
-
-    return FlutterCommandResult.success();
-  }
-
   /// Create podspec that will download and unzip remote engine assets so host apps can leverage CocoaPods
   /// vendored framework caching.
   @visibleForTesting
   void produceFlutterPodspec(BuildMode mode, Directory modeDirectory, {bool force = false}) {
     final Status status = globals.logger.startProgress(' ├─Creating Flutter.podspec...');
     try {
-      final GitTagVersion gitTagVersion = flutterVersion.gitTagVersion;
-      if (!force &&
-          (gitTagVersion.x == null ||
-              gitTagVersion.y == null ||
-              gitTagVersion.z == null ||
-              gitTagVersion.commits != 0)) {
-        throwToolExit(
-          '--cocoapods is only supported on the beta or stable channel. Detected version is ${flutterVersion.frameworkVersion}',
-        );
-      }
+      final GitTagVersion gitTagVersion = getGitTagVersion(force);
 
       // Podspecs use semantic versioning, which don't support hotfixes.
       // Fake out a semantic version with major.minor.(patch * 100) + hotfix.
@@ -547,6 +411,7 @@ end
       frameworks,
       'App',
       outputDirectory,
+      globals.fs.directory(getIosBuildDirectory()),
       globals.processManager,
       buildMode,
     );
@@ -640,6 +505,7 @@ end
             frameworks,
             binaryName,
             modeDirectory,
+            globals.fs.directory(getIosBuildDirectory()),
             globals.processManager,
             xcodeBuildConfiguration,
           );
@@ -650,101 +516,30 @@ end
     }
   }
 
-  Future<void> _produceFlutterFrameworkSwiftPackage({
-    required List<BuildInfo> buildInfos,
-    required Directory outputDirectory,
-  }) async {
-    final Status status = globals.logger.startProgress(
-      ' ├─Creating Flutter Framework Swift Package...',
-    );
-    final Directory flutterFrameworkSwiftPackage = outputDirectory.childDirectory('FlutterFramework');
-    // ErrorHandlingFileSystem.deleteIfExists(flutterFrameworkSwiftPackage, recursive: true);
-    for (final BuildInfo buildInfo in buildInfos) {
-      final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);
-      final Directory modeDirectory = flutterFrameworkSwiftPackage.childDirectory(
-        xcodeBuildConfiguration,
-      );
-      final Directory engineDir = modeDirectory.childDirectory(cache.engineRevision)
-        ..createSync(recursive: true);
-      await _produceFlutterFramework(buildInfo, engineDir);
-    }
-
-    final SwiftPackageManager spm = SwiftPackageManager(
-      artifacts: globals.artifacts!,
-      cache: globals.cache,
-      fileSystem: globals.fs,
-      templateRenderer: globals.templateRenderer,
-    );
-    await spm.generateFlutterFrameworkSwiftPackage(
-      SupportedPlatform.ios,
-      project.ios,
-      buildMode: buildInfos[0].mode,
-      overrideManifestPath: flutterFrameworkSwiftPackage.childFile('Package.swift'),
-      remoteFramework: remoteFlutterFramework,
-    );
-    status.stop();
-  }
-
   @override
-  Future<void> produceRegistrantSourceFiles({
-    required String swiftPackageName,
-    required Directory swiftPackageDirectory,
-    required List<Plugin> plugins,
+  Future<(List<SwiftPackageTargetDependency>, List<SwiftPackageTarget>)>
+  produceRegistrantSourceFiles({
+    required List<BuildInfo> buildInfos,
+    required Directory pluginRegistrantSwiftPackage,
+    required List<Plugin> regularPlugins,
+    required List<Plugin> devPlugins,
+    required List<SwiftPackageTargetDependency> targetDependencies,
   }) async {
-    final File registrantHeader = swiftPackageDirectory
-        .childDirectory('Sources')
-        .childDirectory(swiftPackageName)
-        .childDirectory('include')
-        .childFile('GeneratedPluginRegistrant.h');
-    final File registrantImplementation = swiftPackageDirectory
-        .childDirectory('Sources')
-        .childDirectory(swiftPackageName)
-        .childFile('GeneratedPluginRegistrant.m');
-    return writeIOSPluginRegistrant(
-      project,
-      plugins,
-      pluginRegistrantHeader: registrantHeader,
-      pluginRegistrantImplementation: registrantImplementation,
-    );
-  }
-
-  Fingerprinter cocoapodsFingerprinter(
-    XcodeBasedProject xcodeProject,
-    String buildDirectory,
-    Directory modeDirectory,
-  ) {
-    final List<String> childFiles = <String>[];
-    if (modeDirectory.childDirectory('CocoaPodsFrameworks').existsSync()) {
-      for (final FileSystemEntity entity in modeDirectory
-          .childDirectory('CocoaPodsFrameworks')
-          .listSync(recursive: true)) {
-        if (entity is File) {
-          childFiles.add(entity.path);
-        }
-      }
-    }
-
-    // If the Xcode project, Podfile, generated plugin Swift Package, or podhelper
-    // have changed since last run, pods should be updated.
-    final Fingerprinter fingerprinter = Fingerprinter(
-      fingerprintPath: globals.fs.path.join(buildDirectory, 'build_ios_pod_inputs.fingerprint'),
-      paths: <String>[
-        xcodeProject.xcodeProjectInfoFile.path,
-        xcodeProject.podfile.path,
-        if (xcodeProject.flutterPluginSwiftPackageManifest.existsSync())
-          xcodeProject.flutterPluginSwiftPackageManifest.path,
-        globals.fs.path.join(
-          Cache.flutterRoot!,
-          'packages',
-          'flutter_tools',
-          'bin',
-          'podhelper.rb',
-        ),
-        ...childFiles,
-      ],
-      fileSystem: globals.fs,
-      logger: globals.logger,
-    );
-    return fingerprinter;
+    // final File registrantHeader = swiftPackageDirectory
+    //     .childDirectory('Sources')
+    //     .childDirectory(swiftPackageName)
+    //     .childDirectory('include')
+    //     .childFile('GeneratedPluginRegistrant.h');
+    // final File registrantImplementation = swiftPackageDirectory
+    //     .childDirectory('Sources')
+    //     .childDirectory(swiftPackageName)
+    //     .childFile('GeneratedPluginRegistrant.m');
+    // return writeIOSPluginRegistrant(
+    //   project,
+    //   plugins,
+    //   pluginRegistrantHeader: registrantHeader,
+    //   pluginRegistrantImplementation: registrantImplementation,
+    // );
+    throw UnimplementedError();
   }
 }

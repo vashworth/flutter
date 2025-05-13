@@ -928,7 +928,11 @@ Future<void> _writePluginCmakefile(
   );
 }
 
-Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+Future<void> writeMacOSPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  File? pluginRegistrantImplementation,
+}) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(
     plugins,
     MacOSPlugin.kConfigKey,
@@ -945,7 +949,8 @@ Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> pl
   await _renderTemplateToFile(
     _swiftPluginRegistryTemplate,
     context,
-    project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
+    pluginRegistrantImplementation ??
+        project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
     globals.templateRenderer,
   );
 }
@@ -1319,7 +1324,7 @@ Future<void> injectPlugins(
     await _writeLinuxPluginFiles(project, pluginsByPlatform[LinuxPlugin.kConfigKey]!);
   }
   if (macOSPlatform) {
-    await _writeMacOSPluginRegistrant(project, pluginsByPlatform[MacOSPlugin.kConfigKey]!);
+    await writeMacOSPluginRegistrant(project, pluginsByPlatform[MacOSPlugin.kConfigKey]!);
   }
   if (windowsPlatform) {
     await writeWindowsPluginFiles(
@@ -1347,10 +1352,10 @@ Future<void> injectPlugins(
           analytics: globals.analytics,
         );
     if (iosPlatform) {
-      await darwinDependencyManagerSetup.setUp(platform: SupportedPlatform.ios);
+      await darwinDependencyManagerSetup.setUp(platform: DarwinPlatform.ios);
     }
     if (macOSPlatform) {
-      await darwinDependencyManagerSetup.setUp(platform: SupportedPlatform.macos);
+      await darwinDependencyManagerSetup.setUp(platform: DarwinPlatform.macos);
     }
   }
 }

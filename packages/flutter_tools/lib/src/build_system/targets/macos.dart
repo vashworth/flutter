@@ -347,6 +347,7 @@ class CompileMacOSFramework extends Target {
           splitDebugInfo: splitDebugInfo,
           dartObfuscation: dartObfuscation,
           extraGenSnapshotOptions: extraGenSnapshotOptions,
+          quiet: true,
         ),
       );
     }

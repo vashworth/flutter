@@ -17,6 +17,7 @@ import 'build_aar.dart';
 import 'build_apk.dart';
 import 'build_appbundle.dart';
 import 'build_bundle.dart';
+import 'build_darwin_framework.dart';
 import 'build_ios.dart';
 import 'build_ios_framework.dart';
 import 'build_macos_framework.dart';
@@ -44,6 +45,13 @@ class BuildCommand extends FlutterCommand {
     _addSubcommand(BuildIOSCommand(logger: logger, verboseHelp: verboseHelp));
     _addSubcommand(
       BuildIOSFrameworkCommand(logger: logger, buildSystem: buildSystem, verboseHelp: verboseHelp),
+    );
+    _addSubcommand(
+      BuildDarwinFrameworkCommand(
+        logger: logger,
+        buildSystem: buildSystem,
+        verboseHelp: verboseHelp,
+      ),
     );
     _addSubcommand(
       BuildMacOSFrameworkCommand(

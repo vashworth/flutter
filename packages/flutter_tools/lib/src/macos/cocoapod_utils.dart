@@ -69,8 +69,8 @@ Future<void> processPodsIfNeeded(
       fileSystem: globals.localFileSystem,
       templateRenderer: globals.templateRenderer,
     );
-    final SupportedPlatform platform =
-        xcodeProject is IosProject ? SupportedPlatform.ios : SupportedPlatform.macos;
+    final DarwinPlatform platform =
+        xcodeProject is IosProject ? DarwinPlatform.ios : DarwinPlatform.macos;
 
     await swiftPackageManager.generateFlutterSwiftPackages(platform, xcodeProject, <Plugin>[]);
   }

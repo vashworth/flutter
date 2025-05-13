@@ -135,6 +135,9 @@ void copyDirectory(
     final String newPath = destDir.fileSystem.path.join(destDir.path, entity.basename);
     if (entity is Link) {
       final Link newLink = destDir.fileSystem.link(newPath);
+      if (newLink.existsSync()) {
+        newLink.deleteSync();
+      }
       newLink.createSync(entity.targetSync());
     } else if (entity is File) {
       final File newFile = destDir.fileSystem.file(newPath);

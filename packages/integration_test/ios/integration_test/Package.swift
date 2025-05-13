@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "integration-test", targets: ["integration_test"]),
     ],
     dependencies: [
-      .package(name: "FlutterFramework", path: "../../FlutterFramework"),
+      .package(name: "FlutterFramework", path: "../FlutterFramework"),
     ],
     targets: [
         .target(
