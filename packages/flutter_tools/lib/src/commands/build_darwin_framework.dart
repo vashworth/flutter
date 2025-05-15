@@ -1426,7 +1426,7 @@ struct FlutterValidateConfiguration: CommandPlugin {
         }
 
         print("warning: The current build configuration is set to \(configuration), but Flutter packages are not.")
-        print("warning: Please run the following command: env -i swift package plugin --package UpdateFlutterConfigurationPlugin --allow-writing-to-package-directory switch-to-debug
+        print("warning: Please run the following command: env -i swift package plugin --package UpdateFlutterConfigurationPlugin --allow-writing-to-package-directory switch-to-debug")
     }
 }
 ''');
