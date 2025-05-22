@@ -30,7 +30,7 @@ import '../runner/flutter_command.dart';
 import '../version.dart';
 import 'build.dart';
 
-const String kPluginSwiftPackageName = 'FlutterGeneratedPluginRegistrant';
+const String kPluginSwiftPackageName = 'FlutterPluginRegistrant';
 const String kFlutterFrameworkSwiftPackageName = 'FlutterFramework';
 
 const String _devDependenciesConditionalTemplate = '''
@@ -217,7 +217,7 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     final Fingerprinter fingerprinter = _frameworkFingerprinter(
       cacheDirectory.path,
       buildMode,
-      xcframeworkOutput,
+      frameworks,
       frameworkBinaryName,
     );
     final bool dependenciesChanged = !fingerprinter.doesFingerprintMatch();
@@ -269,14 +269,14 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
   }) async {
     // print(Platform.environment['FLUTTER_BUILD_MODE']);
     /*
-    FlutterGeneratedPluginRegistrant/
+    FlutterPluginRegistrant/
       Package.swift
       FlutterPlugins/
         plugin_a/
           Package.swift
       Debug/
         Sources/
-          FlutterGeneratedPluginRegistrant/
+          FlutterPluginRegistrant/
             GeneratedPluginRegistrant.m
             include/
               GeneratedPluginRegistrant.h
@@ -346,13 +346,6 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
 
     status = globals.logger.startProgress(' ├─Creating Swift Packages...');
 
-    final List<Plugin> plugins = await findPlugins(project);
-    // Sort the plugins by name to keep ordering stable in generated files.
-    plugins.sort((Plugin left, Plugin right) => left.name.compareTo(right.name));
-
-    final List<Plugin> regularPlugins = plugins.where((Plugin p) => !p.isDevDependency).toList();
-    final List<Plugin> devPlugins = plugins.where((Plugin p) => p.isDevDependency).toList();
-
     // // // TODO: SPM - If detects legacy files, delete them
 
     // // // ErrorHandlingFileSystem.deleteIfExists(flutterPluginsSwiftPackage, recursive: true);
@@ -369,6 +362,13 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
       // If moved to cache, remember the App and CocoaPods uses this
       // _deleteIntermediateBuildDirectories(modeDirectory);
     }
+
+    final List<Plugin> plugins = await findPlugins(project);
+    // Sort the plugins by name to keep ordering stable in generated files.
+    plugins.sort((Plugin left, Plugin right) => left.name.compareTo(right.name));
+
+    final List<Plugin> regularPlugins = plugins.where((Plugin p) => !p.isDevDependency).toList();
+    final List<Plugin> devPlugins = plugins.where((Plugin p) => p.isDevDependency).toList();
 
     final (
       List<SwiftPackagePackageDependency> regularPluginPackageDependencies,
@@ -395,18 +395,13 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     );
 
     // Create FlutterPluginRegistrant source files
-    final (
-      List<SwiftPackageTargetDependency> platformRegistrantTargetDependencies,
-      List<SwiftPackageTarget> platformRegistrantTargets,
-    ) = await produceRegistrantSourceFiles(
+    await produceRegistrantSourceFiles(
       buildInfos: buildInfos,
       pluginRegistrantSwiftPackage: pluginRegistrantSwiftPackage,
       regularPlugins: regularPlugins,
       devPlugins: devPlugins,
       targetDependencies: targetDependencies,
     );
-    targetDependencies.addAll(platformRegistrantTargetDependencies);
-    additionalTargets.addAll(platformRegistrantTargets);
 
     final Directory swiftPackageManagerPluginDirectory = outputDirectory.childDirectory('Plugins');
     ErrorHandlingFileSystem.deleteIfExists(swiftPackageManagerPluginDirectory, recursive: true);
@@ -976,7 +971,7 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
       SwiftPackageTarget.defaultTarget(
         name: swiftPackageName,
         dependencies: targetDependencies,
-        // path: '\\(mode)/Sources/$kPluginSwiftPackageName',
+        path: '\\(mode)/Sources/$kPluginSwiftPackageName',
       ),
       ...additionalTargets,
     ];
@@ -1010,7 +1005,10 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
       templateRenderer: globals.templateRenderer,
       swiftCodeAfterPackageDefinition: devDependenciesTemplate,
     );
-    pluginsPackage.createSwiftPackage();
+
+    pluginsPackage.createSwiftPackage(
+      skipSourceFileCreation: <String, bool>{'FlutterPluginRegistrant': true},
+    );
   }
 
   void _createConfigurationPlugins() {
@@ -1028,8 +1026,7 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
   }
 
   @visibleForOverriding
-  Future<(List<SwiftPackageTargetDependency>, List<SwiftPackageTarget>)>
-  produceRegistrantSourceFiles({
+  Future<void> produceRegistrantSourceFiles({
     required List<BuildInfo> buildInfos,
     required Directory pluginRegistrantSwiftPackage,
     required List<Plugin> regularPlugins,
@@ -1042,17 +1039,20 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
   static Fingerprinter _frameworkFingerprinter(
     String cacheDirectoryPath,
     String buildMode,
-    Directory xcframeworkOutput,
+    Iterable<Directory> frameworks,
     String frameworkBinaryName,
   ) {
     final List<String> childFiles = <String>[];
-    if (xcframeworkOutput.existsSync()) {
-      for (final FileSystemEntity entity in xcframeworkOutput.listSync(recursive: true)) {
-        if (entity is File) {
-          childFiles.add(entity.path);
+    for (final Directory framework in frameworks) {
+      if (framework.existsSync()) {
+        for (final FileSystemEntity entity in framework.listSync(recursive: true)) {
+          if (entity is File) {
+            childFiles.add(entity.path);
+          }
         }
       }
     }
+
     final Fingerprinter fingerprinter = Fingerprinter(
       fingerprintPath: globals.fs.path.join(
         cacheDirectoryPath,
@@ -1139,25 +1139,24 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     required Directory pluginsDirectory,
     required File pluginRegistrantManifest,
   }) {
-
     // TODO: SPM - update flutter framework too
     ErrorHandlingFileSystem.deleteIfExists(pluginsDirectory, recursive: true);
-    final File manifest = pluginsDirectory.childFile('Package.swift')
-      ..createSync(recursive: true);
+    final File manifest = pluginsDirectory.childFile('Package.swift')..createSync(recursive: true);
     final File debugPluginSwiftFiles = pluginsDirectory
       .childDirectory('Plugins')
       .childDirectory('Debug')
       .childFile('UpdateConfiguration.swift')..createSync(recursive: true);
     final File profilePluginSwiftFiles = pluginsDirectory
-    .childDirectory('Plugins')
+      .childDirectory('Plugins')
       .childDirectory('Profile')
       .childFile('UpdateConfiguration.swift')..createSync(recursive: true);
     final File releasePluginSwiftFiles = pluginsDirectory
-    .childDirectory('Plugins')
+      .childDirectory('Plugins')
       .childDirectory('Release')
       .childFile('UpdateConfiguration.swift')..createSync(recursive: true);
-    final File packageTemplate = pluginsDirectory.childDirectory('Plugins').childFile('template.swift.tmpl')
-      ..createSync(recursive: true);
+    final File packageTemplate = pluginsDirectory
+      .childDirectory('Plugins')
+      .childFile('template.swift.tmpl')..createSync(recursive: true);
     manifest.writeAsStringSync('''
 // swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
@@ -1274,8 +1273,7 @@ struct FlutterConfigurationPlugin: CommandPlugin {
 
   void _createIncrementalPreBuildActionScript(Directory scriptsDirectory) {
     // TODO: SPM - make values dynamic
-    final File script = scriptsDirectory.childFile('pre_build.sh')
-      ..createSync(recursive: true);
+    final File script = scriptsDirectory.childFile('pre_build.sh')..createSync(recursive: true);
     script.writeAsStringSync(r'''
 #!/usr/bin/env bash
 # Copyright 2014 The Flutter Authors. All rights reserved.
@@ -1290,7 +1288,7 @@ export FLUTTER_TARGET=lib/main.dart
 export DART_OBFUSCATION=false
 export TREE_SHAKE_ICONS=false
 export VERBOSE_SCRIPT_LOGGING=YES
-export FLUTTER_GENERATED_PLUGIN_REGISTRANT_PACKAGE_SWIFT=/Users/vashworth/Development/experiment/flutter/vanilla-flutter-app/build/ios/framework/FlutterGeneratedPluginRegistrant/Package.swift
+export FLUTTER_GENERATED_PLUGIN_REGISTRANT_PACKAGE_SWIFT=/Users/vashworth/Development/experiment/flutter/vanilla-flutter-app/build/ios/framework/FlutterPluginRegistrant/Package.swift
 export FLUTTER_PACKAGE_SWIFT=/Users/vashworth/Development/experiment/flutter/vanilla-flutter-app/build/ios/framework/flutter/Package.swift
 
 # Needed because if it is set, cd may print the path it changed to.
@@ -1366,7 +1364,7 @@ ValidateBuildMode() {
     exit -1
   fi
 
-  pushd "/Users/vashworth/Development/experiment/xcode/ios_macos_native/Flutter/FlutterGeneratedPluginRegistrant"  > /dev/null
+  pushd "/Users/vashworth/Development/experiment/xcode/ios_macos_native/Flutter/FlutterPluginRegistrant"  > /dev/null
   local output=$(env -i swift package plugin --package ValidateFlutterConfigurationPlugin --allow-writing-to-package-directory validate --configuration ${build_mode} 2>&1)
   if [ "$output" != "success" ]; then
     # If the output is not "success", print the entire output to stderr.
@@ -1377,10 +1375,10 @@ ValidateBuildMode() {
 ValidateBuildMode
 ''');
 
-    final File manifest = pluginsDirectory.childFile('Package.swift')
-      ..createSync(recursive: true);
-    final File validatePluginSwiftFiles = pluginsDirectory.childDirectory('Plugins').childFile('ValidateConfiguration.swift')
-      ..createSync(recursive: true);
+    final File manifest = pluginsDirectory.childFile('Package.swift')..createSync(recursive: true);
+    final File validatePluginSwiftFiles = pluginsDirectory
+      .childDirectory('Plugins')
+      .childFile('ValidateConfiguration.swift')..createSync(recursive: true);
     manifest.writeAsStringSync('''
 // swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
@@ -1565,81 +1563,40 @@ class BuildDarwinFrameworkCommand extends BuildFrameworkCommand {
   }
 
   @override
-  Future<(List<SwiftPackageTargetDependency>, List<SwiftPackageTarget>)>
-  produceRegistrantSourceFiles({
+  Future<void> produceRegistrantSourceFiles({
     required List<BuildInfo> buildInfos,
     required Directory pluginRegistrantSwiftPackage,
     required List<Plugin> regularPlugins,
     required List<Plugin> devPlugins,
     required List<SwiftPackageTargetDependency> targetDependencies,
   }) async {
-    const String iosRegistrant = 'iOSFlutterGeneratedPluginRegistrant';
-    const String macosRegistrant = 'macOSFlutterGeneratedPluginRegistrant';
     for (final BuildInfo buildInfo in buildInfos) {
       final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);
       final Directory modeDirectory = pluginRegistrantSwiftPackage.childDirectory(
         xcodeBuildConfiguration,
       );
-
       List<Plugin> plugins;
       if (buildInfo.isRelease) {
         plugins = regularPlugins;
       } else {
         plugins = regularPlugins + devPlugins;
       }
-
-      // GeneratedPluginRegistrant
-      final File iosRegistrantHeader = modeDirectory
+      final File implementationFile = modeDirectory
           .childDirectory('Sources')
-          .childDirectory(iosRegistrant)
+          .childDirectory(kPluginSwiftPackageName)
+          .childFile('GeneratedPluginRegistrant.m');
+      final File headerFile = modeDirectory
+          .childDirectory('Sources')
+          .childDirectory(kPluginSwiftPackageName)
           .childDirectory('include')
           .childFile('GeneratedPluginRegistrant.h');
-      final File iosRegistrantImplementation = modeDirectory
-          .childDirectory('Sources')
-          .childDirectory(iosRegistrant)
-          .childFile('GeneratedPluginRegistrant.m');
-      await writeIOSPluginRegistrant(
-        project,
-        plugins,
-        pluginRegistrantHeader: iosRegistrantHeader,
-        pluginRegistrantImplementation: iosRegistrantImplementation,
-      );
 
-      // RegisterGeneratedPlugins
-      final File macosRegistrantImplementation = modeDirectory
-          .childDirectory('Sources')
-          .childDirectory(macosRegistrant)
-          .childFile('GeneratedPluginRegistrant.swift');
-      await writeMacOSPluginRegistrant(
+      await writeDarwinPluginRegistrant(
         project,
         plugins,
-        pluginRegistrantImplementation: macosRegistrantImplementation,
+        pluginRegistrantHeader: headerFile,
+        pluginRegistrantImplementation: implementationFile,
       );
     }
-
-    return (
-      <SwiftPackageTargetDependency>[
-        SwiftPackageTargetDependency.target(
-          name: iosRegistrant,
-          platformCondition: <SwiftPackagePlatform>[SwiftPackagePlatform.ios],
-        ),
-        SwiftPackageTargetDependency.target(
-          name: macosRegistrant,
-          platformCondition: <SwiftPackagePlatform>[SwiftPackagePlatform.macos],
-        ),
-      ],
-      <SwiftPackageTarget>[
-        SwiftPackageTarget.defaultTarget(
-          name: iosRegistrant,
-          dependencies: [...targetDependencies], // force to not use reference
-          path: '\\(mode)/Sources/$iosRegistrant',
-        ),
-        SwiftPackageTarget.defaultTarget(
-          name: macosRegistrant,
-          dependencies: [...targetDependencies], // force to not use reference
-          path: '\\(mode)/Sources/$macosRegistrant',
-        ),
-      ],
-    );
   }
 }

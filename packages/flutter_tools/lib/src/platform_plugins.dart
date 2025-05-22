@@ -417,6 +417,7 @@ class MacOSPlugin extends PluginPlatform implements NativeOrDartPlugin, DarwinPl
     return <String, dynamic>{
       'name': name,
       if (pluginClass != null) 'class': pluginClass,
+      'prefix': '',
       if (dartPluginClass != null) kDartPluginClass: dartPluginClass,
       if (dartFileName != null) kDartFileName: dartFileName,
       if (ffiPlugin) kFfiPlugin: true,

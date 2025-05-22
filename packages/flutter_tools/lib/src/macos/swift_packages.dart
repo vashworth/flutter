@@ -111,12 +111,15 @@ class SwiftPackage {
   };
 
   /// Create a Package.swift using settings from [_templateContext].
-  void createSwiftPackage() {
+  void createSwiftPackage({Map<String, bool> skipSourceFileCreation = const <String, bool>{}}) {
     // Swift Packages require at least one source file per non-binary target,
     // whether it be in Swift or Objective C. If the target does not have any
     // files yet, create an empty Swift file.
     for (final SwiftPackageTarget target in _targets) {
       if (target.targetType == SwiftPackageTargetType.binaryTarget) {
+        continue;
+      }
+      if (skipSourceFileCreation[target.name] ?? false) {
         continue;
       }
       final Directory targetDirectory = manifest.parent

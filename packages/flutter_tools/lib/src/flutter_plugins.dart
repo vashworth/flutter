@@ -540,6 +540,78 @@ const String _objcPluginRegistryImplementationTemplate = '''
 @end
 ''';
 
+const String _objcDarwinPluginRegistryHeaderTemplate = '''
+//
+//  Generated file. Do not edit.
+//
+
+// clang-format off
+
+#ifndef GeneratedPluginRegistrant_h
+#define GeneratedPluginRegistrant_h
+
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+#import <{{iosFramework}}/{{iosFramework}}.h>
+#elif defined(TARGET_OS_OSX) && TARGET_OS_OSX
+#import <{{macosFramework}}/{{macosFramework}}.h>
+#endif
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface GeneratedPluginRegistrant : NSObject
++ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry;
+@end
+
+NS_ASSUME_NONNULL_END
+#endif /* GeneratedPluginRegistrant_h */
+''';
+
+const String _objcDarwinPluginRegistryImplementationTemplate = '''
+//
+//  Generated file. Do not edit.
+//
+
+// clang-format off
+
+#import "GeneratedPluginRegistrant.h"
+
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+{{#iosMethodChannelPlugins}}
+#if __has_include(<{{name}}/{{class}}.h>)
+#import <{{name}}/{{class}}.h>
+#else
+@import {{name}};
+#endif
+
+{{/iosMethodChannelPlugins}}
+@implementation GeneratedPluginRegistrant
+
++ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
+{{#iosMethodChannelPlugins}}
+  [{{prefix}}{{class}} registerWithRegistrar:[registry registrarForPlugin:@"{{prefix}}{{class}}"]];
+{{/iosMethodChannelPlugins}}
+}
+#elif defined(TARGET_OS_OSX) && TARGET_OS_OSX
+{{#macosMethodChannelPlugins}}
+#if __has_include(<{{name}}/{{class}}.h>)
+#import <{{name}}/{{class}}.h>
+#else
+@import {{name}};
+#endif
+
+{{/macosMethodChannelPlugins}}
+@implementation GeneratedPluginRegistrant
+
++ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
+{{#macosMethodChannelPlugins}}
+  [{{prefix}}{{class}} registerWithRegistrar:[registry registrarForPlugin:@"{{prefix}}{{class}}"]];
+{{/macosMethodChannelPlugins}}
+}
+#endif
+
+@end
+''';
+
 const String _swiftPluginRegistryTemplate = '''
 //
 //  Generated file. Do not edit.
@@ -552,7 +624,7 @@ import Foundation
 import {{name}}
 {{/methodChannelPlugins}}
 
-func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+public func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   {{#methodChannelPlugins}}
   {{class}}.register(with: registry.registrar(forPlugin: "{{class}}"))
 {{/methodChannelPlugins}}
@@ -800,6 +872,50 @@ $_dartPluginRegisterWith
 }
 ''';
 
+Future<void> writeDarwinPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  required File pluginRegistrantHeader,
+  required File pluginRegistrantImplementation,
+}) async {
+  final List<Plugin> iosMethodChannelPlugins = _filterMethodChannelPlugins(
+    plugins,
+    IOSPlugin.kConfigKey,
+  );
+  final List<Map<String, Object?>> iosPlugins = _extractPlatformMaps(
+    iosMethodChannelPlugins,
+    IOSPlugin.kConfigKey,
+  );
+  final List<Plugin> macosMethodChannelPlugins = _filterMethodChannelPlugins(
+    plugins,
+    MacOSPlugin.kConfigKey,
+  );
+  final List<Map<String, Object?>> macosPlugins = _extractPlatformMaps(
+    macosMethodChannelPlugins,
+    MacOSPlugin.kConfigKey,
+  );
+  final Map<String, Object> context = <String, Object>{
+    'iosFramework': 'Flutter',
+    'macosFramework': 'FlutterMacOS',
+    'iosMethodChannelPlugins': iosPlugins,
+    'macosMethodChannelPlugins': macosPlugins,
+  };
+
+  await _renderTemplateToFile(
+    _objcDarwinPluginRegistryHeaderTemplate,
+    context,
+    pluginRegistrantHeader,
+    globals.templateRenderer,
+  );
+
+  await _renderTemplateToFile(
+    _objcDarwinPluginRegistryImplementationTemplate,
+    context,
+    pluginRegistrantImplementation,
+    globals.templateRenderer,
+  );
+}
+
 Future<void> writeIOSPluginRegistrant(
   FlutterProject project,
   List<Plugin> plugins, {
@@ -949,8 +1065,7 @@ Future<void> writeMacOSPluginRegistrant(
   await _renderTemplateToFile(
     _swiftPluginRegistryTemplate,
     context,
-    pluginRegistrantImplementation ??
-        project.macos.managedDirectory.childFile('GeneratedPluginRegistrant.swift'),
+    pluginRegistrantImplementation ?? project.macos.pluginRegistrantImplementation,
     globals.templateRenderer,
   );
 }

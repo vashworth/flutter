@@ -18,6 +18,7 @@ import 'ios/code_signing.dart';
 import 'ios/plist_parser.dart';
 import 'ios/xcode_build_settings.dart' as xcode;
 import 'ios/xcodeproj.dart';
+import 'macos/swift_package_manager.dart';
 import 'macos/xcode.dart';
 import 'migrations/swift_package_manager_integration_migration.dart';
 import 'platform_plugins.dart';
@@ -138,8 +139,15 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
 
   SupportedPlatform get supportedPlatform;
 
+  File get pluginRegistrantImplementation;
+
   /// The Flutter generated directory for generated Swift Packages.
   Directory get flutterSwiftPackagesDirectory => ephemeralDirectory.childDirectory('Packages');
+
+  /// Flutter plugins that support SwiftPM will be symlinked in this directory to keep all
+  /// swift packages relative to each other.
+  Directory get relativeSwiftPackagesDirectory =>
+      flutterSwiftPackagesDirectory.childDirectory('.packages');
 
   /// The Flutter generated directory for the Swift Package handling the Flutter framework.
   Directory get flutterFrameworkSwiftPackageDirectory =>
@@ -148,7 +156,7 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// The Flutter generated directory for the Swift Package handling plugin
   /// dependencies.
   Directory get flutterPluginSwiftPackageDirectory =>
-      flutterSwiftPackagesDirectory.childDirectory('FlutterGeneratedPluginSwiftPackage');
+      flutterSwiftPackagesDirectory.childDirectory(kFlutterGeneratedPluginSwiftPackageName);
 
   /// The Flutter generated Swift Package manifest (Package.swift) for plugin
   /// dependencies.
@@ -164,7 +172,7 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// project's build settings by checking the contents of the pbxproj.
   bool get flutterPluginSwiftPackageInProjectSettings {
     return xcodeProjectInfoFile.existsSync() &&
-        xcodeProjectInfoFile.readAsStringSync().contains('FlutterGeneratedPluginSwiftPackage');
+        xcodeProjectInfoFile.readAsStringSync().contains(kFlutterGeneratedPluginSwiftPackageName);
   }
 
   /// Checks if FlutterGeneratedPluginSwiftPackage has been added to the
