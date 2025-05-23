@@ -151,7 +151,7 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
 
   /// The Flutter generated directory for the Swift Package handling the Flutter framework.
   Directory get flutterFrameworkSwiftPackageDirectory =>
-      flutterSwiftPackagesDirectory.childDirectory('FlutterFramework');
+      relativeSwiftPackagesDirectory.childDirectory('FlutterFramework');
 
   /// The Flutter generated directory for the Swift Package handling plugin
   /// dependencies.
@@ -706,13 +706,26 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
   }
 
   Future<void> ensureReadyForPlatformSpecificTooling() async {
-    await _regenerateModuleFromTemplateIfNeeded();
+    if (usesSwiftPackageManager && isModule) {
+      // If [hostAppRoot] doesn't equal [ephemeralModuleDirectory], they have already migrated.
+      if (hostAppRoot == ephemeralModuleDirectory) {
+        // TODO: SPM
+        // Ask if they want to migrate
+        // Otherwise, tell them to disable SwiftPM to stop seeing this prompt.
+
+        // Create ios platform
+        // Delete .ios
+      }
+
+    } else {
+      await _regenerateModuleFromTemplateIfNeeded();
+    }
     await _updateLLDBIfNeeded();
     if (!_flutterLibRoot.existsSync()) {
       return;
     }
     await _updateGeneratedXcodeConfigIfNeeded();
-    await _updateSwiftPackageManagerMigrationIfNeeded();
+    // await _updateSwiftPackageManagerMigrationIfNeeded();
   }
 
   /// Check if one the [targets] of the project is a watchOS companion app target.
@@ -914,6 +927,7 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
     return registryDirectory.childFile('GeneratedPluginRegistrant.h');
   }
 
+  @override
   File get pluginRegistrantImplementation {
     final Directory registryDirectory =
         isModule ? pluginRegistrantHost.childDirectory('Classes') : pluginRegistrantHost;

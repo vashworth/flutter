@@ -63,6 +63,10 @@ class SwiftPackageManager {
     XcodeBasedProject xcodeProject,
     List<Plugin> plugins,
   ) async {
+    final Directory symlinkDirectory = xcodeProject.relativeSwiftPackagesDirectory;
+    ErrorHandlingFileSystem.deleteIfExists(symlinkDirectory, recursive: true);
+    symlinkDirectory.createSync(recursive: true);
+
     await generateFlutterFrameworkSwiftPackage(platform, xcodeProject);
     await _generatePluginsSwiftPackage(plugins, platform, xcodeProject);
   }
@@ -259,8 +263,6 @@ let engine = "$engineVersion"
     XcodeBasedProject project,
   ) async {
     final Directory symlinkDirectory = project.relativeSwiftPackagesDirectory;
-    ErrorHandlingFileSystem.deleteIfExists(symlinkDirectory, recursive: true);
-    symlinkDirectory.createSync(recursive: true);
 
     final (
       List<SwiftPackagePackageDependency> packageDependencies,

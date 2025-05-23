@@ -1600,3 +1600,47 @@ class BuildDarwinFrameworkCommand extends BuildFrameworkCommand {
     }
   }
 }
+/*
+
+import Foundation
+import PackagePlugin
+
+@main
+struct FlutterValidateConfiguration: CommandPlugin {
+    // Entry point for command plugins applied to Swift Packages.
+    func performCommand(context: PluginContext, arguments: [String])
+        async throws
+    {
+        let configuration = arguments[1].capitalized
+        let dir = context.package.directoryURL
+        let symlinkPath = dir.appendingPathComponent("Current").path()
+
+        let fileManager = FileManager.default
+
+        do {
+            let targetPath = try fileManager.destinationOfSymbolicLink(
+                atPath: symlinkPath
+            )
+            print(
+                "Symlink '\(symlinkPath)' currently points to: '\(targetPath)'"
+            )
+            if (!targetPath.contains(configuration)) {
+                try fileManager.removeItem(atPath: symlinkPath)
+                let newTargetPath = "./\(configuration)"
+                try fileManager.createSymbolicLink(atPath: symlinkPath, withDestinationPath: newTargetPath)
+                let debugNewTargetPath = try fileManager.destinationOfSymbolicLink(
+                    atPath: symlinkPath
+                )
+                print(
+                    "Symlink '\(symlinkPath)' now points to: '\(debugNewTargetPath)'"
+                )
+            }
+        } catch {
+            print(
+                "Error getting symlink for \(symlinkPath): \(error.localizedDescription)"
+            )
+        }
+    }
+}
+
+*/
