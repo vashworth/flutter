@@ -940,18 +940,12 @@ Future<void> writeIOSPluginRegistrant(
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;
     final File podspecFile = registryDirectory.childFile('FlutterPluginRegistrant.podspec');
-    if (project.ios.usesSwiftPackageManager) {
-      // Swift Package Manager handles the FlutterPluginRegistrant as a Swift Package,
-      // so delete the corresponding Pod.
-      ErrorHandlingFileSystem.deleteIfExists(podspecFile);
-    } else {
-      await _renderTemplateToFile(
-        _pluginRegistrantPodspecTemplate,
-        context,
-        podspecFile,
-        globals.templateRenderer,
-      );
-    }
+    await _renderTemplateToFile(
+      _pluginRegistrantPodspecTemplate,
+      context,
+      podspecFile,
+      globals.templateRenderer,
+    );
   }
   await _renderTemplateToFile(
     _objcPluginRegistryHeaderTemplate,

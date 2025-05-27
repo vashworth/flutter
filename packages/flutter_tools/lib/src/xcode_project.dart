@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'base/common.dart';
 import 'base/error_handling_io.dart';
 import 'base/file_system.dart';
 import 'base/template.dart';
@@ -179,7 +180,9 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// project's build settings by checking the contents of the pbxproj.
   bool get flutterFrameworkSwiftPackageInProjectSettings {
     return xcodeProjectInfoFile.existsSync() &&
-        xcodeProjectInfoFile.readAsStringSync().contains('784666492D4C4C64000A1A5F /* FlutterFramework */');
+        xcodeProjectInfoFile.readAsStringSync().contains(
+          '784666492D4C4C64000A1A5F /* FlutterFramework */',
+        );
   }
 
   /// True if this project doesn't have Swift Package Manager disabled in the
@@ -188,12 +191,6 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// feature is enabled.
   bool get usesSwiftPackageManager {
     if (!featureFlags.isSwiftPackageManagerEnabled) {
-      return false;
-    }
-
-    // TODO(loic-sharma): Support Swift Package Manager in add-to-app modules.
-    // https://github.com/flutter/flutter/issues/146957
-    if (parent.isModule) {
       return false;
     }
 
@@ -463,7 +460,12 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
   Directory get _flutterLibRoot => isModule ? ephemeralModuleDirectory : _editableDirectory;
 
   /// True, if the parent Flutter project is a module project.
-  bool get isModule => parent.isModule;
+  bool get isModule {
+    if (usesSwiftPackageManager && _editableDirectory.existsSync()) {
+      return false;
+    }
+    return parent.isModule;
+  }
 
   /// Whether the Flutter application has an iOS project.
   bool get exists => hostAppRoot.existsSync();
@@ -706,17 +708,21 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
   }
 
   Future<void> ensureReadyForPlatformSpecificTooling() async {
-    if (usesSwiftPackageManager && isModule) {
-      // If [hostAppRoot] doesn't equal [ephemeralModuleDirectory], they have already migrated.
-      if (hostAppRoot == ephemeralModuleDirectory) {
-        // TODO: SPM
-        // Ask if they want to migrate
-        // Otherwise, tell them to disable SwiftPM to stop seeing this prompt.
-
-        // Create ios platform
-        // Delete .ios
+    if (usesSwiftPackageManager && parent.isModule) {
+      if (isModule) {
+        throwToolExit(
+          'Swift Package Manager does not support module projects. \n\n'
+          'Please complete the following guide to migrate to Swift Package Manager:\n'
+          '  https://flutter.dev\n\n'
+          'Alternatively you can disable Swift Package Manager using the following guide:\n'
+          '  https://flutter.dev',
+        );
       }
 
+      // Delete .ios
+      if (ephemeralModuleDirectory.existsSync()) {
+        ephemeralModuleDirectory.deleteSync(recursive: true);
+      }
     } else {
       await _regenerateModuleFromTemplateIfNeeded();
     }
@@ -1011,6 +1017,7 @@ class MacOSProject extends XcodeBasedProject {
   File get generatedXcodePropertiesFile =>
       ephemeralDirectory.childFile('Flutter-Generated.xcconfig');
 
+  @override
   File get pluginRegistrantImplementation =>
       managedDirectory.childFile('GeneratedPluginRegistrant.swift');
 

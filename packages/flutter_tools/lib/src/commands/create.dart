@@ -287,7 +287,9 @@ class CreateCommand extends FlutterCommand with CreateBase {
     String? sampleCode;
     final String? sampleArgument = stringArg('sample');
     final bool emptyArgument = boolArg('empty');
-    final FlutterTemplateType template = _getProjectType(projectDir);
+    FlutterTemplateType template = _getProjectType(projectDir);
+    bool generateMetadata = true;
+
     if (sampleArgument != null) {
       if (template != FlutterTemplateType.app) {
         throwToolExit(
@@ -300,6 +302,15 @@ class CreateCommand extends FlutterCommand with CreateBase {
     }
     if (emptyArgument && template != FlutterTemplateType.app) {
       throwToolExit('The --empty flag is only supported for the app template.');
+    }
+
+    // When using Swift Package Manager and attempting to add the iOS platform to a pre-existing
+    // module project, use the app template instead.
+    if (template == FlutterTemplateType.module &&
+        featureFlags.isSwiftPackageManagerEnabled &&
+        stringsArg('platforms').contains('ios')) {
+      template = FlutterTemplateType.app;
+      generateMetadata = false;
     }
 
     final bool generateModule = template == FlutterTemplateType.module;
@@ -464,6 +475,7 @@ class CreateCommand extends FlutterCommand with CreateBase {
           overwrite: overwrite,
           printStatusWhenWriting: !creatingNewProject,
           projectType: template,
+          generateMetadata: generateMetadata,
         );
         pubContext = PubContext.create;
       case FlutterTemplateType.module:
