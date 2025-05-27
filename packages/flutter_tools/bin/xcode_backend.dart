@@ -256,6 +256,8 @@ class Context {
 
     // When SwiftPM is enabled, Xcode handles copying, codesigning, and embedding the Flutter framework.
     // However, double check that the correct framework is found. If it is incorrect, re-copy, codesign, and embed it.
+
+    // TODO: SPM -
     final bool swiftPackageManagerEnabled =
         (environment['FLUTTER_SWIFT_PACKAGE_MANAGER_ENABLED'] ?? '').isNotEmpty;
      bool skipFlutterFrameworkCopy = false;

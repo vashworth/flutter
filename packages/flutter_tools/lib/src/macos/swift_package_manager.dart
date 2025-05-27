@@ -284,6 +284,19 @@ let engine = "$engineVersion"
       return;
     }
 
+    packageDependencies.add(
+      SwiftPackagePackageDependency.local(
+        packageName: 'FlutterFramework',
+        localPath: _fileSystem.path.relative(
+          project.flutterFrameworkSwiftPackageDirectory.path,
+          from: project.flutterPluginSwiftPackageDirectory.path,
+        ),
+      ),
+    );
+    targetDependencies.add(
+      SwiftPackageTargetDependency.product(name: 'Flutter', packageName: 'FlutterFramework'),
+    );
+
     final SwiftPackageSupportedPlatform swiftSupportedPlatform;
     if (platform == DarwinPlatform.ios) {
       swiftSupportedPlatform = iosSwiftPackageSupportedPlatform;

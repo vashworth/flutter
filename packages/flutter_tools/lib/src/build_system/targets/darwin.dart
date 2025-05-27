@@ -216,7 +216,7 @@ abstract class UnpackDarwin extends Target {
 
       // If the plugin has a Package.swift, ensure that it has a dependency on Flutter
       // This check is not perfect and may not catch all cases.
-      if (!swiftManifest.readAsStringSync().contains('https://github.com/flutter/flutter')) {
+      if (!swiftManifest.readAsStringSync().contains('.product(name: "Flutter"')) {
         _printXcodeWarning(
           '${plugin.name} does not have an explicit dependency on Flutter. This will not be supported in a future version of Flutter. Please file an issue with the plugin author to upgrade their plugin Package.swift.',
         );
