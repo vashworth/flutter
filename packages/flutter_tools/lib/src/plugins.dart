@@ -446,10 +446,13 @@ class Plugin {
   ///
   /// Returns null if the plugin does not support the [platform] or the
   /// [platform] is not iOS or macOS.
-  String? pluginSwiftPackagePath(FileSystem fileSystem, String platform) {
+  String? pluginSwiftPackagePath(FileSystem fileSystem, String platform, {String? overridePath}) {
     final String? platformDirectoryName = _darwinPluginDirectoryName(platform);
     if (platformDirectoryName == null) {
       return null;
+    }
+    if (overridePath != null) {
+      return fileSystem.path.join(overridePath, platformDirectoryName, name);
     }
     return fileSystem.path.join(path, platformDirectoryName, name);
   }

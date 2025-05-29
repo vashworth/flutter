@@ -517,29 +517,40 @@ end
   }
 
   @override
-  Future<(List<SwiftPackageTargetDependency>, List<SwiftPackageTarget>)>
-  produceRegistrantSourceFiles({
+  Future<void> produceRegistrantSourceFiles({
     required List<BuildInfo> buildInfos,
     required Directory pluginRegistrantSwiftPackage,
     required List<Plugin> regularPlugins,
     required List<Plugin> devPlugins,
     required List<SwiftPackageTargetDependency> targetDependencies,
   }) async {
-    // final File registrantHeader = swiftPackageDirectory
-    //     .childDirectory('Sources')
-    //     .childDirectory(swiftPackageName)
-    //     .childDirectory('include')
-    //     .childFile('GeneratedPluginRegistrant.h');
-    // final File registrantImplementation = swiftPackageDirectory
-    //     .childDirectory('Sources')
-    //     .childDirectory(swiftPackageName)
-    //     .childFile('GeneratedPluginRegistrant.m');
-    // return writeIOSPluginRegistrant(
-    //   project,
-    //   plugins,
-    //   pluginRegistrantHeader: registrantHeader,
-    //   pluginRegistrantImplementation: registrantImplementation,
-    // );
-    throw UnimplementedError();
+    for (final BuildInfo buildInfo in buildInfos) {
+      final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);
+      final Directory modeDirectory = pluginRegistrantSwiftPackage.childDirectory(
+        xcodeBuildConfiguration,
+      );
+      List<Plugin> plugins;
+      if (buildInfo.isRelease) {
+        plugins = regularPlugins;
+      } else {
+        plugins = regularPlugins + devPlugins;
+      }
+      final File implementationFile = modeDirectory
+          .childDirectory('Sources')
+          .childDirectory(kPluginSwiftPackageName)
+          .childFile('GeneratedPluginRegistrant.m');
+      final File headerFile = modeDirectory
+          .childDirectory('Sources')
+          .childDirectory(kPluginSwiftPackageName)
+          .childDirectory('include')
+          .childFile('GeneratedPluginRegistrant.h');
+
+      await writeIOSPluginRegistrant(
+        project,
+        plugins,
+        pluginRegistrantHeader: headerFile,
+        pluginRegistrantImplementation: implementationFile,
+      );
+    }
   }
 }

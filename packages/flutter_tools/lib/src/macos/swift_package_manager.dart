@@ -91,6 +91,7 @@ class SwiftPackageManager {
     BuildMode buildMode = BuildMode.release,
     required File manifestPath,
     bool remoteFramework = false,
+    bool buildModeInPath = true,
   }) async {
     final String engineVersion = _cache.engineRevision;
     final String buildModeName = sentenceCase(buildMode.cliName);
@@ -114,6 +115,7 @@ class SwiftPackageManager {
         buildModeName: buildModeName,
         engineVersion: engineVersion,
         remoteFramework: remoteFramework,
+        buildModeInPath: buildModeInPath,
       );
       targetDependencies.add(iosTargetDependencies);
       binaryTargets.add(iosBinaryTarget);
@@ -129,6 +131,7 @@ class SwiftPackageManager {
         buildModeName: buildModeName,
         engineVersion: engineVersion,
         remoteFramework: remoteFramework,
+        buildModeInPath: buildModeInPath,
       );
       targetDependencies.add(macosTargetDependencies);
       binaryTargets.add(macosBinaryTarget);
@@ -163,6 +166,7 @@ let engine = "$engineVersion"
     required String buildModeName,
     required String engineVersion,
     required bool remoteFramework,
+    bool buildModeInPath = true,
   }) async {
     final String frameworkName = platform.frameworkName;
     final SwiftPackageTargetDependency frameworkTarget = SwiftPackageTargetDependency.target(
@@ -203,12 +207,14 @@ let engine = "$engineVersion"
     );
     frameworkLink.createSync(frameworkArtifactPath, recursive: true);
 
+    String path = '\\(engine)/$xcframeworkName';
+    if (buildModeInPath) {
+      path = '\\(mode)/$path';
+    }
+
     return (
       frameworkTarget,
-      SwiftPackageTarget.binaryTarget(
-        name: frameworkName,
-        relativePath: '\\(mode)/\\(engine)/$xcframeworkName',
-      ),
+      SwiftPackageTarget.binaryTarget(name: frameworkName, relativePath: path),
     );
   }
 
@@ -336,8 +342,9 @@ let engine = "$engineVersion"
     required List<Plugin> plugins,
     required List<DarwinPlatform> platforms,
     required FileSystem fileSystem,
-    required Directory symlinkDirectory,
+    Directory? symlinkDirectory,
     required String pathRelativeTo,
+    String? buildModeToReplace,
   }) {
     final List<SwiftPackagePackageDependency> packageDependencies =
         <SwiftPackagePackageDependency>[];
@@ -368,11 +375,16 @@ let engine = "$engineVersion"
         }
 
         manifests.add(pluginSwiftPackageManifestPath);
-        final Link pluginSymlink = symlinkDirectory.childLink(plugin.name);
-        ErrorHandlingFileSystem.deleteIfExists(pluginSymlink);
-        pluginSymlink.createSync(packagePath);
-        packagePath = pluginSymlink.path;
+        if (symlinkDirectory != null) {
+          final Link pluginSymlink = symlinkDirectory.childLink(plugin.name);
+          ErrorHandlingFileSystem.deleteIfExists(pluginSymlink);
+          pluginSymlink.createSync(packagePath);
+          packagePath = pluginSymlink.path;
+        }
         packagePath = fileSystem.path.relative(packagePath, from: pathRelativeTo);
+        if (buildModeToReplace != null) {
+          packagePath = packagePath.replaceFirst(buildModeToReplace, r'\(mode)');
+        }
 
         packageDependencies.add(
           SwiftPackagePackageDependency.local(packageName: plugin.name, localPath: packagePath),

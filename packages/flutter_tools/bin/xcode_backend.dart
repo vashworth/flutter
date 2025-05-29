@@ -260,7 +260,7 @@ class Context {
     // TODO: SPM -
     final bool swiftPackageManagerEnabled =
         (environment['FLUTTER_SWIFT_PACKAGE_MANAGER_ENABLED'] ?? '').isNotEmpty;
-     bool skipFlutterFrameworkCopy = false;
+    bool skipFlutterFrameworkCopy = false;
     if (swiftPackageManagerEnabled) {
       // Validate engine version and build mode
       try {
@@ -564,6 +564,20 @@ class Context {
       buildModeFlags = <String>['--no-profile', '--no-debug'];
     }
 
+    final String platformName = environment['PLATFORM_NAME'] ?? '';
+    String? command;
+    switch (platformName) {
+      case 'iphonesimulator':
+      case 'iphoneos':
+        command = 'ios-framework';
+      case 'macosx':
+        command = 'macos-framework';
+    }
+    if (command == null) {
+      echoWarning('Skipping rebuilding frameworks. Unrecognized platform: $platformName.\n');
+      return;
+    }
+
     final String pluginRegistrantSwiftPackageManifest =
         environment['FLUTTER_GENERATED_PLUGIN_REGISTRANT_PACKAGE_SWIFT'] ?? '';
     final RegExp modeMatcher = RegExp('let mode = "(Debug|Profile|Release)"');
@@ -574,22 +588,16 @@ class Context {
       echoWarning(
         'You are targeting build mode $buildMode, but the GeneratedPluginRegistrant is set to $modeInPackage.\n',
       );
+      return;
     }
-
-    // TODO: if buildMode != mode in Package.swift, throw an error
-    // let mode = "(Debug|Profile|Release)"
-
-    // buildMode
 
     final ProcessResult result = runSync(
       '${environmentEnsure('FLUTTER_ROOT')}/bin/flutter',
       <String>[
         'build',
-        // TODO: build darwin-framework?
-        'ios-framework',
-        '--incremental',
+        command,
         ...buildModeFlags,
-        // if (verbose) '--verbose',
+        if (verbose) '--verbose',
       ],
       verbose: verbose,
       allowFail: true,
