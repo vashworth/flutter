@@ -267,6 +267,22 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   return false;
 }
 
+- (NSObject<FlutterPluginRegistrar>*)registrarForKey:(NSString*)key {
+  FlutterViewController* flutterRootViewController = [self rootFlutterViewController];
+  if (flutterRootViewController) {
+    return [[flutterRootViewController pluginRegistry] registrarForKey:key];
+  }
+  return nil;
+}
+
+- (BOOL)hasKey:(NSString*)key {
+  FlutterViewController* flutterRootViewController = [self rootFlutterViewController];
+  if (flutterRootViewController) {
+    return [[flutterRootViewController pluginRegistry] hasKey:key];
+  }
+  return false;
+}
+
 - (NSObject*)valuePublishedByPlugin:(NSString*)pluginKey {
   FlutterViewController* flutterRootViewController = [self rootFlutterViewController];
   if (flutterRootViewController) {

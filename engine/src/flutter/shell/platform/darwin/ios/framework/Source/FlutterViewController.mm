@@ -2412,6 +2412,14 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
   return [self.engine hasPlugin:pluginKey];
 }
 
+- (NSObject<FlutterPluginRegistrar>*)registrarForKey:(NSString*)key {
+  return [self.engine registrarForKey:key];
+}
+
+- (BOOL)hasKey:(NSString*)key {
+  return [self.engine hasKey:key];
+}
+
 - (NSObject*)valuePublishedByPlugin:(NSString*)pluginKey {
   return [self.engine valuePublishedByPlugin:pluginKey];
 }

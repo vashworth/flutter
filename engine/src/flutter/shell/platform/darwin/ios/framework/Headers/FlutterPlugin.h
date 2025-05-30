@@ -406,6 +406,15 @@ typedef enum {
  * @param pluginKey The unique key identifying the plugin.
  */
 - (nullable NSObject<FlutterPluginRegistrar>*)registrarForPlugin:(NSString*)pluginKey;
+
+/**
+ * Returns a registrar which can be used to register a plugin or be used to access the
+ * binaryMessenger.
+ *
+ * @param key The unique key.
+ */
+- (nullable NSObject<FlutterPluginRegistrar>*)registrarForKey:(NSString*)key;
+
 /**
  * Returns whether the specified plugin has been registered.
  *
@@ -413,6 +422,14 @@ typedef enum {
  * @return `YES` if `registrarForPlugin` has been called with `pluginKey`.
  */
 - (BOOL)hasPlugin:(NSString*)pluginKey;
+
+/**
+ * Returns whether the specified key already has a registrar.
+ *
+ * @param pluginKey The unique key.
+ * @return `YES` if `registrarForKey` or `registrarForPlugin` has been called with `key`.
+ */
+- (BOOL)hasKey:(NSString*)key;
 
 /**
  * Returns a value published by the specified plugin.

@@ -91,7 +91,7 @@ static constexpr int kNumProfilerSamplesPerSec = 5;
 
 @interface FlutterEngineRegistrar : NSObject <FlutterPluginRegistrar>
 @property(nonatomic, weak) FlutterEngine* flutterEngine;
-- (instancetype)initWithPlugin:(NSString*)pluginKey flutterEngine:(FlutterEngine*)flutterEngine;
+- (instancetype)initWithKey:(NSString*)key flutterEngine:(FlutterEngine*)flutterEngine;
 @end
 
 @interface FlutterEngine () <FlutterIndirectScribbleDelegate,
@@ -1304,16 +1304,24 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
 #pragma mark - FlutterPluginRegistry
 
 - (NSObject<FlutterPluginRegistrar>*)registrarForPlugin:(NSString*)pluginKey {
-  NSAssert(self.pluginPublications[pluginKey] == nil, @"Duplicate plugin key: %@", pluginKey);
-  self.pluginPublications[pluginKey] = [NSNull null];
-  FlutterEngineRegistrar* result = [[FlutterEngineRegistrar alloc] initWithPlugin:pluginKey
-                                                                    flutterEngine:self];
-  self.registrars[pluginKey] = result;
-  return result;
+  return [self registrarForKey:pluginKey];
 }
 
 - (BOOL)hasPlugin:(NSString*)pluginKey {
-  return _pluginPublications[pluginKey] != nil;
+  return _pluginPublications[key] != nil;
+}
+
+- (NSObject<FlutterPluginRegistrar>*)registrarForKey:(NSString*)key {
+  NSAssert(self.pluginPublications[key] == nil, @"Duplicate key: %@", key);
+  self.pluginPublications[key] = [NSNull null];
+  FlutterEngineRegistrar* result = [[FlutterEngineRegistrar alloc] initWithKey:key
+                                                                 flutterEngine:self];
+  self.registrars[key] = result;
+  return result;
+}
+
+- (BOOL)hasKey:(NSString*)key {
+  return self.registrars[key] != nil;
 }
 
 - (NSObject*)valuePublishedByPlugin:(NSString*)pluginKey {
@@ -1491,13 +1499,13 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
 @end
 
 @implementation FlutterEngineRegistrar {
-  NSString* _pluginKey;
+  NSString* _key;
 }
 
-- (instancetype)initWithPlugin:(NSString*)pluginKey flutterEngine:(FlutterEngine*)flutterEngine {
+- (instancetype)initWithKey:(NSString*)key flutterEngine:(FlutterEngine*)flutterEngine {
   self = [super init];
   NSAssert(self, @"Super init cannot be nil");
-  _pluginKey = [pluginKey copy];
+  _key = [key copy];
   _flutterEngine = flutterEngine;
   return self;
 }
@@ -1511,7 +1519,7 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
 }
 
 - (void)publish:(NSObject*)value {
-  _flutterEngine.pluginPublications[_pluginKey] = value;
+  _flutterEngine.pluginPublications[_key] = value;
 }
 
 - (void)addMethodCallDelegate:(NSObject<FlutterPlugin>*)delegate
