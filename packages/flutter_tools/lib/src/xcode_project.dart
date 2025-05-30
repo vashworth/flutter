@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'ios/mac.dart';
+library;
+
 import 'base/common.dart';
 import 'base/error_handling_io.dart';
 import 'base/file_system.dart';
@@ -734,7 +737,8 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
     // await _updateSwiftPackageManagerMigrationIfNeeded();
   }
 
-  /// Check if one the [targets] of the project is a watchOS companion app target.
+  /// Check if one the [XcodeProjectInfo.targets] of the project is
+  /// a watchOS companion app target.
   Future<bool> containsWatchCompanion({
     required XcodeProjectInfo projectInfo,
     required BuildInfo buildInfo,
@@ -825,7 +829,6 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
       await xcode.updateGeneratedXcodeProperties(
         project: parent,
         buildInfo: BuildInfo.dummy,
-        featureFlags: featureFlags,
         targetOverride: bundle.defaultMainPath,
       );
     }
@@ -1048,7 +1051,6 @@ class MacOSProject extends XcodeBasedProject {
       await xcode.updateGeneratedXcodeProperties(
         project: parent,
         buildInfo: BuildInfo.dummy,
-        featureFlags: featureFlags,
         useMacOSConfig: true,
       );
     }

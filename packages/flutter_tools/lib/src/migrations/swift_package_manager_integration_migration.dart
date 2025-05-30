@@ -176,7 +176,6 @@ class SwiftPackageManagerIntegrationMigration extends ProjectMigrator {
 
       // Check for specific strings in the xcscheme and pbxproj to see if the
       // project has been already migrated, whether automatically or manually.
-
       final bool isPbxprojMigrated = _quickCheckIsPbxprojMigrated(_xcodeProjectInfoFile);
       if (isSchemeMigrated && isPbxprojMigrated) {
         return;

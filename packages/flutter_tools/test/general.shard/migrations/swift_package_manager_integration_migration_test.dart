@@ -1150,7 +1150,9 @@ void main() {
                 testLogger.traceText.contains('PBXFileReference already migrated. Skipping...'),
                 isFalse,
               );
-              settingsBeforeMigration[_fileReferenceSectionIndex] = migratedFileReferenceSection;
+              settingsBeforeMigration[_fileReferenceSectionIndex] = migratedFileReferenceSection(
+                platform,
+              );
               expect(
                 project.xcodeProjectInfoFile.readAsStringSync(),
                 _projectSettings(settingsBeforeMigration),
@@ -2983,7 +2985,9 @@ void main() {
               ),
               isTrue,
             );
-            settingsBeforeMigration[_fileReferenceSectionIndex] = migratedFileReferenceSection;
+            settingsBeforeMigration[_fileReferenceSectionIndex] = migratedFileReferenceSection(
+              platform,
+            );
             settingsBeforeMigration[_groupSectionIndex] = migratedGroupSection(platform);
             expect(
               project.xcodeProjectInfoFile.readAsStringSync(),
@@ -3030,7 +3034,9 @@ void main() {
             );
             expect(
               testLogger.errorText,
-              contains('PBXFileReference was not migrated or was migrated incorrectly.'),
+              contains(
+                'PBXFileReference for FlutterGeneratedPluginSwiftPackage was not migrated or was migrated incorrectly.',
+              ),
             );
             expect(
               testLogger.errorText,
@@ -3255,7 +3261,7 @@ const int _swiftPackageProductDependencySectionIndex = 7;
 List<String> _allSectionsMigrated(SupportedPlatform platform) {
   return <String>[
     migratedBuildFileSection,
-    migratedFileReferenceSection,
+    migratedFileReferenceSection(platform),
     migratedFrameworksBuildPhaseSection(platform),
     migratedGroupSection(platform),
     migratedNativeTargetSection(platform),
@@ -3268,7 +3274,7 @@ List<String> _allSectionsMigrated(SupportedPlatform platform) {
 List<String> _allSectionsMigratedAsJson(SupportedPlatform platform) {
   return <String>[
     migratedBuildFileSectionAsJson,
-    migratedFileReferenceAsJson,
+    migratedFileReferenceAsJson(platform),
     migratedFrameworksBuildPhaseSectionAsJson(platform),
     migratedGroupSectionAsJson(platform),
     migratedNativeTargetSectionAsJson(platform),
@@ -3346,6 +3352,10 @@ String _projectIdentifier(SupportedPlatform platform) {
       : '33CC10E52044A3C60003C045';
 }
 
+String _relativeEphemeralPath(SupportedPlatform platform) {
+  return platform == SupportedPlatform.ios ? 'Flutter/ephemeral' : 'ephemeral';
+}
+
 // PBXBuildFile
 const String unmigratedBuildFileSection = '''
 /* Begin PBXBuildFile section */
@@ -3390,13 +3400,16 @@ const String unmigratedFileReferenceSection = '''
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 ''';
-const String migratedFileReferenceSection = '''
+String migratedFileReferenceSection(SupportedPlatform platform) {
+  return '''
 /* Begin PBXFileReference section */
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
-		784666492D4C4C64000A1A5F /* flutter */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = flutter; path = Flutter/ephemeral/Packages/flutter; sourceTree = "<group>"; };
+		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = ${_relativeEphemeralPath(platform)}/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 ''';
+}
+
 const String unmigratedFileReferenceAsJson = '''
     "1498D2321E8E86230040F4C2": {
       "path": "GeneratedPluginRegistrant.h",
@@ -3411,7 +3424,8 @@ const String unmigratedFileReferenceAsJson = '''
       "sourceTree": "<group>",
       "fileEncoding": "4"
     }''';
-const String migratedFileReferenceAsJson = '''
+String migratedFileReferenceAsJson(SupportedPlatform platform) {
+  return '''
     "1498D2321E8E86230040F4C2": {
       "path": "GeneratedPluginRegistrant.h",
       "isa": "PBXFileReference",
@@ -3425,13 +3439,14 @@ const String migratedFileReferenceAsJson = '''
       "sourceTree": "<group>",
       "fileEncoding": "4"
     },
-    "784666492D4C4C64000A1A5F": {
-      "path": "Flutter/ephemeral/Packages/flutter",
+    "78E0A7A72DC9AD7400C4905E": {
+      "path": "${_relativeEphemeralPath(platform)}/Packages/FlutterGeneratedPluginSwiftPackage",
       "isa": "PBXFileReference",
       "name": "flutter",
       "lastKnownFileType": "wrapper",
       "sourceTree": "<group>"
     }''';
+}
 
 // PBXFrameworksBuildPhase
 String unmigratedFrameworksBuildPhaseSection(
@@ -3537,13 +3552,13 @@ String migratedGroupSection(SupportedPlatform platform, {bool missingChildren = 
     '		${_flutterGroupIdentifier(platform)} /* Flutter */ = {',
     if (missingChildren) ...<String>[
       '			children = (',
-      '				784666492D4C4C64000A1A5F /* flutter */,',
+      '				78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */,',
       '			);',
       '			isa = PBXGroup;',
     ] else ...<String>[
       '			isa = PBXGroup;',
       '			children = (',
-      '				784666492D4C4C64000A1A5F /* flutter */,',
+      '				78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */,',
       '				3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */,',
       '				9740EEB21CF90195004384FC /* Debug.xcconfig */,',
       '				7AFA3C8E1D35360C0083082E /* Release.xcconfig */,',
@@ -3581,8 +3596,8 @@ String migratedGroupSectionAsJson(SupportedPlatform platform, {bool missingChild
     '      "isa": "PBXGroup",',
     '      "name": "Flutter",',
     '        "children": [',
-    if (missingChildren) ...<String>['            "784666492D4C4C64000A1A5F",'] else ...<String>[
-      '            "784666492D4C4C64000A1A5F",',
+    if (missingChildren) ...<String>['            "78E0A7A72DC9AD7400C4905E",'] else ...<String>[
+      '            "78E0A7A72DC9AD7400C4905E",',
       '            "3B3967151E833CAA004F5970",',
       '            "9740EEB21CF90195004384FC",',
       '            "7AFA3C8E1D35360C0083082E",',
