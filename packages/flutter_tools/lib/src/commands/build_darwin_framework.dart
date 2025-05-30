@@ -549,7 +549,6 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
               kTargetFile: targetFile,
               kTargetPlatform: getNameForTargetPlatform(platform.targetPlatform),
               ...iosDefines,
-              kDevDependenciesEnabled: devDependenciesEnabled.toString(),
               ...buildInfo.toBuildSystemEnvironment(),
               // TODO: SPM - only pass if incremental build
               kXcodeBuildScript: kNativePrepareXcodeBuildScript,
