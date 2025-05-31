@@ -5,12 +5,21 @@
 import 'package:meta/meta.dart';
 
 import '../../artifacts.dart';
+import '../../base/file_system.dart';
 import '../../base/io.dart';
 import '../../build_info.dart';
+import '../../flutter_plugins.dart';
+import '../../globals.dart' as globals;
+import '../../macos/swift_package_manager.dart';
+import '../../plugins.dart';
+import '../../project.dart';
 import '../build_system.dart';
 
 abstract class UnpackDarwin extends Target {
   const UnpackDarwin();
+
+  @visibleForOverriding
+  DarwinPlatform get platform;
 
   /// Copies the [framework] artifact using `rsync` to the [Environment.outputDir].
   /// Throws an error if copy fails.
@@ -109,5 +118,59 @@ abstract class UnpackDarwin extends Target {
         '$lipoInfo',
       );
     }
+  }
+
+  @override
+  Future<bool> canSkip(Environment environment) async {
+    final String? buildScript = environment.defines[kXcodeBuildScript];
+    final FlutterProject flutterProject = FlutterProject.fromDirectory(environment.projectDir);
+    final XcodeBasedProject xcodeProject = platform.xcodeProject(flutterProject);
+    if (buildScript == kPrepareXcodeBuildScript) {
+      final bool valid = await _validateSwiftPackagePlugins(environment, xcodeProject);
+      // If all plugins are valid, they do not rely on the prepare action, so it can be skipped.
+      if (valid) {
+        return true;
+      }
+    } else if (buildScript == kBuildXcodeBuildScript && xcodeProject.usesSwiftPackageManager) {
+      // Skip copying the Flutter framework during the build Run Script if Swift Package Manager is being used.
+      // Swift Package Manager now handles the Flutter framework.
+      return true;
+    }
+    return false;
+  }
+
+  /// Validates that all Swift Package plugins have a dependency on the Flutter framework.
+  /// If they don't, give a warning.
+  Future<bool> _validateSwiftPackagePlugins(
+    Environment environment,
+    XcodeBasedProject xcodeProject,
+  ) async {
+    bool valid = true;
+    final List<Plugin> plugins = await findPlugins(xcodeProject.parent);
+    for (final Plugin plugin in plugins) {
+      if (!plugin.supportsSwiftPackageManager(environment.fileSystem, platform.name)) {
+        continue;
+      }
+      final File swiftManifest = environment.fileSystem.file(
+        plugin.pluginSwiftPackageManifestPath(environment.fileSystem, platform.name),
+      );
+      if (!swiftManifest.existsSync()) {
+        continue;
+      }
+
+      // If the plugin has a Package.swift, ensure that it has a dependency on Flutter
+      // This check is not perfect and may not catch all cases.
+      if (!swiftManifest.readAsStringSync().contains('.product(name: "Flutter"')) {
+        _printXcodeWarning(
+          '${plugin.name} does not have an explicit dependency on Flutter. This will not be supported in a future version of Flutter. Please file an issue with the plugin author to upgrade their plugin Package.swift.',
+        );
+        valid = false;
+      }
+    }
+    return valid;
+  }
+
+  void _printXcodeWarning(String message) {
+    globals.stdio.stderrWrite('warning: $message\n');
   }
 }

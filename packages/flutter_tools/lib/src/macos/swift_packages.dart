@@ -18,6 +18,7 @@ const String _swiftPackageTemplate = '''
 
 import PackageDescription
 
+{{#hasSwiftCodeBefore}}\n{{swiftCodeBefore}}\n\n{{/hasSwiftCodeBefore}}
 let package = Package(
     name: "{{packageName}}",
     {{#platforms}}
@@ -57,6 +58,7 @@ class SwiftPackage {
   SwiftPackage({
     required File manifest,
     required String name,
+    String? swiftCodeBeforePackageDefinition,
     required List<SwiftPackageSupportedPlatform> platforms,
     required List<SwiftPackageProduct> products,
     required List<SwiftPackagePackageDependency> dependencies,
@@ -67,6 +69,7 @@ class SwiftPackage {
        _platforms = platforms,
        _products = products,
        _dependencies = dependencies,
+       _swiftCodeBeforePackageDefinition = swiftCodeBeforePackageDefinition,
        _targets = targets,
        _templateRenderer = templateRenderer;
 
@@ -75,6 +78,8 @@ class SwiftPackage {
 
   /// The name of the Swift package.
   final String _name;
+
+  final String? _swiftCodeBeforePackageDefinition;
 
   /// The list of minimum versions for platforms supported by the package.
   final List<SwiftPackageSupportedPlatform> _platforms;
@@ -94,6 +99,8 @@ class SwiftPackage {
   Map<String, Object> get _templateContext => <String, Object>{
     'swiftToolsVersion': minimumSwiftToolchainVersion,
     'packageName': _name,
+    'hasSwiftCodeBefore': _swiftCodeBeforePackageDefinition != null,
+    'swiftCodeBefore': _swiftCodeBeforePackageDefinition ?? '',
     // Supported platforms can't be empty, so only include if not null.
     'platforms': _formatPlatforms() ?? false,
     'products': _formatProducts(),

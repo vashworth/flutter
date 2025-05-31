@@ -156,11 +156,16 @@ Future<void> buildMacOS({
     final String? macOSDeploymentTarget = buildSettings['MACOSX_DEPLOYMENT_TARGET'];
     if (macOSDeploymentTarget != null) {
       SwiftPackageManager.updateMinimumDeployment(
-        platform: SupportedPlatform.macos,
+        platform: DarwinPlatform.macos,
         project: flutterProject.macos,
         deploymentTarget: macOSDeploymentTarget,
       );
     }
+    SwiftPackageManager.updateBuildMode(
+      project: flutterProject.macos,
+      platform: DarwinPlatform.macos,
+      buildMode: buildInfo.mode,
+    );
   }
 
   await processPodsIfNeeded(flutterProject.macos, getMacOSBuildDirectory(), buildInfo.mode);

@@ -16,6 +16,7 @@ import '../../build_info.dart';
 import '../../devfs.dart';
 import '../../globals.dart' as globals;
 import '../../ios/mac.dart';
+import '../../macos/swift_package_manager.dart';
 import '../../macos/xcode.dart';
 import '../../project.dart';
 import '../build_system.dart';
@@ -248,6 +249,8 @@ abstract class UnpackIOS extends UnpackDarwin {
       '{FLUTTER_ROOT}/packages/flutter_tools/lib/src/build_system/targets/ios.dart',
     ),
     Source.artifact(Artifact.flutterXcframework, platform: TargetPlatform.ios, mode: buildMode),
+    // Rerun target if dependencies change because [canSkip] might differ.
+    Source.fromProject((FlutterProject project) => project.flutterPluginsDependenciesFile),
   ];
 
   @override
@@ -260,6 +263,9 @@ abstract class UnpackIOS extends UnpackDarwin {
 
   @visibleForOverriding
   BuildMode get buildMode;
+
+  @override
+  DarwinPlatform get platform => DarwinPlatform.ios;
 
   @override
   Future<void> build(Environment environment) async {

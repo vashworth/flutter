@@ -294,11 +294,16 @@ Future<XcodeBuildResult> buildXcodeProject({
     final String? iosDeploymentTarget = buildSettings['IPHONEOS_DEPLOYMENT_TARGET'];
     if (iosDeploymentTarget != null) {
       SwiftPackageManager.updateMinimumDeployment(
-        platform: SupportedPlatform.ios,
+        platform: DarwinPlatform.ios,
         project: project.ios,
         deploymentTarget: iosDeploymentTarget,
       );
     }
+    SwiftPackageManager.updateBuildMode(
+      project: project.ios,
+      platform: DarwinPlatform.ios,
+      buildMode: buildInfo.mode,
+    );
   }
   await processPodsIfNeeded(project.ios, getIosBuildDirectory(), buildInfo.mode);
   if (configOnly) {

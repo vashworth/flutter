@@ -152,7 +152,7 @@ abstract class Target {
   ///
   /// Returning `true` will cause [build] to be skipped. This is equivalent
   /// to a build that produces no outputs.
-  bool canSkip(Environment environment) => false;
+  Future<bool> canSkip(Environment environment) async => false;
 
   /// The action which performs this build step.
   Future<void> build(Environment environment);
@@ -738,10 +738,11 @@ class FlutterBuildSystem extends BuildSystem {
     FileSystem fileSystem,
     Map<String, File> currentOutputs,
   ) {
-    if (environment.defines[kXcodePreAction] == 'PrepareFramework') {
-      // If the current build is the PrepareFramework Xcode pre-action, skip
-      // updating the last build identifier and cleaning up the previous build
-      // since this build is not a complete build.
+    if (environment.defines[kXcodeBuildScript] == kPrepareXcodeBuildScript ||
+        environment.defines[kXcodeBuildScript] == kEmbedXcodeBuildScript) {
+      // If the current build originates from either the kPrepareXcodeBuildScript
+      // or kEmbedXcodeBuildScript, skip updating the last build identifier and
+      // cleaning up the previous build since this build is not a complete build.
       return;
     }
 
@@ -866,7 +867,7 @@ class _BuildInstance {
       node.outputs.clear();
 
       // Check if we can skip via runtime dependencies.
-      final bool runtimeSkip = node.target.canSkip(environment);
+      final bool runtimeSkip = await node.target.canSkip(environment);
       if (runtimeSkip) {
         logger.printTrace('Skipping target: ${node.target.name}');
         skipped = true;
@@ -896,6 +897,12 @@ class _BuildInstance {
           continue;
         }
         final File previousFile = fileSystem.file(previousOutput);
+        // TODO: SPM - see if deleting last_build_id will make this avoidable
+        // Don't delete FlutterMacOS binary, even if it's removed from the outputFiles.
+        // Xcode now handles outputting it, so deleting it mid-build can cause issues.
+        if (previousOutput.contains('FlutterMacOS.framework/Versions/A/FlutterMacOS')) {
+          continue;
+        }
         ErrorHandlingFileSystem.deleteIfExists(previousFile);
       }
     } on Exception catch (exception, stackTrace) {
@@ -1165,7 +1172,7 @@ class Node {
     // For each output, first determine if we've already computed the key
     // for it. Then collect it to be sent off for hashing as a group.
     for (final String previousOutput in previousOutputs) {
-      // output paths changed.
+      // Output paths changed - an output was removed.
       if (!currentOutputPaths.contains(previousOutput)) {
         _dirty = true;
         final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetChanged);
@@ -1191,6 +1198,17 @@ class Node {
         }
       } else {
         sourcesToDiff.add(file);
+      }
+    }
+
+    for (final String currentOutput in currentOutputPaths) {
+      // Output paths changed - a new output was added.
+      if (!previousOutputs.contains(currentOutput)) {
+        _dirty = true;
+        final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetChanged);
+        reason.data.add(currentOutput);
+        // if this isn't a current output file there is no reason to compute the key.
+        continue;
       }
     }
 
@@ -1239,7 +1257,7 @@ class InvalidatedReason {
       InvalidatedReasonKind.outputMissing =>
         'The following outputs were missing: ${data.join(',')}',
       InvalidatedReasonKind.outputSetChanged =>
-        'The following outputs were removed from the output set: ${data.join(',')}',
+        'The following outputs were added or removed from the output set: ${data.join(',')}',
       InvalidatedReasonKind.buildKeyChanged => 'The target build key changed.',
     };
   }

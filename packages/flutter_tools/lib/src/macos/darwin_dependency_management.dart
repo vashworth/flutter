@@ -57,22 +57,24 @@ class DarwinDependencyManagement {
   /// Swift Package Manager requires a generated Package.swift and certain
   /// settings in the Xcode project's project.pbxproj and xcscheme (done later
   /// before build).
-  Future<void> setUp({required SupportedPlatform platform}) async {
-    if (platform != SupportedPlatform.ios && platform != SupportedPlatform.macos) {
-      throwToolExit(
-        'The platform ${platform.name} is incompatible with Darwin Dependency Managers. Only iOS and macOS are allowed.',
-      );
-    }
-    final XcodeBasedProject xcodeProject =
-        platform == SupportedPlatform.ios ? _project.ios : _project.macos;
+  Future<void> setUp({required DarwinPlatform platform}) async {
+    final XcodeBasedProject xcodeProject = platform.xcodeProject(_project);
     if (xcodeProject.usesSwiftPackageManager) {
-      await _swiftPackageManager.generatePluginsSwiftPackage(_plugins, platform, xcodeProject);
+      await _swiftPackageManager.generatePluginsSwiftPackage(
+        plugins: _plugins,
+        platform: platform,
+        project: xcodeProject,
+      );
     } else if (xcodeProject.flutterPluginSwiftPackageInProjectSettings) {
       // If Swift Package Manager is not enabled but the project is already
       // integrated for Swift Package Manager, pass no plugins to the generator.
       // This will still generate the required Package.swift, but it will have
       // no dependencies.
-      await _swiftPackageManager.generatePluginsSwiftPackage(<Plugin>[], platform, xcodeProject);
+      await _swiftPackageManager.generatePluginsSwiftPackage(
+        plugins: <Plugin>[],
+        platform: platform,
+        project: xcodeProject,
+      );
     }
 
     // Skip updating Podfile if project is a module, since it will use a
@@ -133,7 +135,7 @@ class DarwinDependencyManagement {
   /// Prints message prompting the user to deintegrate CocoaPods if using all
   /// Swift Package plugins.
   Future<({int totalCount, int swiftPackageCount, int podCount})> _evaluatePluginsAndPrintWarnings({
-    required SupportedPlatform platform,
+    required DarwinPlatform platform,
     required XcodeBasedProject xcodeProject,
   }) async {
     int pluginCount = 0;

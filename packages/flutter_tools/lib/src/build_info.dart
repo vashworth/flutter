@@ -409,7 +409,15 @@ enum BuildMode {
   /// Whether this mode is using the precompiled runtime.
   bool get isPrecompiled => !isJit;
 
+  /// Name formatted in snake case.
+  ///
+  /// (e.g. debug, profile, release, jit_release)
   String get cliName => snakeCase(name);
+
+  /// Name formatted in proper/sentence case.
+  ///
+  /// (e.g. Debug, Profile, Release, Jit release)
+  String get properName => sentenceCase(name);
 
   @override
   String toString() => cliName;
@@ -993,11 +1001,18 @@ const String kBuildNumber = 'BuildNumber';
 /// Will be "build" when building and "install" when archiving.
 const String kXcodeAction = 'Action';
 
-/// The define of the Xcode build Pre-action.
-///
-/// Will be "PrepareFramework" when copying the Flutter/FlutterMacOS framework
-/// to the BUILT_PRODUCTS_DIR prior to the build.
-const String kXcodePreAction = 'PreBuildAction';
+/// The define of the Xcode Build Script.
+/// This may be [kPrepareXcodeBuildScript], [kBuildXcodeBuildScript], or [kEmbedXcodeBuildScript].
+const String kXcodeBuildScript = 'BuildScript';
+
+/// When [kXcodeBuildScript] equals this value, that indicates that the target was trigged to run by the first Run Script in the Xcode build process that happens before compiling.
+const String kBuildXcodeBuildScript = 'build';
+
+/// When [kXcodeBuildScript] equals this value, that indicates that the target was trigged to run by a scheme pre-action.
+const String kPrepareXcodeBuildScript = 'prepare';
+
+/// When [kXcodeBuildScript] equals this value, that indicates that the target was trigged to run by the second Run Script in the Xcode build process that happens after compiling and linking.
+const String kEmbedXcodeBuildScript = 'embed';
 
 final Converter<String, String> _defineEncoder = utf8.encoder.fuse(base64.encoder);
 final Converter<String, String> _defineDecoder = base64.decoder.fuse(utf8.decoder);

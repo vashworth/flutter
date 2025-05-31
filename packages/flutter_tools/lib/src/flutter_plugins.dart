@@ -1294,6 +1294,7 @@ Future<void> injectPlugins(
           swiftPackageManager: SwiftPackageManager(
             fileSystem: globals.fs,
             templateRenderer: globals.templateRenderer,
+            artifacts: globals.artifacts!,
           ),
           fileSystem: globals.fs,
           featureFlags: featureFlags,
@@ -1301,10 +1302,10 @@ Future<void> injectPlugins(
           analytics: globals.analytics,
         );
     if (iosPlatform) {
-      await darwinDependencyManagerSetup.setUp(platform: SupportedPlatform.ios);
+      await darwinDependencyManagerSetup.setUp(platform: DarwinPlatform.ios);
     }
     if (macOSPlatform) {
-      await darwinDependencyManagerSetup.setUp(platform: SupportedPlatform.macos);
+      await darwinDependencyManagerSetup.setUp(platform: DarwinPlatform.macos);
     }
   }
 }

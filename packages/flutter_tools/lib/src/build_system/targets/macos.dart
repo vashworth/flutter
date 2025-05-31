@@ -12,6 +12,7 @@ import '../../base/process.dart';
 import '../../build_info.dart';
 import '../../devfs.dart';
 import '../../globals.dart' as globals show xcode;
+import '../../macos/swift_package_manager.dart';
 import '../../project.dart';
 import '../build_system.dart';
 import '../depfile.dart';
@@ -36,17 +37,31 @@ abstract class UnpackMacOS extends UnpackDarwin {
   const UnpackMacOS();
 
   @override
-  List<Source> get inputs => const <Source>[
-    Source.pattern('{FLUTTER_ROOT}/packages/flutter_tools/lib/src/build_system/targets/macos.dart'),
+  List<Source> get inputs => <Source>[
+    const Source.pattern('{FLUTTER_ROOT}/packages/flutter_tools/lib/src/build_system/targets/macos.dart'),
+    // Rerun target if dependencies change because [canSkip] might differ.
+    Source.fromProject((FlutterProject project) => project.flutterPluginsDependenciesFile),
   ];
 
   @override
-  List<Source> get outputs => const <Source>[
-    Source.pattern('{OUTPUT_DIR}/FlutterMacOS.framework/Versions/A/FlutterMacOS'),
-  ];
+  List<Source> get outputs {
+    // Swift Package Manager will also produce the FlutterMacOS framework. If both SwiftPM and "Flutter Assemble" output
+    // the framework, the build will fail with an error about multiple commands
+    // producing the same output. Only output the framework if SwiftPM is disabled.
+    final FlutterProject flutterProject = FlutterProject.current();
+    if (flutterProject.macos.usesSwiftPackageManager) {
+      return <Source>[];
+    }
+    return <Source>[
+      const Source.pattern('{OUTPUT_DIR}/FlutterMacOS.framework/Versions/A/FlutterMacOS'),
+    ];
+  }
 
   @override
   List<Target> get dependencies => <Target>[];
+
+  @override
+  DarwinPlatform get platform => DarwinPlatform.macos;
 
   @override
   Future<void> build(Environment environment) async {
