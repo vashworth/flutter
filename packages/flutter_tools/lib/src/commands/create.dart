@@ -709,10 +709,8 @@ Your $application code is in $relativeAppMain.
       templates.add('plugin_swift_package_manager');
       templateContext['swiftLibraryName'] = projectName?.replaceAll('_', '-');
       templateContext['swiftToolsVersion'] = minimumSwiftToolchainVersion;
-      templateContext['iosSupportedPlatform'] =
-          SwiftPackageManager.iosSwiftPackageSupportedPlatform.format();
-      templateContext['macosSupportedPlatform'] =
-          SwiftPackageManager.macosSwiftPackageSupportedPlatform.format();
+      templateContext['iosSupportedPlatform'] = DarwinPlatform.ios.supportedPackagePlatform.format();
+      templateContext['macosSupportedPlatform'] = DarwinPlatform.macos.supportedPackagePlatform.format();
     } else {
       templates.add('plugin_cocoapods');
     }
