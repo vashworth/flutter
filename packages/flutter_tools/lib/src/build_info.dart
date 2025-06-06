@@ -411,6 +411,8 @@ enum BuildMode {
 
   String get cliName => snakeCase(name);
 
+  String get properName => sentenceCase(name);
+
   @override
   String toString() => cliName;
 }

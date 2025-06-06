@@ -438,6 +438,14 @@ class Plugin {
   /// Dev dependencies are intended to be stripped out in release builds.
   final bool isDevDependency;
 
+    bool supportsSwiftPackageManager(FileSystem fileSystem, String platform) {
+    final String? swiftPackageManifest = pluginSwiftPackageManifestPath(fileSystem, platform);
+    if (swiftPackageManifest == null) {
+      return false;
+    }
+    return fileSystem.file(swiftPackageManifest).existsSync();
+  }
+
   /// Expected path to the plugin's swift package, which contains the Package.swift.
   ///
   /// This path should be `/path/to/[package_name]/[platform]/[package_name]`

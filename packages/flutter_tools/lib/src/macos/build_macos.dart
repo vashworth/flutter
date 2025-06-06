@@ -162,16 +162,9 @@ Future<void> buildMacOS({
       );
     }
 
-    // Regenerate Flutter framework Swift Package to ensure correct build mode.
-    final SwiftPackageManager swiftPackageManager = SwiftPackageManager(
-      artifacts: globals.artifacts!,
-      cache: globals.cache,
-      fileSystem: globals.fs,
-      templateRenderer: globals.templateRenderer,
-    );
-    await swiftPackageManager.generateFlutterFrameworkSwiftPackage(
-      DarwinPlatform.macos,
-      flutterProject.macos,
+    SwiftPackageManager.updateBuildMode(
+      project: flutterProject.macos,
+      platform: DarwinPlatform.macos,
       buildMode: buildInfo.mode,
     );
   }

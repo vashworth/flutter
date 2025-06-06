@@ -18,7 +18,6 @@ import '../build_system/build_system.dart';
 import '../build_system/targets/ios.dart';
 import '../build_system/targets/macos.dart';
 import '../cache.dart';
-import '../features.dart';
 import '../flutter_plugins.dart';
 import '../globals.dart' as globals;
 import '../macos/cocoapod_utils.dart';
@@ -289,17 +288,15 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
 
     for (int i = 0; i < buildInfos.length; i++) {
       final BuildInfo buildInfo = buildInfos[i];
-      final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);
+      final String xcodeBuildConfiguration = buildInfo.mode.properName;
       globals.logger.printStatus('Building for $xcodeBuildConfiguration...');
 
       Status status = globals.logger.startProgress(
         '   ├─Creating Flutter Framework Swift Package...',
       );
       await _produceFlutterFrameworkSwiftPackage(
-        buildInfo: buildInfo,
-        cacheDirectory: cacheDirectory.childDirectory(xcodeBuildConfiguration),
-        symlinkDirectory: packagesDirectory.childDirectory(xcodeBuildConfiguration),
-        pluginRegistrantSwiftPackage: pluginRegistrantSwiftPackage,
+        buildModes: buildInfos.map((BuildInfo info) => info.mode).toList(),
+        cacheDirectory: cacheDirectory,
       );
       status.stop();
 
@@ -317,46 +314,34 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     }
 
     final Status status = globals.logger.startProgress('Generating final package...');
-
-    final String defaultBuildConfiguration = sentenceCase(buildInfos[0].mode.cliName);
+    final BuildMode defaultBuildMode = buildInfos[0].mode;
 
     final List<Plugin> plugins = await findPlugins(project);
     // Sort the plugins by name to keep ordering stable in generated files.
     plugins.sort((Plugin left, Plugin right) => left.name.compareTo(right.name));
 
-    final List<Plugin> copiedPlugins = await _produceSwiftPackagePlugins(
-      fileSystem: globals.fs,
-      cacheDirectory: cacheDirectory,
+    final List<Plugin> copiedPlugins = await _copySwiftPackagePlugins(
+      destination: cacheDirectory,
       plugins: plugins,
-      buildInfos: buildInfos,
-      packagesDirectory: packagesDirectory,
-      defaultBuildConfiguration: defaultBuildConfiguration,
-    );
-
-    final List<Plugin> regularPlugins =
-        copiedPlugins.where((Plugin p) => !p.isDevDependency).toList();
-    final List<Plugin> devPlugins = copiedPlugins.where((Plugin p) => p.isDevDependency).toList();
-
-    final (
-      List<SwiftPackagePackageDependency> devPluginPackageDependencies,
-      List<SwiftPackageTargetDependency> devTargetDependencies,
-    ) = await _generateSwiftPackages(
-      flutterPluginsSwiftPackage: pluginRegistrantSwiftPackage,
-      symlinkDirectory: packagesDirectory.childDirectory(defaultBuildConfiguration),
       fileSystem: globals.fs,
-      plugins: devPlugins,
-      defaultBuildConfiguration: defaultBuildConfiguration,
+      buildInfos: buildInfos,
     );
+
+    final List<Plugin> regularPlugins = plugins.where((Plugin p) => !p.isDevDependency).toList();
+    final List<Plugin> devPlugins = plugins.where((Plugin p) => p.isDevDependency).toList();
 
     final (
       List<SwiftPackagePackageDependency> packageDependencies,
       List<SwiftPackageTargetDependency> targetDependencies,
       List<SwiftPackageTarget> additionalTargets,
+      List<SwiftPackagePackageDependency> devPluginPackageDependencies,
+      List<SwiftPackageTargetDependency> devTargetDependencies,
     ) = await _generateDependenciesAndTargets(
       packagesDirectory: packagesDirectory,
-      defaultBuildConfiguration: defaultBuildConfiguration,
+      defaultBuildMode: defaultBuildMode,
       pluginRegistrantSwiftPackage: pluginRegistrantSwiftPackage,
-      regularPlugins: regularPlugins,
+      regularPlugins: copiedPlugins,
+      cacheDirectory: cacheDirectory,
     );
 
     // Create FlutterPluginRegistrant source files
@@ -426,22 +411,18 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
       List<SwiftPackagePackageDependency>,
       List<SwiftPackageTargetDependency>,
       List<SwiftPackageTarget>,
+      List<SwiftPackagePackageDependency>,
+      List<SwiftPackageTargetDependency>,
     )
   >
   _generateDependenciesAndTargets({
     required Directory packagesDirectory,
-    required String defaultBuildConfiguration,
+    required BuildMode defaultBuildMode,
     required Directory pluginRegistrantSwiftPackage,
     required List<Plugin> regularPlugins,
+    required Directory cacheDirectory,
   }) async {
-    final (
-      SwiftPackageTargetDependency flutterFrameworkTargetDependency,
-      SwiftPackagePackageDependency flutterFrameworkPackageDependency,
-    ) = await _generateFlutterFrameworkSwiftPackage(
-      symlinkDirectory: packagesDirectory.childDirectory(defaultBuildConfiguration),
-      pluginRegistrantSwiftPackage: pluginRegistrantSwiftPackage,
-      defaultBuildConfiguration: defaultBuildConfiguration,
-    );
+    final String defaultBuildConfiguration = defaultBuildMode.properName;
 
     final (SwiftPackageTargetDependency appTargetDependency, SwiftPackageTarget appTargetBinary) =
         _generateAppFrameworkSwiftDependency();
@@ -458,48 +439,27 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     final (
       List<SwiftPackagePackageDependency> regularPluginPackageDependencies,
       List<SwiftPackageTargetDependency> regularTargetDependencies,
+      List<SwiftPackagePackageDependency> devPluginPackageDependencies,
+      List<SwiftPackageTargetDependency> devTargetDependencies,
     ) = await _generateSwiftPackages(
       flutterPluginsSwiftPackage: pluginRegistrantSwiftPackage,
-      symlinkDirectory: packagesDirectory.childDirectory(defaultBuildConfiguration),
+      packageDirectory: packagesDirectory,
       fileSystem: globals.fs,
       plugins: regularPlugins,
-      defaultBuildConfiguration: defaultBuildConfiguration,
+      defaultBuildMode: defaultBuildMode,
+      cacheDirectory: cacheDirectory,
     );
 
     return (
-      <SwiftPackagePackageDependency>[
-        flutterFrameworkPackageDependency,
-        ...regularPluginPackageDependencies,
-      ],
+      <SwiftPackagePackageDependency>[...regularPluginPackageDependencies],
       <SwiftPackageTargetDependency>[
-        flutterFrameworkTargetDependency,
         appTargetDependency,
         ...cocoapodTargetDependencies,
         ...regularTargetDependencies,
       ],
       <SwiftPackageTarget>[appTargetBinary, ...cocoapodBinaryTargets],
-    );
-  }
-
-  Future<void> _produceFlutterFramework(
-    BuildInfo buildInfo,
-    DarwinPlatform platform,
-    Directory modeDirectory,
-  ) async {
-    final String engineCacheFlutterFrameworkDirectory = globals.artifacts!.getArtifactPath(
-      platform.xcframeworkArtifact,
-      platform: platform.targetPlatform,
-      mode: buildInfo.mode,
-    );
-    final String flutterFrameworkFileName = globals.fs.path.basename(
-      engineCacheFlutterFrameworkDirectory,
-    );
-    final Directory flutterFrameworkCopy = modeDirectory.childDirectory(flutterFrameworkFileName);
-
-    copyDirectory(
-      globals.fs.directory(engineCacheFlutterFrameworkDirectory),
-      flutterFrameworkCopy,
-      followLinks: false,
+      devPluginPackageDependencies,
+      devTargetDependencies,
     );
   }
 
@@ -515,11 +475,6 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     );
 
     final List<Directory> frameworks = <Directory>[];
-
-    // Dev dependencies are removed from release builds if the explicit package
-    // dependencies flag is on.
-    final bool devDependenciesEnabled =
-        !featureFlags.isExplicitPackageDependenciesEnabled || !buildInfo.mode.isRelease;
 
     try {
       for (final DarwinPlatform platform in targetPlatforms) {
@@ -682,10 +637,11 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
             'BUILD_LIBRARY_FOR_DISTRIBUTION=YES',
             if (boolArg('static')) 'MACH_O_TYPE=staticlib',
           ];
+          // TODO: SPM - Pods directory may not exist if there are no CocoaPods-only plugins
           final ProcessResult buildPluginsResult = await globals.processManager.run(
             pluginsBuildCommand,
             workingDirectory: xcodeProject.hostAppRoot.childDirectory('Pods').path,
-            includeParentEnvironment: false,
+            // includeParentEnvironment: false,
           );
           if (buildPluginsResult.exitCode != 0) {
             throwToolExit('Unable to build plugin frameworks: ${buildPluginsResult.stderr}');
@@ -736,123 +692,76 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
     return;
   }
 
+  /// Copy the Flutter framework from the engine cache to the [cacheDirectory] for each build mode.
   Future<void> _produceFlutterFrameworkSwiftPackage({
-    required BuildInfo buildInfo,
+    required List<BuildMode> buildModes,
     required Directory cacheDirectory,
-    required Directory symlinkDirectory,
-    required Directory pluginRegistrantSwiftPackage,
   }) async {
-    final Directory flutterFrameworkSwiftPackage = cacheDirectory.childDirectory(
-      kFlutterFrameworkSwiftPackageName,
-    );
-
-    final Directory engineDir = flutterFrameworkSwiftPackage.childDirectory(cache.engineRevision)
-      ..createSync(recursive: true);
     for (final DarwinPlatform platform in targetPlatforms) {
-      await _produceFlutterFramework(buildInfo, platform, engineDir);
+      for (final BuildMode buildMode in buildModes) {
+        final Directory buildModeDirectory = cacheDirectory.childDirectory(buildMode.properName);
+        // Symlink the Flutter framework to the engine cache.
+        final String frameworkArtifactPath = globals.artifacts!.getArtifactPath(
+          platform.xcframeworkArtifact,
+          platform: platform.targetPlatform,
+          mode: buildMode,
+        );
+        final ProcessResult result = await globals.processManager.run(<String>[
+          'rsync',
+          '-av',
+          '--delete',
+          '--filter',
+          '- .DS_Store/',
+          '--chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r',
+          frameworkArtifactPath,
+          buildModeDirectory.path,
+        ]);
+        if (result.exitCode != 0) {
+          throw Exception(
+            'Failed to copy framework (exit ${result.exitCode}:\n'
+            '${result.stdout}\n---\n${result.stderr}',
+          );
+        }
+      }
     }
-
-    final Link symlink = symlinkDirectory.childLink(kFlutterFrameworkSwiftPackageName);
-    ErrorHandlingFileSystem.deleteIfExists(symlink);
-    symlink.createSync(flutterFrameworkSwiftPackage.path, recursive: true);
-
-    final SwiftPackageManager spm = SwiftPackageManager(
-      artifacts: globals.artifacts!,
-      cache: globals.cache,
-      fileSystem: globals.fs,
-      templateRenderer: globals.templateRenderer,
-    );
-    await spm.generateConditionalFlutterFrameworkSwiftPackage(
-      project,
-      platforms: targetPlatforms,
-      buildMode: buildInfo.mode,
-      manifestPath: flutterFrameworkSwiftPackage.childFile('Package.swift'),
-      remoteFramework: remoteFlutterFramework,
-      buildModeInPath: false,
-    );
-  }
-
-  Future<(SwiftPackageTargetDependency, SwiftPackagePackageDependency)>
-  _generateFlutterFrameworkSwiftPackage({
-    required Directory symlinkDirectory,
-    required Directory pluginRegistrantSwiftPackage,
-    required String defaultBuildConfiguration,
-  }) async {
-    final Link symlink = symlinkDirectory.childLink(kFlutterFrameworkSwiftPackageName);
-    final String relativePath = globals.fs.path.relative(
-      symlink.path,
-      from: pluginRegistrantSwiftPackage.path,
-    );
-
-    return (
-      SwiftPackageTargetDependency.product(
-        name: 'Flutter',
-        packageName: kFlutterFrameworkSwiftPackageName,
-      ),
-      SwiftPackagePackageDependency.local(
-        packageName: kFlutterFrameworkSwiftPackageName,
-        localPath: relativePath.replaceFirst(defaultBuildConfiguration, r'\(mode)'),
-      ),
-    );
   }
 
   /// Create a FlutterGeneratedPluginRegistrant, that has dependencies on Flutter,
   /// CocoaPods plugins (made into xcframeworks), and SwiftPM plugins.
   Future<
     (
-      List<SwiftPackagePackageDependency> packageDependencies,
-      List<SwiftPackageTargetDependency> targetDependencies,
+      List<SwiftPackagePackageDependency>,
+      List<SwiftPackageTargetDependency>,
+      List<SwiftPackagePackageDependency>,
+      List<SwiftPackageTargetDependency>,
     )
   >
   _generateSwiftPackages({
     required Directory flutterPluginsSwiftPackage,
-    required Directory symlinkDirectory,
+    required Directory packageDirectory,
     required FileSystem fileSystem,
     required List<Plugin> plugins,
-    required String defaultBuildConfiguration,
+    required BuildMode defaultBuildMode,
+    required Directory cacheDirectory,
   }) async {
-    final File manifestFile = flutterPluginsSwiftPackage.childFile('Package.swift');
-    final (
-      List<SwiftPackagePackageDependency> packageDependencies,
-      List<SwiftPackageTargetDependency> targetDependencies,
-    ) = SwiftPackageManager.dependenciesForPlugins(
+    // final File manifestFile = flutterPluginsSwiftPackage.childFile('Package.swift');
+
+    final SwiftPackageManager swiftPackageManager = SwiftPackageManager(
+      artifacts: globals.artifacts!,
+      fileSystem: globals.fs,
+      templateRenderer: globals.templateRenderer,
+      cache: globals.cache,
+    );
+    return swiftPackageManager.createDependencies(
       plugins: plugins,
       platforms: targetPlatforms,
-      fileSystem: fileSystem,
-      pathRelativeTo: manifestFile.parent.path,
-      symlinkDirectory: symlinkDirectory,
-      buildModeToReplace: defaultBuildConfiguration,
+      project: project,
+      packageDirectory: packageDirectory,
+      defaultBuildMode: defaultBuildMode,
+      flutterPluginSwiftPackageDirectory: flutterPluginsSwiftPackage,
+      frameworkSource: cacheDirectory,
+      // TODO: remote
     );
-
-    return (packageDependencies, targetDependencies);
-  }
-
-  Future<List<Plugin>> _produceSwiftPackagePlugins({
-    required FileSystem fileSystem,
-    required Directory cacheDirectory,
-    required List<Plugin> plugins,
-    required List<BuildInfo> buildInfos,
-    required Directory packagesDirectory,
-    required String defaultBuildConfiguration,
-  }) async {
-    final List<Plugin> pluginDependencies = <Plugin>[];
-
-    for (final DarwinPlatform platform in targetPlatforms) {
-      // Copy Swift Package plugins into a child directory so they are relatively located.
-      final List<Plugin> copiedPlugins = await _copySwiftPackagePlugins(
-        destination: cacheDirectory,
-        platform: platform,
-        plugins: plugins,
-        fileSystem: fileSystem,
-        alreadyCopiedPlugins: pluginDependencies,
-        buildInfos: buildInfos,
-        packagesDirectory: packagesDirectory,
-        defaultBuildConfiguration: defaultBuildConfiguration,
-      );
-      pluginDependencies.addAll(copiedPlugins);
-    }
-
-    return pluginDependencies;
   }
 
   /// Find all xcframeworks in the [frameworksDir] and create a Swift Package
@@ -907,71 +816,60 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
   /// Copy plugins with a Package.swift for the given [platform] to [destination].
   Future<List<Plugin>> _copySwiftPackagePlugins({
     required List<BuildInfo> buildInfos,
-    required Directory packagesDirectory,
-    required String defaultBuildConfiguration,
     required List<Plugin> plugins,
     required Directory destination,
-    required DarwinPlatform platform,
     required FileSystem fileSystem,
-    required List<Plugin> alreadyCopiedPlugins,
+    // required List<Plugin> alreadyCopiedPlugins,
   }) async {
-    final List<Plugin> copiedPlugins = <Plugin>[];
-    for (final Plugin plugin in plugins) {
-      if (alreadyCopiedPlugins
-          .where((Plugin copiedPlugin) => copiedPlugin.name == plugin.name)
-          .isNotEmpty) {
-        continue;
-      }
-      final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
-        fileSystem,
-        platform.name,
-      );
-      if (plugin.platforms[platform.name] == null ||
-          pluginSwiftPackageManifestPath == null ||
-          !fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
-        continue;
-      }
-      final Directory pluginSource = fileSystem.directory(plugin.path);
-      final Directory pluginDestination = destination.childDirectory(plugin.name)
-        ..createSync(recursive: true);
+    final List<Plugin> pluginDependencies = <Plugin>[];
 
-      copyDirectory(
-        pluginSource,
-        pluginDestination,
-        shouldCopyDirectory: (Directory dir) => !dir.path.endsWith('example'),
-      );
+    for (final DarwinPlatform platform in targetPlatforms) {
+      final List<Plugin> copiedPlugins = <Plugin>[];
+      for (final Plugin plugin in plugins) {
+        final String? pluginSwiftPackageManifestPath = plugin.pluginSwiftPackageManifestPath(
+          fileSystem,
+          platform.name,
+        );
+        if (plugin.platforms[platform.name] == null ||
+            pluginSwiftPackageManifestPath == null ||
+            !fileSystem.file(pluginSwiftPackageManifestPath).existsSync()) {
+          continue;
+        }
+        final Directory pluginSource = fileSystem.directory(plugin.path);
+        final Directory pluginDestination = destination.childDirectory(plugin.name)
+          ..createSync(recursive: true);
 
-      final String? packagePath = plugin.pluginSwiftPackagePath(
-        fileSystem,
-        platform.name,
-        overridePath: pluginDestination.path,
-      );
-      if (packagePath == null) {
-        throwToolExit('message');
-      }
-      for (final BuildInfo buildInfo in buildInfos) {
-        final String xcodeBuildConfiguration = sentenceCase(buildInfo.mode.cliName);
-        final Link pluginSymlink = packagesDirectory
-            .childDirectory(xcodeBuildConfiguration)
-            .childLink(plugin.name);
-        ErrorHandlingFileSystem.deleteIfExists(pluginSymlink);
-        pluginSymlink.createSync(packagePath);
+        copyDirectory(
+          pluginSource,
+          pluginDestination,
+          shouldCopyDirectory: (Directory dir) => !dir.path.endsWith('example'),
+        );
+
+        final String? packagePath = plugin.pluginSwiftPackagePath(
+          fileSystem,
+          platform.name,
+          overridePath: pluginDestination.path,
+        );
+        if (packagePath == null) {
+          throwToolExit('message');
+        }
+        final Plugin copiedPlugin = Plugin(
+          name: plugin.name,
+          path: pluginDestination.path,
+          platforms: plugin.platforms,
+          defaultPackagePlatforms: plugin.defaultPackagePlatforms,
+          pluginDartClassPlatforms: plugin.pluginDartClassPlatforms,
+          dependencies: plugin.dependencies,
+          isDirectDependency: plugin.isDirectDependency,
+          isDevDependency: plugin.isDevDependency,
+        );
+        copiedPlugins.add(copiedPlugin);
       }
 
-      final Plugin copiedPlugin = Plugin(
-        name: plugin.name,
-        path: pluginDestination.path,
-        platforms: plugin.platforms,
-        defaultPackagePlatforms: plugin.defaultPackagePlatforms,
-        pluginDartClassPlatforms: plugin.pluginDartClassPlatforms,
-        dependencies: plugin.dependencies,
-        isDirectDependency: plugin.isDirectDependency,
-        isDevDependency: plugin.isDevDependency,
-      );
-      copiedPlugins.add(copiedPlugin);
+      pluginDependencies.addAll(copiedPlugins);
     }
 
-    return copiedPlugins;
+    return pluginDependencies;
   }
 
   // Create FlutterPluginRegistrant Swift Package with dependencies on the
@@ -1022,8 +920,8 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
       name: swiftPackageName,
       swiftCodeBeforePackageDefinition: 'let mode = "Debug"', // TODO: SPM - don't hardcode
       platforms: <SwiftPackageSupportedPlatform>[
-        SwiftPackageManager.iosSwiftPackageSupportedPlatform,
-        SwiftPackageManager.macosSwiftPackageSupportedPlatform,
+        DarwinPlatform.ios.supportedPackagePlatform,
+        DarwinPlatform.macos.supportedPackagePlatform,
       ],
       products: <SwiftPackageProduct>[generatedProduct],
       dependencies: packageDependencies,

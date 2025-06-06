@@ -153,6 +153,15 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   Directory get relativeSwiftPackagesDirectory =>
       flutterSwiftPackagesDirectory.childDirectory('.packages');
 
+  // Directory swiftPackageBuildModeDirectory(BuildMode buildMode) =>
+  //     relativeSwiftPackagesDirectory.childDirectory(buildMode.properName);
+
+  // /// The Flutter generated directory for the Swift Package handling the Flutter framework.
+  // Directory swiftPackageFlutterFrameworkDirectory(BuildMode buildMode) =>
+  //     swiftPackageBuildModeDirectory(
+  //       buildMode,
+  //     ).childDirectory(kFlutterGeneratedFrameworkSwiftPackageName);
+
   /// The Flutter generated directory for the Swift Package handling the Flutter framework.
   Directory get flutterFrameworkSwiftPackageDirectory =>
       relativeSwiftPackagesDirectory.childDirectory('FlutterFramework');

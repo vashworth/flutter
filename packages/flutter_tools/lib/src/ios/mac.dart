@@ -303,15 +303,9 @@ Future<XcodeBuildResult> buildXcodeProject({
     }
 
     // Regenerate Flutter framework Swift Package to ensure correct build mode.
-    final SwiftPackageManager swiftPackageManager = SwiftPackageManager(
-      artifacts: globals.artifacts!,
-      cache: globals.cache,
-      fileSystem: globals.fs,
-      templateRenderer: globals.templateRenderer,
-    );
-    await swiftPackageManager.generateFlutterFrameworkSwiftPackage(
-      DarwinPlatform.ios,
-      project.ios,
+    SwiftPackageManager.updateBuildMode(
+      project: project.ios,
+      platform: DarwinPlatform.ios,
       buildMode: buildInfo.mode,
     );
   }
