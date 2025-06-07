@@ -438,7 +438,7 @@ class Plugin {
   /// Dev dependencies are intended to be stripped out in release builds.
   final bool isDevDependency;
 
-    bool supportsSwiftPackageManager(FileSystem fileSystem, String platform) {
+  bool supportsSwiftPackageManager(FileSystem fileSystem, String platform) {
     final String? swiftPackageManifest = pluginSwiftPackageManifestPath(fileSystem, platform);
     if (swiftPackageManifest == null) {
       return false;
@@ -493,10 +493,18 @@ class Plugin {
 
     // iOS and macOS code can be shared in "darwin" directory, otherwise
     // respectively in "ios" or "macos" directories.
-    if (platformPlugin is DarwinPlugin && (platformPlugin as DarwinPlugin).sharedDarwinSource) {
+    if (isSharedDarwinPlugin()) {
       return 'darwin';
     }
     return platform;
+  }
+
+  bool isSharedDarwinPlugin() {
+    final PluginPlatform? platformPlugin = platforms[IOSPlugin.kConfigKey];
+    if (platformPlugin == null) {
+      return false;
+    }
+    return platformPlugin is DarwinPlugin && (platformPlugin as DarwinPlugin).sharedDarwinSource;
   }
 }
 

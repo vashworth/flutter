@@ -48,21 +48,22 @@ class Context {
     final TargetPlatform platform = parsePlatform(platformName);
     switch (subCommand) {
       case 'build':
-        buildApp();
+        buildApp(platform, 'build');
       case 'prepare':
-        unpackFor('prepare');
+        unpackFor(platform, 'prepare');
       case 'thin':
         // No-op, thinning is handled during the bundle asset assemble build target.
         break;
       case 'embed':
       case 'embed_and_thin':
         // Thinning is handled during the bundle asset assemble build target, so just embed.
-        embedFlutterFrameworks();
+        embedFlutterFrameworks(platform);
       case 'test_vm_service_bonjour_service':
         // Exposed for integration testing only.
         addVmServiceBonjourService();
       case 'prepare-native':
-        buildFrameworks();
+        buildApp(platform, 'prepare-native');
+        embedFlutterFrameworks(platform);
     }
   }
 
@@ -75,6 +76,7 @@ class Context {
       case 'thin':
       case 'embed':
       case 'embed_and_thin':
+      case 'prepare-native':
       case 'test_vm_service_bonjour_service':
         return command;
       default:
@@ -130,6 +132,15 @@ class Context {
       }
       errorOutput.write(resultStderr);
       echoError(errorOutput.toString());
+
+      // Stream stderr to the Flutter build process.
+      // When in verbose mode, `echoError` above will show the logs. So only
+      // stream if not in verbose mode to avoid duplicate logs.
+      // Also, only stream if exitCode is 0 since errors are handled separately
+      // by the tool on failure.
+      if (!verbose && exitCode == 0) {
+        streamOutput(errorOutput.toString());
+      }
     }
     if (!allowFail && result.exitCode != 0) {
       throw Exception('Command "$bin ${args.join(' ')}" exited with code ${result.exitCode}');
@@ -219,30 +230,6 @@ class Context {
     exitApp(-1);
   }
 
-  /// Determines if the platform is [TargetPlatform.ios] or [TargetPlatform.macos]
-  /// by checking the `PROJECT_DIR` or `PLATFORM_NAME`.
-  ///
-  /// If unable to determine the platform, defaults to [TargetPlatform.ios].
-  TargetPlatform getPlatform() {
-    final String? projectDirectory = environment['PROJECT_DIR'];
-    if (projectDirectory != null) {
-      if (projectDirectory.endsWith('/ios')) {
-        return TargetPlatform.ios;
-      } else if (projectDirectory.endsWith('/macos')) {
-        return TargetPlatform.macos;
-      }
-    }
-    final String? platformName = environment['PLATFORM_NAME'];
-    if (platformName == 'macosx') {
-      return TargetPlatform.macos;
-    } else if (platformName == 'iphonesimulator' || platformName == 'iphoneos') {
-      return TargetPlatform.ios;
-    }
-
-    echoXcodeWarning('Unrecognized platform: $platformName. Defaulting to iOS.');
-    return TargetPlatform.ios;
-  }
-
   /// Copies all files from [source] to [destination].
   ///
   /// Does not copy `.DS_Store`.
@@ -269,73 +256,10 @@ class Context {
   /// is not passed in the build settings during the `build` phase for macOS.
   ///
   /// On iOS, also injects local network permissions into the app's Info.plist.
-  void embedFlutterFrameworks() {
-    final TargetPlatform platform = getPlatform();
-
-    // /Users/vashworth/Development/experiment/flutter/my_app/build/ios/Release-iphoneos/Runner.app/Frameworks
+  void embedFlutterFrameworks(TargetPlatform platform) {
     final String embeddedFrameworksDir =
         '${environment['TARGET_BUILD_DIR']}/${environment['FRAMEWORKS_FOLDER_PATH']}';
     runSync('mkdir', <String>['-p', '--', embeddedFrameworksDir]);
-
-    // /Users/vashworth/Development/experiment/flutter/my_app/build/ios/Release-iphoneos
-    // Identifies the directory under which all the product’s files can be found.
-    final String intermediateFramework;
-    switch (platform) {
-      case TargetPlatform.ios:
-        intermediateFramework = '${environment['BUILT_PRODUCTS_DIR']}/Flutter.framework';
-      case TargetPlatform.macos:
-        intermediateFramework = '${environment['BUILT_PRODUCTS_DIR']}/FlutterMacOS.framework';
-    }
-
-    // When SwiftPM is enabled, Xcode handles copying, codesigning, and embedding the Flutter framework.
-    // However, double check that the correct framework is found. If it is incorrect, re-copy, codesign, and embed it.
-
-    // TODO: SPM -
-    final bool swiftPackageManagerEnabled =
-        (environment['FLUTTER_SWIFT_PACKAGE_MANAGER_ENABLED'] ?? '').isNotEmpty;
-    bool skipFlutterFrameworkCopy = false;
-    if (swiftPackageManagerEnabled) {
-      // Validate engine version and build mode
-      try {
-        final String frameworkInfoPlist = '$intermediateFramework/Info.plist';
-
-        final String engineVersionFromCache =
-            File(
-              '${environment['FLUTTER_ROOT'] ?? ''}/bin/cache/engine.stamp',
-            ).readAsStringSync().trim();
-        final ProcessResult engineVersionInBuildResult = runSync('plutil', <String>[
-          '-extract',
-          'FlutterEngine',
-          'raw',
-          '-o',
-          '-',
-          frameworkInfoPlist,
-        ]);
-        final String engineVersionInBuild = engineVersionInBuildResult.stdout.toString().trim();
-
-        final String currentBuildMode = parseFlutterBuildMode();
-        final ProcessResult engineBuildModeResult = runSync('plutil', <String>[
-          '-extract',
-          'BuildMode',
-          'raw',
-          '-o',
-          '-',
-          frameworkInfoPlist,
-        ]);
-        final String engineBuildMode = engineBuildModeResult.stdout.toString().trim();
-
-        // If the Flutter framework in the Runner.app has the correct build mode and engine version, we don't need to copy it.
-        if (engineVersionInBuild == engineVersionFromCache && engineBuildMode == currentBuildMode) {
-          // TODO: SPM - validate local engine
-          skipFlutterFrameworkCopy = true;
-        }
-      } on Exception catch (e) {
-        echoError(e.toString());
-      }
-
-      // If the engine in BUILT_PRODUCTS_DIR is wrong, call unpack again so the correct framework is copied into BUILT_PRODUCTS_DIR.
-      unpackFor('embed');
-    }
 
     final String? expandedCodeSignIdentity = environment['EXPANDED_CODE_SIGN_IDENTITY'];
 
@@ -347,35 +271,131 @@ class Context {
 
     // Embed App.framework from Flutter into the app (after creating the Frameworks directory
     // if it doesn't already exist).
-    runRsync(
-      '${environment['BUILT_PRODUCTS_DIR']}/App.framework',
-      embeddedFrameworksDir,
-    );
-
+    runRsync('${environment['BUILT_PRODUCTS_DIR']}/App.framework', embeddedFrameworksDir);
     if (codesign) {
       _codesignFramework(expandedCodeSignIdentity, '$embeddedFrameworksDir/App.framework/App');
     }
 
+    final String frameworkName;
+    switch (platform) {
+      case TargetPlatform.ios:
+        frameworkName = 'Flutter';
+      case TargetPlatform.macos:
+        frameworkName = 'FlutterMacOS';
+    }
+    final String builtProductsFramework =
+        '${environment['BUILT_PRODUCTS_DIR']}/$frameworkName.framework';
+
+    bool shouldEmbedFlutterFramework = true;
+
+    // When SwiftPM is enabled, Xcode handles copying, codesigning, and embedding the Flutter framework.
+    // However, double check that the correct framework is found. If it is incorrect, re-copy, codesign, and embed it.
+    // TODO: SPM -
+    final bool swiftPackageManagerEnabled =
+        (environment['FLUTTER_SWIFT_PACKAGE_MANAGER_ENABLED'] ?? '').isNotEmpty;
+    if (swiftPackageManagerEnabled) {
+      // TODO: SPM - use builtProductsFramework or embeddedFrameworksDir?
+      final bool isFrameworkCorrect = _validateFlutterFramework(builtProductsFramework);
+      if (isFrameworkCorrect) {
+        // If the engine is correct, skip embedding.
+        shouldEmbedFlutterFramework = false;
+      } else {
+        // If the engine in BUILT_PRODUCTS_DIR is wrong, call unpack again so the correct framework is copied into BUILT_PRODUCTS_DIR to then be embedded.
+        unpackFor(platform, 'embed');
+      }
+    }
+
     // Embed the actual Flutter.framework that the Flutter app expects to run against,
     // which could be a local build or an arch/type specific build.
-    if (!skipFlutterFrameworkCopy) {
+    if (shouldEmbedFlutterFramework) {
       switch (platform) {
         case TargetPlatform.ios:
-          runRsync(intermediateFramework, '$embeddedFrameworksDir/');
+          runRsync(builtProductsFramework, '$embeddedFrameworksDir/');
         case TargetPlatform.macos:
           runRsync(
             extraArgs: <String>['--filter', '- Headers', '--filter', '- Modules'],
-            intermediateFramework,
+            builtProductsFramework,
             '$embeddedFrameworksDir/',
           );
       }
       if (codesign) {
         _codesignFramework(
           expandedCodeSignIdentity,
-          '$embeddedFrameworksDir/FlutterMacOS.framework/FlutterMacOS',
+          '$embeddedFrameworksDir/$frameworkName.framework/$frameworkName',
         );
       }
     }
+
+    _embedNativeAssets(
+      platform,
+      embeddedFrameworksDir: embeddedFrameworksDir,
+      codesign: codesign,
+      expandedCodeSignIdentity: expandedCodeSignIdentity,
+    );
+
+    if (platform == TargetPlatform.ios) {
+      addVmServiceBonjourService();
+    }
+  }
+
+  bool _validateFlutterFramework(String builtProductsFramework) {
+    // Validate engine version and build mode
+    try {
+      final String frameworkInfoPlist = '$builtProductsFramework/Info.plist';
+      final bool isEngineVersionCorrect = _validateEngineVersion(frameworkInfoPlist);
+      final bool isEngineBuildModeCorrect = _validateEngineBuildMode(frameworkInfoPlist);
+
+      // If the Flutter framework in the Runner.app has the correct build mode and engine version, we don't need to copy it.
+      return isEngineVersionCorrect && isEngineBuildModeCorrect;
+    } on Exception catch (e) {
+      echoError(e.toString());
+    }
+    return false;
+  }
+
+  /// Validate the `FlutterEngine` value in the [frameworkInfoPlist] matches the engine.stamp.
+  bool _validateEngineVersion(String frameworkInfoPlist) {
+    final String engineVersionFromCache =
+        File(
+          '${environment['FLUTTER_ROOT'] ?? ''}/bin/cache/engine.stamp',
+        ).readAsStringSync().trim();
+
+    final ProcessResult engineVersionFromBuildProductResult = runSync('plutil', <String>[
+      '-extract',
+      'FlutterEngine',
+      'raw',
+      '-o',
+      '-',
+      frameworkInfoPlist,
+    ]);
+    final String engineVersionFromBuildProduct =
+        engineVersionFromBuildProductResult.stdout.toString().trim();
+    return engineVersionFromCache == engineVersionFromBuildProduct;
+  }
+
+  /// Validate the `BuildMode` value in the [frameworkInfoPlist] matches the current targeted build mode.
+  bool _validateEngineBuildMode(String frameworkInfoPlist) {
+    // TODO: SPM - simulator only has debug in Info.plist, do we need to do anything here?
+    final String currentBuildMode = parseFlutterBuildMode();
+    final ProcessResult engineBuildModeFromBuildProductResult = runSync('plutil', <String>[
+      '-extract',
+      'BuildMode',
+      'raw',
+      '-o',
+      '-',
+      frameworkInfoPlist,
+    ]);
+    final String engineBuildModeFromBuildProduct =
+        engineBuildModeFromBuildProductResult.stdout.toString().trim();
+    return currentBuildMode == engineBuildModeFromBuildProduct;
+  }
+
+  void _embedNativeAssets(
+    TargetPlatform platform, {
+    required String embeddedFrameworksDir,
+    required bool codesign,
+    String? expandedCodeSignIdentity,
+  }) {
     // Copy the native assets.
     final String sourceRoot = environment['SOURCE_ROOT'] ?? '';
     String projectPath = '$sourceRoot/..';
@@ -386,35 +406,38 @@ class Context {
     final String nativeAssetsPath = '$projectPath/$flutterBuildDir/native_assets/${platform.name}/';
     final bool verbose = (environment['VERBOSE_SCRIPT_LOGGING'] ?? '').isNotEmpty;
     final Directory nativeAssetsDir = directoryFromPath(nativeAssetsPath);
-    if (nativeAssetsDir.existsSync()) {
+    if (!nativeAssetsDir.existsSync()) {
       if (verbose) {
         print("♦ No native assets to bundle. $nativeAssetsPath doesn't exist.");
       }
-      runRsync(
-        extraArgs: <String>['--filter', '- native_assets.yaml', '--filter', '- native_assets.json'],
-        nativeAssetsPath,
-        embeddedFrameworksDir,
-      );
+      return;
+    }
 
-      if (codesign) {
-        for (final FileSystemEntity entity in nativeAssetsDir.listSync()) {
-          if (entity is Directory) {
-            final String? frameworkName = parseFrameworkNameFromDirectory(entity);
-            if (frameworkName != null) {
-              _codesignFramework(
-                expandedCodeSignIdentity,
-                '$embeddedFrameworksDir/$frameworkName.framework/$frameworkName',
-              );
-            }
+    if (verbose) {
+      print('♦ Copying native assets from $nativeAssetsPath.');
+    }
+    for (final FileSystemEntity entity in nativeAssetsDir.listSync()) {
+      if (entity is Directory) {
+        final String? frameworkName = parseFrameworkNameFromDirectory(entity);
+        if (frameworkName != null) {
+          runRsync(
+            extraArgs: <String>[
+              '--filter',
+              '- native_assets.yaml',
+              '--filter',
+              '- native_assets.json',
+            ],
+            entity.path,
+            embeddedFrameworksDir,
+          );
+          if (codesign && expandedCodeSignIdentity != null) {
+            _codesignFramework(
+              expandedCodeSignIdentity,
+              '$embeddedFrameworksDir/$frameworkName.framework/$frameworkName',
+            );
           }
         }
       }
-    } else if (verbose) {
-      print("♦ No native assets to bundle. $nativeAssetsPath doesn't exist.");
-    }
-
-    if (platform == TargetPlatform.ios) {
-      addVmServiceBonjourService();
     }
   }
 
@@ -534,10 +557,10 @@ class Context {
   }
 
   /// Calls `flutter assemble [buildMode]_unpack_[platform]` (e.g. `debug_unpack_ios`, `debug_unpack_macos`)
-  void unpackFor(String command) {
-    if (command == 'prepare' && environment['ACTION'] == 'clean') {
-      // The "prepare" command runs in a pre-action script, which also runs when
-      // using the Xcode/xcodebuild clean command. Skip if cleaning.
+  void unpackFor(TargetPlatform platform, String command) {
+    // The "unpack" command runs in a pre-action script, which also runs when
+    // using the Xcode/xcodebuild clean command. Skip if cleaning.
+    if (environment['ACTION'] == 'clean') {
       return;
     }
     final bool verbose = (environment['VERBOSE_SCRIPT_LOGGING'] ?? '').isNotEmpty;
@@ -545,8 +568,6 @@ class Context {
     final String projectPath = environment['FLUTTER_APPLICATION_PATH'] ?? '$sourceRoot/..';
 
     final String buildMode = parseFlutterBuildMode();
-
-    final TargetPlatform platform = getPlatform();
 
     final List<String> flutterArgs = _generateFlutterArgsForAssemble(
       command: command,
@@ -556,14 +577,9 @@ class Context {
       verbose: verbose,
     );
 
-    switch (platform) {
-      case TargetPlatform.ios:
-        // The "prepare" command only targets the UnpackIOS target, which copies the
-        // Flutter framework to the BUILT_PRODUCTS_DIR.
-        flutterArgs.add('${buildMode}_unpack_ios');
-      case TargetPlatform.macos:
-        flutterArgs.add('${buildMode}_unpack_macos');
-    }
+    // The "prepare" command only targets the UnpackIOS/UnpackMacOS target, which copies the
+    // Flutter framework to the BUILT_PRODUCTS_DIR.
+    flutterArgs.add('${buildMode}_unpack_${platform.name}');
 
     final ProcessResult result = runSync(
       '${environmentEnsure('FLUTTER_ROOT')}/bin/flutter',
@@ -628,12 +644,7 @@ class Context {
 
     final ProcessResult result = runSync(
       '${environmentEnsure('FLUTTER_ROOT')}/bin/flutter',
-      <String>[
-        'build',
-        command,
-        ...buildModeFlags,
-        if (verbose) '--verbose',
-      ],
+      <String>['build', command, ...buildModeFlags, if (verbose) '--verbose'],
       verbose: verbose,
       allowFail: true,
       workingDirectory: projectPath, // equivalent of RunCommand pushd "${project_path}"
@@ -647,28 +658,22 @@ class Context {
 
   /// Calls `flutter assemble [buildMode]_[platform]_bundle_flutter_assets`
   /// (e.g. `debug_ios_bundle_flutter_assets`, `debug_macos_bundle_flutter_assets`)
-  void buildApp() {
+  void buildApp(TargetPlatform platform, String command) {
     final bool verbose = (environment['VERBOSE_SCRIPT_LOGGING'] ?? '').isNotEmpty;
     final String sourceRoot = environment['SOURCE_ROOT'] ?? '';
     final String projectPath = environment['FLUTTER_APPLICATION_PATH'] ?? '$sourceRoot/..';
 
     final String buildMode = parseFlutterBuildMode();
-    final TargetPlatform platform = getPlatform();
+
+    _validateBuildMode(platform, buildMode);
 
     final List<String> flutterArgs = _generateFlutterArgsForAssemble(
-      command: 'build',
+      command: command,
       buildMode: buildMode,
       sourceRoot: sourceRoot,
       platform: platform,
       verbose: verbose,
     );
-
-    switch (platform) {
-      case TargetPlatform.ios:
-        flutterArgs.add('${buildMode}_ios_bundle_flutter_assets');
-      case TargetPlatform.macos:
-        flutterArgs.add('${buildMode}_macos_bundle_flutter_assets');
-    }
 
     flutterArgs.add('${buildMode}_${platform.name}_bundle_flutter_assets');
     final ProcessResult result = runSync(
@@ -749,7 +754,6 @@ class Context {
       targetPath = environment['FLUTTER_TARGET']!;
     }
 
-    // TODO: SPM - check what the action is for macos
     // Warn the user if not archiving (ACTION=install) in release mode.
     final String? action = environment['ACTION'];
     if (action == 'install' && buildMode != 'release') {
@@ -830,7 +834,6 @@ class Context {
       '--DartDefines=${environment['DART_DEFINES'] ?? ''}',
       '--ExtraFrontEndOptions=${environment['EXTRA_FRONT_END_OPTIONS'] ?? ''}',
       '-dSrcRoot=${environment['SRCROOT'] ?? ''}',
-      '-dDevDependenciesEnabled=${environment['FLUTTER_DEV_DEPENDENCIES_ENABLED'] ?? ''}',
       '-dBuildScript=$command',
     ]);
 

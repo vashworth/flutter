@@ -1037,6 +1037,7 @@ abstract class BuildFrameworkCommand extends BuildSubCommand {
           'commands',
           'build_darwin_framework.dart',
         ),
+        // TODO: add flutter dependencies file
         ...fingerprintedFiles,
       ],
       fileSystem: globals.fs,
@@ -1221,53 +1222,68 @@ struct FlutterValidateConfiguration: CommandPlugin {
 
     final File script = scriptsDirectory.childFile('validate_configuration.sh')
       ..createSync(recursive: true);
-    script.writeAsStringSync('''
+    script.writeAsStringSync(r'''
 #!/bin/bash
 # Copyright 2013 The Flutter Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 EchoWarning() {
-  echo "warning: \$@" 1>&2
+  echo "warning: $@" 1>&2
 }
 
 ParseFlutterBuildMode() {
   # Use FLUTTER_BUILD_MODE if it's set, otherwise use the Xcode build configuration name
   # This means that if someone wants to use an Xcode build config other than Debug/Profile/Release,
   # they _must_ set FLUTTER_BUILD_MODE so we know what type of artifact to build.
-  local build_mode="\$(echo "\${FLUTTER_BUILD_MODE:-\${CONFIGURATION}}" | tr "[:upper:]" "[:lower:]")"
+  local build_mode="$(echo "${FLUTTER_BUILD_MODE:-${CONFIGURATION}}" | tr "[:upper:]" "[:lower:]")"
 
-  case "\$build_mode" in
+  case "$build_mode" in
     *release*) build_mode="release";;
     *profile*) build_mode="profile";;
     *debug*) build_mode="debug";;
     *)
     # TODO: link to documentation
       EchoWarning "========================================================================"
-      EchoWarning "WARNING: Unknown FLUTTER_BUILD_MODE: \${build_mode}. Please see [insert link here] on how to setup FLUTTER_BUILD_MODE."
+      EchoWarning "WARNING: Unknown FLUTTER_BUILD_MODE: ${build_mode}. Please see [insert link here] on how to setup FLUTTER_BUILD_MODE."
       EchoWarning "========================================================================"
       exit -1;;
   esac
 
-  echo "\${build_mode}"
+  echo "${build_mode}"
 }
 
 ValidateBuildMode() {
-  if [[ \$ACTION == "clean" ]]; then
+  if [[ $ACTION == "clean" ]]; then
     exit 0
   fi
   # Get the build mode
-  local build_mode="\$(ParseFlutterBuildMode)"
+  local build_mode="$(ParseFlutterBuildMode)"
 
-  if [[ -z "\$build_mode" ]]; then
+  if [[ -z "$build_mode" ]]; then
     exit -1
   fi
 
-  pushd "${pluginRegistrantSwiftPackage.absolute.path}"  > /dev/null
-  local output=\$(env -i swift package plugin --package FlutterConfigurationPlugin validate --configuration \${build_mode} 2>&1)
-  if [ "\$output" != "success" ]; then
+  # Determine the absolute path of the directory where this script is located.
+  # This method handles symlinks and sourcing correctly.
+  SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+  # The relative path from the script's directory to the target directory.
+  # This can be passed as the first argument to the script.
+  # If no argument is provided, use a default value.
+  # Example default: a directory named "data" located one level above the script's directory.
+  DEFAULT_RELATIVE_PATH="../FlutterPluginRegistrant"
+  RELATIVE_DIR_FROM_SCRIPT="${1:-$DEFAULT_RELATIVE_PATH}"
+
+  # Construct the path to the target directory.
+  # The shell and operating system utilities will resolve components like '..' when this path is used.
+  TARGET_DIRECTORY_PATH="${SCRIPT_DIR}/${RELATIVE_DIR_FROM_SCRIPT}"
+
+
+  pushd "${TARGET_DIRECTORY_PATH}"  > /dev/null
+  local output=$(env -i swift package plugin --package FlutterConfigurationPlugin validate --configuration ${build_mode} 2>&1)
+  if [ "$output" != "success" ]; then
     # If the output is not "success", print the entire output to stderr.
-    echo "\$output" 1>&2
+    echo "$output" 1>&2
   fi
 }
 
@@ -1286,22 +1302,48 @@ ValidateBuildMode
     required Directory scriptsDirectory,
     required File pluginRegistrantManifest,
   }) {
-    // TODO: SPM - use macos or ios?
-    final String environmentExports =
-        project.ios.generatedEnvironmentVariableExportScript.readAsStringSync();
     final File script = scriptsDirectory.childFile('pre_build.sh')..createSync(recursive: true);
-    script.writeAsStringSync('''
-$environmentExports
+    script.writeAsStringSync(r'''
+#!/bin/sh
+# This is a generated file; do not edit or check into version control.
 
-export "FLUTTER_GENERATED_PLUGIN_REGISTRANT_PACKAGE_SWIFT=${pluginRegistrantManifest.path}"
+set -e
+set -u
 
-# Needed because if it is set, cd may print the path it changed to.
-unset CDPATH
+# Ensure FLUTTER_APPLICATION_PATH is provided.
+if [ -z "${FLUTTER_APPLICATION_PATH}" ]; then
+  echo "error: FLUTTER_APPLICATION_PATH is not set." >&2
+  exit 1
+fi
 
-BIN_DIR="\$FLUTTER_ROOT/packages/flutter_tools/bin/"
-DART="\$FLUTTER_ROOT/bin/dart"
+resolved_path="${FLUTTER_APPLICATION_PATH}"
 
-"\$DART" "\$BIN_DIR/xcode_backend.dart" prepare-native
+if [[ "${FLUTTER_APPLICATION_PATH}" != /* ]]; then
+  # It's a relative path. Ensure SRCROOT is set.
+  if [ -z "${SRCROOT}" ]; then
+    echo "error: SRCROOT is not set." >&2
+    exit 1
+  fi
+  # Prepend SRCROOT to make the path absolute.
+  resolved_path="${SRCROOT}/${FLUTTER_APPLICATION_PATH}"
+fi
+
+case "${PLATFORM_NAME}" in
+  *macosx*) platform="macos";;
+  *iphoneos*) platform="ios";;
+  *iphonesimulator*) platform="ios";;
+  *)
+    # TODO: link to documentation
+    echo "error: Unknown PLATFORM_NAME: ${PLATFORM_NAME}. Flutter only supports iOS and macOS." >&2
+    exit -1;;
+esac
+
+resolved_path="${resolved_path}/${platform}/Flutter/flutter_export_environment.sh"
+source "$resolved_path"
+
+BIN_DIR="$FLUTTER_ROOT/packages/flutter_tools/bin/"
+DART="$FLUTTER_ROOT/bin/dart"
+"$DART" "$BIN_DIR/xcode_backend.dart" prepare-native "$platform"
 ''');
   }
 
