@@ -897,7 +897,6 @@ class _BuildInstance {
           continue;
         }
         final File previousFile = fileSystem.file(previousOutput);
-        // TODO: SPM - see if deleting last_build_id will make this avoidable
         // Don't delete FlutterMacOS binary, even if it's removed from the outputFiles.
         // Xcode now handles outputting it, so deleting it mid-build can cause issues.
         if (previousOutput.contains('FlutterMacOS.framework/Versions/A/FlutterMacOS')) {
@@ -1175,7 +1174,7 @@ class Node {
       // Output paths changed - an output was removed.
       if (!currentOutputPaths.contains(previousOutput)) {
         _dirty = true;
-        final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetChanged);
+        final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetRemoval);
         reason.data.add(previousOutput);
         // if this isn't a current output file there is no reason to compute the key.
         continue;
@@ -1205,9 +1204,8 @@ class Node {
       // Output paths changed - a new output was added.
       if (!previousOutputs.contains(currentOutput)) {
         _dirty = true;
-        final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetChanged);
+        final InvalidatedReason reason = _invalidate(InvalidatedReasonKind.outputSetAddition);
         reason.data.add(currentOutput);
-        // if this isn't a current output file there is no reason to compute the key.
         continue;
       }
     }
@@ -1256,8 +1254,10 @@ class InvalidatedReason {
         'The following outputs have updated contents: ${data.join(',')}',
       InvalidatedReasonKind.outputMissing =>
         'The following outputs were missing: ${data.join(',')}',
-      InvalidatedReasonKind.outputSetChanged =>
-        'The following outputs were added or removed from the output set: ${data.join(',')}',
+      InvalidatedReasonKind.outputSetRemoval =>
+        'The following outputs were removed from the output set: ${data.join(',')}',
+      InvalidatedReasonKind.outputSetAddition =>
+        'The following outputs were added to the output set: ${data.join(',')}',
       InvalidatedReasonKind.buildKeyChanged => 'The target build key changed.',
     };
   }
@@ -1278,8 +1278,11 @@ enum InvalidatedReasonKind {
   /// An output file that is expected is missing.
   outputMissing,
 
-  /// The set of expected output files changed.
-  outputSetChanged,
+  /// An output file was added to the set of expected output files.
+  outputSetAddition,
+
+  /// An output file was removed from the set of expected output files.
+  outputSetRemoval,
 
   /// The build key changed
   buildKeyChanged,
