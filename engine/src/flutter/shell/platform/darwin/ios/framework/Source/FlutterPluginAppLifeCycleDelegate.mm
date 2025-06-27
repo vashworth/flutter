@@ -435,7 +435,6 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 @end
 
 @implementation FlutterPluginSceneLifeCycleDelegate {
-
   // Weak references to registered plugins.
   NSPointerArray* _delegates;
 }
@@ -462,13 +461,13 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
     if ([delegate respondsToSelector:_cmd]) {
       [delegate sceneDidBecomeActive:scene];
     }
-    // Don't fallback to applicationDidBecomeActive because that's handled by a notification, which still exists
+    // Don't fallback to applicationDidBecomeActive because that's handled by a notification, which
+    // still exists
 
     // else if ([delegate respondsToSelector:@selector(applicationDidBecomeActive:)]) {
     //   // fallback to application?
     //   [delegate applicationDidBecomeActive:FlutterSharedApplication.application];
     // }
-
   }
 }
 

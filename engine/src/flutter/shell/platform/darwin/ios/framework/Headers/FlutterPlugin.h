@@ -205,7 +205,8 @@ typedef void (*FlutterPluginRegistrantCallback)(NSObject<FlutterPluginRegistry>*
  * Defines a set of optional callback methods and a method to set up the plugin
  * and register it to be called by other application components.
  */
-@protocol FlutterPlugin <NSObject, FlutterApplicationLifeCycleDelegate, FlutterSceneLifeCycleDelegate>
+@protocol
+    FlutterPlugin <NSObject, FlutterApplicationLifeCycleDelegate, FlutterSceneLifeCycleDelegate>
 @required
 /**
  * Registers this plugin using the context information and callback registration

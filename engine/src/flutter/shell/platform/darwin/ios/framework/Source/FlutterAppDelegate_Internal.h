@@ -13,11 +13,12 @@
 
 @property(nonatomic, nullable, readonly) FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate;
 
-
 @property(nonatomic, nullable, readonly) UIScene* lastConnectedScene;
 - (void)setScene:(UIScene* _Nullable)scene;
-// @property(nonatomic, nullable, readonly) FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate;
-// - (void)setFlutterPluginSceneLifeCycleDelegate:(FlutterPluginSceneLifeCycleDelegate* _Nullable)delegate;
+// @property(nonatomic, nullable, readonly) FlutterPluginSceneLifeCycleDelegate*
+// sceneLifeCycleDelegate;
+// - (void)setFlutterPluginSceneLifeCycleDelegate:(FlutterPluginSceneLifeCycleDelegate*
+// _Nullable)delegate;
 
 - (nullable FlutterEngine*)takeLaunchEngine;
 

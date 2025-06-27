@@ -1534,15 +1534,17 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
   // each scene, when an event hits, it loops through all of them and not just the ones for the
   // current scene
 
-  // TODO: When plugins are registered in the application:didFinishLaunchingWithOptions: with a FlutterEngine in
-  // add to app, the scene has not been created yet so there is no "lastConnectedScene".
+  // TODO: When plugins are registered in the application:didFinishLaunchingWithOptions: with a
+  // FlutterEngine in add to app, the scene has not been created yet so there is no
+  // "lastConnectedScene".
 
   // Get the last connected scene and add the plugin to the life cycle provider.
   if ([appDelegate respondsToSelector:@selector(lastConnectedScene)]) {
     UIScene* lastConnectedScene = [appDelegate lastConnectedScene];
     id<UISceneDelegate> sceneDelegate = lastConnectedScene.delegate;
     if ([sceneDelegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
-      id<FlutterSceneLifeCycleProvider> sceneLifeCycleProvider = (id<FlutterSceneLifeCycleProvider>)sceneDelegate;
+      id<FlutterSceneLifeCycleProvider> sceneLifeCycleProvider =
+          (id<FlutterSceneLifeCycleProvider>)sceneDelegate;
 
       // Add the plugin to the scene
       [sceneLifeCycleProvider addSceneLifeCycleDelegate:delegate];
@@ -1555,8 +1557,9 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
   //   [appDelegate setFlutterPluginSceneLifeCycleDelegate:lifeCycleDelegate];
   // }
 
-  // // Register the plugins to the app delegate, which will be later transfered to the scene delegate once the scene connects.
-  // if ([appDelegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+  // // Register the plugins to the app delegate, which will be later transfered to the scene
+  // delegate once the scene connects. if ([appDelegate
+  // conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
   //   id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
   //       (id<FlutterSceneLifeCycleProvider>)appDelegate;
   //   [lifeCycleProvider addSceneLifeCycleDelegate:delegate];
@@ -1570,7 +1573,8 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
 - (NSView*)viewForIdentifier:(FlutterViewIdentifier)viewIdentifier {
   FlutterViewController* controller = [_flutterEngine viewController];
 
-  // FlutterViewController* controller = [_flutterEngine viewControllerForIdentifier:viewIdentifier];
+  // FlutterViewController* controller = [_flutterEngine
+  // viewControllerForIdentifier:viewIdentifier];
   if (controller == nil) {
     return nil;
   }
@@ -1579,7 +1583,6 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
   }
   return controller.flutterView;
 }
-
 
 - (NSString*)lookupKeyForAsset:(NSString*)asset {
   return [_flutterEngine lookupKeyForAsset:asset];

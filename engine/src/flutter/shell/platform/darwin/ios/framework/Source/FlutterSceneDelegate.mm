@@ -27,20 +27,21 @@ FLUTTER_ASSERT_ARC
 
 - (instancetype)init {
   if (self = [super init]) {
-      _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
-//    id appDelegate = FlutterSharedApplication.application.delegate;
-//
-//    if ([appDelegate respondsToSelector:@selector(sceneLifeCycleDelegate)]) {
-//        FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate = [appDelegate sceneLifeCycleDelegate];
-//        if (sceneLifeCycleDelegate == nil || sceneLifeCycleDelegate == NULL) {
-//            _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
-//        } else {
-//            _lifeCycleDelegate = sceneLifeCycleDelegate;
-//        }
-//      
-//    } else {
-//        _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
-//    }
+    _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
+    //    id appDelegate = FlutterSharedApplication.application.delegate;
+    //
+    //    if ([appDelegate respondsToSelector:@selector(sceneLifeCycleDelegate)]) {
+    //        FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate = [appDelegate
+    //        sceneLifeCycleDelegate]; if (sceneLifeCycleDelegate == nil || sceneLifeCycleDelegate
+    //        == NULL) {
+    //            _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
+    //        } else {
+    //            _lifeCycleDelegate = sceneLifeCycleDelegate;
+    //        }
+    //
+    //    } else {
+    //        _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
+    //    }
   }
   return self;
 }
@@ -70,8 +71,8 @@ FLUTTER_ASSERT_ARC
     [appDelegate2 setScene:scene];
   }
 
-  // We can't stash the plugins in the app delegate because the scene connects before they're registered.
-  // if ([appDelegate2 respondsToSelector:@selector(sceneLifeCycleDelegate)]) {
+  // We can't stash the plugins in the app delegate because the scene connects before they're
+  // registered. if ([appDelegate2 respondsToSelector:@selector(sceneLifeCycleDelegate)]) {
   //   self.lifeCycleDelegate = [appDelegate2 sceneLifeCycleDelegate];
   // }
 }
