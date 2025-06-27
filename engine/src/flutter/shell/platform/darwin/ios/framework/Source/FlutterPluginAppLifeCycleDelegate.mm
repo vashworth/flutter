@@ -433,3 +433,53 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
   return NO;
 }
 @end
+
+@implementation FlutterPluginSceneLifeCycleDelegate {
+
+  // Weak references to registered plugins.
+  NSPointerArray* _delegates;
+}
+
+- (instancetype)init {
+  if (self = [super init]) {
+    _delegates = [NSPointerArray weakObjectsPointerArray];
+  }
+  return self;
+}
+
+- (void)addDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate {
+  [_delegates addPointer:(__bridge void*)delegate];
+  if (IsPowerOfTwo([_delegates count])) {
+    [_delegates compact];
+  }
+}
+
+- (void)sceneDidBecomeActive:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+    if (!delegate) {
+      continue;
+    }
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneDidBecomeActive:scene];
+    }
+    // Don't fallback to applicationDidBecomeActive because that's handled by a notification, which still exists
+
+    // else if ([delegate respondsToSelector:@selector(applicationDidBecomeActive:)]) {
+    //   // fallback to application?
+    //   [delegate applicationDidBecomeActive:FlutterSharedApplication.application];
+    // }
+
+  }
+}
+
+- (void)sceneDidEnterBackground:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+    if (!delegate) {
+      continue;
+    }
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneDidEnterBackground:scene];
+    }
+  }
+}
+@end

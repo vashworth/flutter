@@ -28,6 +28,8 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 @property(nonatomic, copy) FlutterViewController* (^rootFlutterViewControllerGetter)(void);
 @property(nonatomic, strong) FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate;
 @property(nonatomic, strong) FlutterLaunchEngine* launchEngine;
+@property(nonatomic, strong) UIScene* lastConnectedScene;
+// @property(nonatomic, strong) FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate;
 @end
 
 @implementation FlutterAppDelegate
@@ -36,9 +38,19 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   if (self = [super init]) {
     _lifeCycleDelegate = [[FlutterPluginAppLifeCycleDelegate alloc] init];
     _launchEngine = [[FlutterLaunchEngine alloc] init];
+    _lastConnectedScene = nil;
+    // _sceneLifeCycleDelegate = nil;
   }
   return self;
 }
+
+- (void)setScene:(UIScene*)scene {
+  _lastConnectedScene = scene;
+}
+
+// - (void)setFlutterPluginSceneLifeCycleDelegate:(FlutterPluginSceneLifeCycleDelegate*)delegate {
+//   _sceneLifeCycleDelegate = delegate;
+// }
 
 - (nullable FlutterEngine*)takeLaunchEngine {
   return [self.launchEngine takeEngine];
@@ -287,6 +299,10 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 - (void)addApplicationLifeCycleDelegate:(NSObject<FlutterApplicationLifeCycleDelegate>*)delegate {
   [self.lifeCycleDelegate addDelegate:delegate];
 }
+
+// - (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate {
+//   [self.sceneLifeCycleDelegate addDelegate:delegate];
+// }
 
 #pragma mark - UIApplicationDelegate method dynamic implementation
 

@@ -18,6 +18,25 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FlutterPluginRegistrar;
 @protocol FlutterPluginRegistry;
 
+@protocol FlutterSceneLifeCycleDelegate
+
+@optional
+- (void)sceneDidBecomeActive:(UIScene*)scene;
+
+- (void)sceneDidEnterBackground:(UIScene*)scene;
+
+@end
+
+@protocol FlutterSceneLifeCycleProvider
+
+/**
+ * Called when registering a new `FlutterSceneLifeCycleDelegate`.
+ *
+ * See also: `-[FlutterSceneDelegate addSceneLifeCycleDelegate:]`
+ */
+- (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
+@end
+
 #pragma mark -
 /**
  * Protocol for listener of events from the UIApplication, typically a FlutterPlugin.
@@ -186,7 +205,7 @@ typedef void (*FlutterPluginRegistrantCallback)(NSObject<FlutterPluginRegistry>*
  * Defines a set of optional callback methods and a method to set up the plugin
  * and register it to be called by other application components.
  */
-@protocol FlutterPlugin <NSObject, FlutterApplicationLifeCycleDelegate>
+@protocol FlutterPlugin <NSObject, FlutterApplicationLifeCycleDelegate, FlutterSceneLifeCycleDelegate>
 @required
 /**
  * Registers this plugin using the context information and callback registration

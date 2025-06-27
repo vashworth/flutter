@@ -110,6 +110,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
   NSString* method = call.method;
   id args = call.arguments;
+  FML_LOG(ERROR) << "handleMethodCall: " << method;
   if ([method isEqualToString:@"SystemSound.play"]) {
     [self playSystemSound:args];
     result(nil);
@@ -239,11 +240,12 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 }
 
 - (void)playSystemSound:(NSString*)soundType {
-  if ([soundType isEqualToString:@"SystemSoundType.click"]) {
-    // All feedback types are specific to Android and are treated as equal on
-    // iOS.
-    AudioServicesPlaySystemSound(kKeyPressClickSoundId);
-  }
+  FML_LOG(ERROR) << "PLAY SOUND";
+  // if ([soundType isEqualToString:@"SystemSoundType.click"]) {
+  // All feedback types are specific to Android and are treated as equal on
+  // iOS.
+  AudioServicesPlaySystemSound(kKeyPressClickSoundId);
+  // }
 }
 
 - (void)vibrateHapticFeedback:(NSString*)feedbackType {

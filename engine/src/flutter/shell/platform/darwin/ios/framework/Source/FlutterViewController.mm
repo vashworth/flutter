@@ -179,6 +179,7 @@ typedef struct MouseState {
                        nibName:(nullable NSString*)nibName
                         bundle:(nullable NSBundle*)nibBundle {
   FML_CHECK(engine) << "initWithEngine:nibName:bundle: must be called with non-nil engine";
+  FML_LOG(ERROR) << "init1";
   self = [super initWithNibName:nibName bundle:nibBundle];
   if (self) {
     _viewOpaque = YES;
@@ -211,6 +212,7 @@ typedef struct MouseState {
 - (instancetype)initWithProject:(FlutterDartProject*)project
                         nibName:(NSString*)nibName
                          bundle:(NSBundle*)nibBundle {
+  FML_LOG(ERROR) << "init2";
   self = [super initWithNibName:nibName bundle:nibBundle];
   if (self) {
     // TODO(cbracken): https://github.com/flutter/flutter/issues/157140
@@ -225,6 +227,7 @@ typedef struct MouseState {
                    initialRoute:(NSString*)initialRoute
                         nibName:(NSString*)nibName
                          bundle:(NSBundle*)nibBundle {
+  FML_LOG(ERROR) << "init3";
   self = [super initWithNibName:nibName bundle:nibBundle];
   if (self) {
     // TODO(cbracken): https://github.com/flutter/flutter/issues/157140
@@ -236,22 +239,27 @@ typedef struct MouseState {
 }
 
 - (instancetype)initWithNibName:(NSString*)nibNameOrNil bundle:(NSBundle*)nibBundleOrNil {
+  FML_LOG(ERROR) << "init4";
   return [self initWithProject:nil nibName:nil bundle:nil];
 }
 
 - (instancetype)initWithCoder:(NSCoder*)aDecoder {
+  FML_LOG(ERROR) << "init5";
   self = [super initWithCoder:aDecoder];
   return self;
 }
 
 - (void)awakeFromNib {
+  FML_LOG(ERROR) << "awakeFromNib";
   [super awakeFromNib];
   if (!self.engine) {
+    FML_LOG(ERROR) << "no engine";
     [self sharedSetupWithProject:nil initialRoute:nil];
   }
 }
 
 - (instancetype)init {
+  FML_LOG(ERROR) << "init6";
   return [self initWithProject:nil nibName:nil bundle:nil];
 }
 
@@ -265,11 +273,13 @@ typedef struct MouseState {
       // FlutterViewControllers created from nibs can't specify their initial
       // routes so it's safe to take it.
       engine = [appDelegate takeLaunchEngine];
+      FML_LOG(ERROR) << "takeLaunchEngine";
     } else {
       // If we registered plugins with a FlutterAppDelegate without a xib, throw
       // away the engine that was registered through the FlutterAppDelegate.
       // That's not a valid usage of the API.
       [appDelegate takeLaunchEngine];
+      FML_LOG(ERROR) << "discard takeLaunchEngine";
     }
   }
   if (!engine) {
@@ -278,8 +288,12 @@ typedef struct MouseState {
     if (!project) {
       project = [[FlutterDartProject alloc] init];
     }
+    NSString* engineName =
+        [NSString stringWithFormat:@"%@.%lu", @"io.flutter.flutter",
+                                   FlutterSharedApplication.application.openSessions.count];
+    FML_LOG(ERROR) << "allocate an engine: " << engineName;
 
-    engine = [[FlutterEngine alloc] initWithName:@"io.flutter"
+    engine = [[FlutterEngine alloc] initWithName:engineName
                                          project:project
                           allowHeadlessExecution:self.engineAllowHeadlessExecution
                               restorationEnabled:self.restorationIdentifier != nil];

@@ -143,6 +143,16 @@ FLUTTER_DARWIN_EXPORT
       restorationHandler:(void (^)(NSArray*))restorationHandler;
 @end
 
+@interface FlutterPluginSceneLifeCycleDelegate : NSObject
+
+- (void)addDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
+
+- (void)sceneDidBecomeActive:(UIScene*)scene;
+
+- (void)sceneDidEnterBackground:(UIScene*)scene;
+
+@end
+
 NS_ASSUME_NONNULL_END
 
 #endif  // FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERPLUGINAPPLIFECYCLEDELEGATE_H_

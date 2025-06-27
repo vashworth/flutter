@@ -24,6 +24,7 @@
 #import "flutter/shell/platform/darwin/common/command_line.h"
 #import "flutter/shell/platform/darwin/common/framework/Source/FlutterBinaryMessengerRelay.h"
 #import "flutter/shell/platform/darwin/ios/InternalFlutterSwift/InternalFlutterSwift.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterAppDelegate_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterDartProject_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterDartVMServicePublisher.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterIndirectScribbleDelegate.h"
@@ -1521,15 +1522,64 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
   }];
 }
 
-- (void)addApplicationDelegate:(NSObject<FlutterPlugin>*)delegate
-    NS_EXTENSION_UNAVAILABLE_IOS("Disallowed in plugins used in app extensions") {
-  id<UIApplicationDelegate> appDelegate = [[UIApplication sharedApplication] delegate];
+- (void)addApplicationDelegate:(NSObject<FlutterPlugin>*)delegate {
+  id appDelegate = FlutterSharedApplication.application.delegate;
   if ([appDelegate conformsToProtocol:@protocol(FlutterAppLifeCycleProvider)]) {
     id<FlutterAppLifeCycleProvider> lifeCycleProvider =
         (id<FlutterAppLifeCycleProvider>)appDelegate;
     [lifeCycleProvider addApplicationLifeCycleDelegate:delegate];
   }
+
+  // We can't use the lifecycle delegate in the app delegate because although it's registered for
+  // each scene, when an event hits, it loops through all of them and not just the ones for the
+  // current scene
+
+  // TODO: When plugins are registered in the application:didFinishLaunchingWithOptions: with a FlutterEngine in
+  // add to app, the scene has not been created yet so there is no "lastConnectedScene".
+
+  // Get the last connected scene and add the plugin to the life cycle provider.
+  if ([appDelegate respondsToSelector:@selector(lastConnectedScene)]) {
+    UIScene* lastConnectedScene = [appDelegate lastConnectedScene];
+    id<UISceneDelegate> sceneDelegate = lastConnectedScene.delegate;
+    if ([sceneDelegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+      id<FlutterSceneLifeCycleProvider> sceneLifeCycleProvider = (id<FlutterSceneLifeCycleProvider>)sceneDelegate;
+
+      // Add the plugin to the scene
+      [sceneLifeCycleProvider addSceneLifeCycleDelegate:delegate];
+    }
+  }
+
+  // else if ([appDelegate respondsToSelector:@selector(setFlutterPluginSceneLifeCycleDelegate:)]) {
+  //   id lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
+  //   [lifeCycleDelegate addDelegate:delegate];
+  //   [appDelegate setFlutterPluginSceneLifeCycleDelegate:lifeCycleDelegate];
+  // }
+
+  // // Register the plugins to the app delegate, which will be later transfered to the scene delegate once the scene connects.
+  // if ([appDelegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+  //   id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
+  //       (id<FlutterSceneLifeCycleProvider>)appDelegate;
+  //   [lifeCycleProvider addSceneLifeCycleDelegate:delegate];
+  // }
 }
+
+- (NSView*)view {
+  // return [self viewForIdentifier:kFlutterImplicitViewId];
+}
+
+- (NSView*)viewForIdentifier:(FlutterViewIdentifier)viewIdentifier {
+  FlutterViewController* controller = [_flutterEngine viewController];
+
+  // FlutterViewController* controller = [_flutterEngine viewControllerForIdentifier:viewIdentifier];
+  if (controller == nil) {
+    return nil;
+  }
+  if (!controller.viewLoaded) {
+    [controller loadView];
+  }
+  return controller.flutterView;
+}
+
 
 - (NSString*)lookupKeyForAsset:(NSString*)asset {
   return [_flutterEngine lookupKeyForAsset:asset];
