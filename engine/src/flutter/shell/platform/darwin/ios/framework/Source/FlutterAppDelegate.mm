@@ -28,7 +28,8 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 @property(nonatomic, copy) FlutterViewController* (^rootFlutterViewControllerGetter)(void);
 @property(nonatomic, strong) FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate;
 @property(nonatomic, strong) FlutterLaunchEngine* launchEngine;
-@property(nonatomic, strong) UIScene* lastConnectedScene;
+
+// Proposal 3
 // @property(nonatomic, strong) FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate;
 @end
 
@@ -38,19 +39,12 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   if (self = [super init]) {
     _lifeCycleDelegate = [[FlutterPluginAppLifeCycleDelegate alloc] init];
     _launchEngine = [[FlutterLaunchEngine alloc] init];
-    _lastConnectedScene = nil;
-    // _sceneLifeCycleDelegate = nil;
+
+    // Proposal 3
+    // _sceneLifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
   }
   return self;
 }
-
-- (void)setScene:(UIScene*)scene {
-  _lastConnectedScene = scene;
-}
-
-// - (void)setFlutterPluginSceneLifeCycleDelegate:(FlutterPluginSceneLifeCycleDelegate*)delegate {
-//   _sceneLifeCycleDelegate = delegate;
-// }
 
 - (nullable FlutterEngine*)takeLaunchEngine {
   return [self.launchEngine takeEngine];
@@ -220,6 +214,7 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 - (void)application:(UIApplication*)application
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
                completionHandler:(void (^)(BOOL succeeded))completionHandler {
+    // FML_LOG(ERROR) << "APP application:performActionForShortcutItem";
   [self.lifeCycleDelegate application:application
          performActionForShortcutItem:shortcutItem
                     completionHandler:completionHandler];
@@ -300,6 +295,7 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   [self.lifeCycleDelegate addDelegate:delegate];
 }
 
+// Proposal 3
 // - (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate {
 //   [self.sceneLifeCycleDelegate addDelegate:delegate];
 // }
@@ -357,16 +353,24 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 #pragma mark - State Restoration
 
 - (BOOL)application:(UIApplication*)application shouldSaveApplicationState:(NSCoder*)coder {
+  FML_LOG(ERROR) << "shouldSaveApplicationState";
   [coder encodeInt64:self.lastAppModificationTime forKey:kRestorationStateAppModificationKey];
   return YES;
 }
 
 - (BOOL)application:(UIApplication*)application shouldRestoreApplicationState:(NSCoder*)coder {
   int64_t stateDate = [coder decodeInt64ForKey:kRestorationStateAppModificationKey];
+
+  if (self.lastAppModificationTime == stateDate) {
+    FML_LOG(ERROR) << "shouldRestoreApplicationState: YES";
+  } else {
+    FML_LOG(ERROR) << "shouldRestoreApplicationState: NO";
+  }
   return self.lastAppModificationTime == stateDate;
 }
 
 - (BOOL)application:(UIApplication*)application shouldSaveSecureApplicationState:(NSCoder*)coder {
+  FML_LOG(ERROR) << "shouldSaveSecureApplicationState";
   [coder encodeInt64:self.lastAppModificationTime forKey:kRestorationStateAppModificationKey];
   return YES;
 }
@@ -374,6 +378,15 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 - (BOOL)application:(UIApplication*)application
     shouldRestoreSecureApplicationState:(NSCoder*)coder {
   int64_t stateDate = [coder decodeInt64ForKey:kRestorationStateAppModificationKey];
+
+  if (self.lastAppModificationTime == stateDate) {
+    FML_LOG(ERROR) << "shouldRestoreSecureApplicationState: YES";
+  } else {
+    FML_LOG(ERROR) << "shouldRestoreSecureApplicationState: NO";
+    FML_LOG(ERROR) << stateDate;
+    FML_LOG(ERROR) << self.lastAppModificationTime;
+  }
+
   return self.lastAppModificationTime == stateDate;
 }
 

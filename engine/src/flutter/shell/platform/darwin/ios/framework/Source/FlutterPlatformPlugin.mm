@@ -113,7 +113,7 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
   NSString* method = call.method;
   id args = call.arguments;
-  FML_LOG(ERROR) << "handleMethodCall: " << method;
+  // FML_LOG(ERROR) << "handleMethodCall: " << method;
   if ([method isEqualToString:@"SystemSound.play"]) {
     [self playSystemSound:args];
     result(nil);

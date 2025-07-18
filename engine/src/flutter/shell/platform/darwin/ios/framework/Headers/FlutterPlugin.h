@@ -25,16 +25,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)sceneDidEnterBackground:(UIScene*)scene;
 
-@end
+- (void)windowScene:(UIWindowScene*)windowScene
+    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
+               completionHandler:(void (^)(BOOL succeeded))completionHandler;
 
-@protocol FlutterSceneLifeCycleProvider
-
-/**
- * Called when registering a new `FlutterSceneLifeCycleDelegate`.
- *
- * See also: `-[FlutterSceneDelegate addSceneLifeCycleDelegate:]`
- */
-- (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
 @end
 
 #pragma mark -
@@ -397,6 +391,8 @@ typedef enum {
  * @return the file name to be used for lookup in the main bundle.
  */
 - (NSString*)lookupKeyForAsset:(NSString*)asset fromPackage:(NSString*)package;
+
+- (UIView*)view;
 @end
 
 #pragma mark -

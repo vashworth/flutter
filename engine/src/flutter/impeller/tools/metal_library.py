@@ -68,6 +68,12 @@ def main():
   else:
     raise 'Unknown target platform'
 
+  # if args.platform == 'ios':
+  #   command += [
+  #       '--toolchain',
+  #       'metal',
+  #   ]
+
   command += [
       'metal',
       # These warnings are from generated code and would make no sense to the
@@ -110,9 +116,11 @@ def main():
   command += args.source
 
   try:
+    print(command)
     subprocess.check_output(command, stderr=subprocess.STDOUT, text=True)
   except subprocess.CalledProcessError as cpe:
     print(cpe.output)
+    print('here1')
     return cpe.returncode
 
   return 0

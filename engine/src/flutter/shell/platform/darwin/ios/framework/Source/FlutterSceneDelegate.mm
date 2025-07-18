@@ -21,36 +21,43 @@ FLUTTER_ASSERT_ARC
 @interface FlutterSceneDelegate () {
 }
 @property(nonatomic, strong) FlutterPluginSceneLifeCycleDelegate* lifeCycleDelegate;
+@property(nonatomic, strong) NSMutableSet<NSNumber*>* seenEngineIdentifiers;
 @end
 
 @implementation FlutterSceneDelegate
 
 - (instancetype)init {
   if (self = [super init]) {
-    _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
-    //    id appDelegate = FlutterSharedApplication.application.delegate;
-    //
-    //    if ([appDelegate respondsToSelector:@selector(sceneLifeCycleDelegate)]) {
-    //        FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate = [appDelegate
-    //        sceneLifeCycleDelegate]; if (sceneLifeCycleDelegate == nil || sceneLifeCycleDelegate
-    //        == NULL) {
-    //            _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
-    //        } else {
-    //            _lifeCycleDelegate = sceneLifeCycleDelegate;
-    //        }
-    //
-    //    } else {
-    //        _lifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
-    //    }
+    _lifeCycleDelegate = nil;
+    _seenEngineIdentifiers = [NSMutableSet set];
   }
   return self;
 }
+
+// Proposal 1 & 2
+- (void)setSceneLifeCycleDelegate:(FlutterPluginSceneLifeCycleDelegate*)delegate engineIdentifier:(int64_t)engineIdentifier {
+  NSNumber* engineID = @(engineIdentifier);
+  if ([self.seenEngineIdentifiers containsObject:engineID]) {
+    // FML_LOG(ERROR) << "Scene is already registered with this engine. Discarding.";
+    return;
+  }
+  // FML_LOG(ERROR) << "New engine, adding to scene.";
+  [self.seenEngineIdentifiers addObject:engineID];
+  self.lifeCycleDelegate = delegate;
+}
+
+// Proposal 3
+// - (void)setSceneLifeCycleDelegate {
+//   FML_LOG(ERROR) << "Connecting the FlutterSceneDelegate to the plugin delegates.";
+//   id appDelegate = FlutterSharedApplication.application.delegate;
+//   self.lifeCycleDelegate = [appDelegate sceneLifeCycleDelegate];
+// }
 
 /// Tells the delegate about the addition of a scene to the app.
 - (void)scene:(UIScene*)scene
     willConnectToSession:(UISceneSession*)session
                  options:(UISceneConnectionOptions*)connectionOptions {
-  NSLog(@"Scene willConnectToSession");
+  // NSLog(@"Scene willConnectToSession");
   NSObject<UIApplicationDelegate>* appDelegate = FlutterSharedApplication.application.delegate;
   if (appDelegate.window.rootViewController) {
     NSLog(@"WARNING - The UIApplicationDelegate is setting up the UIWindow and "
@@ -65,80 +72,117 @@ FLUTTER_ASSERT_ARC
     [self.window makeKeyAndVisible];
   }
 
-  id appDelegate2 = FlutterSharedApplication.application.delegate;
+  // Proposal 3
+  // [self setSceneLifeCycleDelegate];
 
-  if ([appDelegate2 respondsToSelector:@selector(setScene:)]) {
-    [appDelegate2 setScene:scene];
-  }
-
-  // We can't stash the plugins in the app delegate because the scene connects before they're
-  // registered. if ([appDelegate2 respondsToSelector:@selector(sceneLifeCycleDelegate)]) {
-  //   self.lifeCycleDelegate = [appDelegate2 sceneLifeCycleDelegate];
-  // }
 }
 
-/// Adds a plugin to the life cycle delegate, which will send callbacks when events happen
-- (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate {
-  FML_LOG(ERROR) << "addSceneLifeCycleDelegate";
-  [self.lifeCycleDelegate addDelegate:delegate];
+- (void)sceneDidDisconnect:(UIScene*)scene {
+  // FML_LOG(ERROR) << "sceneDidDisconnect";
+}
+
+- (void)sceneWillEnterForeground:(UIScene*)scene {
+  // FML_LOG(ERROR) << "sceneWillEnterForeground";
 }
 
 - (void)sceneDidBecomeActive:(UIScene*)scene {
+  // FML_LOG(ERROR) << "sceneDidBecomeActive";
   [self.lifeCycleDelegate sceneDidBecomeActive:scene];
 }
 
+- (void)sceneWillResignActive:(UIScene*)scene {
+  // FML_LOG(ERROR) << "sceneWillResignActive";
+}
+
 - (void)sceneDidEnterBackground:(UIScene*)scene {
+  // FML_LOG(ERROR) << "sceneDidEnterBackground";
   [self.lifeCycleDelegate sceneDidEnterBackground:scene];
 }
 
-// - (void)windowScene:(UIWindowScene*)windowScene
-//     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
-//                completionHandler:(void (^)(BOOL succeeded))completionHandler {
-//   id appDelegate = FlutterSharedApplication.application.delegate;
-//   if ([appDelegate respondsToSelector:@selector(lifeCycleDelegate)]) {
-//     FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate = [appDelegate lifeCycleDelegate];
-//     [lifeCycleDelegate application:FlutterSharedApplication.application
-//         performActionForShortcutItem:shortcutItem
-//                    completionHandler:completionHandler];
-//   }
-// }
+- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+  // FML_LOG(ERROR) << "scene:openURLContexts";
+}
 
-// static NSDictionary<UIApplicationOpenURLOptionsKey, id>* ConvertOptions(
-//     UISceneOpenURLOptions* options) {
-//   if (@available(iOS 14.5, *)) {
-//     return @{
-//       UIApplicationOpenURLOptionsSourceApplicationKey : options.sourceApplication
-//           ? options.sourceApplication
-//           : [NSNull null],
-//       UIApplicationOpenURLOptionsAnnotationKey : options.annotation ? options.annotation
-//                                                                     : [NSNull null],
-//       UIApplicationOpenURLOptionsOpenInPlaceKey : @(options.openInPlace),
-//       UIApplicationOpenURLOptionsEventAttributionKey : options.eventAttribution
-//           ? options.eventAttribution
-//           : [NSNull null],
-//     };
-//   } else {
-//     return @{
-//       UIApplicationOpenURLOptionsSourceApplicationKey : options.sourceApplication
-//           ? options.sourceApplication
-//           : [NSNull null],
-//       UIApplicationOpenURLOptionsAnnotationKey : options.annotation ? options.annotation
-//                                                                     : [NSNull null],
-//       UIApplicationOpenURLOptionsOpenInPlaceKey : @(options.openInPlace),
-//     };
-//   }
-// }
+- (void)scene:(UIScene*)scene willContinueUserActivityWithType:(NSString*)userActivityType {
+  // FML_LOG(ERROR) << "scene:willContinueUserActivityWithType";
+}
 
-// - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
-//   id appDelegate = FlutterSharedApplication.application.delegate;
-//   if ([appDelegate respondsToSelector:@selector(lifeCycleDelegate)]) {
-//     FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate = [appDelegate lifeCycleDelegate];
-//     for (UIOpenURLContext* context in URLContexts) {
-//       [lifeCycleDelegate application:FlutterSharedApplication.application
-//                              openURL:context.URL
-//                              options:ConvertOptions(context.options)];
-//     };
-//   }
-// }
+- (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity {
+  // FML_LOG(ERROR) << "scene:continueUserActivity";
+}
+
+- (void)scene:(UIScene*)scene
+    didFailToContinueUserActivityWithType:(NSString*)userActivityType
+                                    error:(NSError*)error {
+  // FML_LOG(ERROR) << "scene:didFailToContinueUserActivityWithType";
+}
+
+- (void)scene:(UIScene*)scene didUpdateUserActivity:(NSUserActivity*)userActivity {
+  // FML_LOG(ERROR) << "scene:didUpdateUserActivity";
+}
+
+- (void)windowScene:(UIWindowScene*)windowScene
+    didUpdateEffectiveGeometry:(UIWindowSceneGeometry*)previousEffectiveGeometry {
+  // FML_LOG(ERROR) << "windowScene:didUpdateEffectiveGeometry";
+}
+
+- (void)windowScene:(UIWindowScene*)windowScene
+    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
+               completionHandler:(void (^)(BOOL succeeded))completionHandler {
+  // FML_LOG(ERROR) << "windowScene:performActionForShortcutItem";
+  [self.lifeCycleDelegate windowScene:windowScene
+         performActionForShortcutItem:shortcutItem
+                    completionHandler:completionHandler];
+  //   id appDelegate = FlutterSharedApplication.application.delegate;
+  //   if ([appDelegate respondsToSelector:@selector(lifeCycleDelegate)]) {
+  //     FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate = [appDelegate lifeCycleDelegate];
+  //     [lifeCycleDelegate application:FlutterSharedApplication.application
+  //         performActionForShortcutItem:shortcutItem
+  //                    completionHandler:completionHandler];
+  //   }
+}
+
+- (void)windowScene:(UIWindowScene*)windowScene
+    userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata*)cloudKitShareMetadata {
+  // FML_LOG(ERROR) << "windowScene:userDidAcceptCloudKitShareWithMetadata";
+}
+
+// - (UISceneWindowingControlStyle *) preferredWindowingControlStyleForScene:(UIWindowScene *)
+// windowScene;
+
+
+/** This is the NSUserActivity that you use to restore state when the Scene reconnects.
+  It can be the same activity that you use for handoff or spotlight, or it can be a separate activity
+  with a different activity type and/or userInfo.
+
+  This object must be lightweight. You should store the key information about what the user was doing last.
+
+  After the system calls this function, and before it saves the activity in the restoration file, if the returned NSUserActivity has a
+  delegate (NSUserActivityDelegate), the function userActivityWillSave calls that delegate. Additionally, if any UIResponders have the activity
+  set as their userActivity property, the system calls the UIResponder updateUserActivityState function to update the activity.
+  This happens synchronously and ensures that the system has filled in all the information for the activity before saving it.
+*/
+- (NSUserActivity *) stateRestorationActivityForScene:(UIScene *) scene {
+  FML_LOG(ERROR) << "scene:stateRestorationActivityForScene";
+  // Saves activity to the state
+
+  // For each engine, get the state
+
+  //  NSData* restorationData = [self.engine.restorationPlugin restorationData];
+  // NSUserActivity* activity = scene.userActivity;
+  // if (!activity) {
+  //   activity = [[NSUserActivity alloc] initWithActivityType:scene.session.configuration.name];
+  // }
+  // [activity addUserInfoEntriesFromDictionary:@{kFlutterRestorationStateAppData : restorationData}];
+  // return activity;
+
+
+  return scene.userActivity;
+}
+
+- (void) scene:(UIScene *) scene
+restoreInteractionStateWithUserActivity:(NSUserActivity *) stateRestorationActivity {
+  FML_LOG(ERROR) << "scene:restoreInteractionStateWithUserActivity";
+}
 
 @end

@@ -7,8 +7,10 @@
 #include "flutter/fml/paths.h"
 #include "flutter/lib/ui/plugins/callback_cache.h"
 #import "flutter/shell/platform/darwin/common/InternalFlutterSwiftCommon/InternalFlutterSwiftCommon.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterAppDelegate_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterCallbackCache_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
+#import <objc/runtime.h>
 
 FLUTTER_ASSERT_ARC
 
@@ -460,6 +462,15 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
     }
     if ([delegate respondsToSelector:_cmd]) {
       [delegate sceneDidBecomeActive:scene];
+    } else {
+      Class classOfObject = object_getClass(delegate);
+      NSLog(@"Class %@", classOfObject);
+      unsigned int methodCount;
+      Method *methodList = class_copyMethodList(classOfObject, &methodCount);
+      for (unsigned int i = 0; i < methodCount; i++) {
+          SEL selector = method_getName(methodList[i]);
+          NSLog(@"Method #%d: %s", i, sel_getName(selector));
+      }
     }
     // Don't fallback to applicationDidBecomeActive because that's handled by a notification, which
     // still exists
@@ -478,6 +489,40 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
     }
     if ([delegate respondsToSelector:_cmd]) {
       [delegate sceneDidEnterBackground:scene];
+    }
+  }
+}
+
+- (void)windowScene:(UIWindowScene*)windowScene
+    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
+               completionHandler:(void (^)(BOOL succeeded))completionHandler {
+  id appDelegate = FlutterSharedApplication.application.delegate;
+  FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate = nil;
+  if ([appDelegate respondsToSelector:@selector(lifeCycleDelegate)]) {
+    lifeCycleDelegate = [appDelegate lifeCycleDelegate];
+  }
+
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+    if (!delegate) {
+      continue;
+    }
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate windowScene:windowScene
+          performActionForShortcutItem:shortcutItem
+                     completionHandler:completionHandler];
+    } else {
+      // Fallback to application callback
+
+      if (lifeCycleDelegate != nil) {
+        [FlutterLogger
+            logWarning:
+                @"Plugin does not support scene. Falling back to application lifecycle event."];
+        [lifeCycleDelegate application:FlutterSharedApplication.application
+            performActionForShortcutItem:shortcutItem
+                       completionHandler:completionHandler];
+      } else {
+        [FlutterLogger logWarning:@"Plugin does not support scene"];
+      }
     }
   }
 }

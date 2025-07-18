@@ -151,6 +151,19 @@ FLUTTER_DARWIN_EXPORT
 
 - (void)sceneDidEnterBackground:(UIScene*)scene;
 
+- (void)windowScene:(UIWindowScene*)windowScene
+    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
+               completionHandler:(void (^)(BOOL succeeded))completionHandler;
+
+@end
+
+@protocol FlutterSceneLifeCycleProvider
+
+// Proposal 1 & 2
+- (void)setSceneLifeCycleDelegate:(FlutterPluginSceneLifeCycleDelegate*)delegate engineIdentifier:(int64_t)engineIdentifier;
+
+// Proposal 3
+// - (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
 @end
 
 NS_ASSUME_NONNULL_END

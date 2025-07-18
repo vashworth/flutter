@@ -316,7 +316,7 @@ class ChannelBuffers {
   ChannelBuffers();
 
   /// The number of messages that channel buffers will store by default.
-  static const int kDefaultBufferSize = 1;
+  static const int kDefaultBufferSize = 3;
 
   /// The name of the channel that plugins can use to communicate with the
   /// channel buffers system.

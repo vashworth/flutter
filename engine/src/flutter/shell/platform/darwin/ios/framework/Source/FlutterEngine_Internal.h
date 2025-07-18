@@ -103,6 +103,9 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (nullable FlutterEngine*)engineForIdentifier:(int64_t)identifier;
 
+// Proposal 1 & 2
+- (void)addDelegatesToScene:(UIScene*)scene;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -179,7 +179,6 @@ typedef struct MouseState {
                        nibName:(nullable NSString*)nibName
                         bundle:(nullable NSBundle*)nibBundle {
   FML_CHECK(engine) << "initWithEngine:nibName:bundle: must be called with non-nil engine";
-  FML_LOG(ERROR) << "init1";
   self = [super initWithNibName:nibName bundle:nibBundle];
   if (self) {
     _viewOpaque = YES;
@@ -212,7 +211,6 @@ typedef struct MouseState {
 - (instancetype)initWithProject:(FlutterDartProject*)project
                         nibName:(NSString*)nibName
                          bundle:(NSBundle*)nibBundle {
-  FML_LOG(ERROR) << "init2";
   self = [super initWithNibName:nibName bundle:nibBundle];
   if (self) {
     // TODO(cbracken): https://github.com/flutter/flutter/issues/157140
@@ -227,7 +225,6 @@ typedef struct MouseState {
                    initialRoute:(NSString*)initialRoute
                         nibName:(NSString*)nibName
                          bundle:(NSBundle*)nibBundle {
-  FML_LOG(ERROR) << "init3";
   self = [super initWithNibName:nibName bundle:nibBundle];
   if (self) {
     // TODO(cbracken): https://github.com/flutter/flutter/issues/157140
@@ -239,27 +236,22 @@ typedef struct MouseState {
 }
 
 - (instancetype)initWithNibName:(NSString*)nibNameOrNil bundle:(NSBundle*)nibBundleOrNil {
-  FML_LOG(ERROR) << "init4";
   return [self initWithProject:nil nibName:nil bundle:nil];
 }
 
 - (instancetype)initWithCoder:(NSCoder*)aDecoder {
-  FML_LOG(ERROR) << "init5";
   self = [super initWithCoder:aDecoder];
   return self;
 }
 
 - (void)awakeFromNib {
-  FML_LOG(ERROR) << "awakeFromNib";
   [super awakeFromNib];
   if (!self.engine) {
-    FML_LOG(ERROR) << "no engine";
     [self sharedSetupWithProject:nil initialRoute:nil];
   }
 }
 
 - (instancetype)init {
-  FML_LOG(ERROR) << "init6";
   return [self initWithProject:nil nibName:nil bundle:nil];
 }
 
@@ -315,13 +307,6 @@ typedef struct MouseState {
   // Eliminate method calls in initializers and dealloc.
   [self loadDefaultSplashScreenView];
   [self performCommonViewControllerInitialization];
-
-  if ([FlutterSharedApplication.application.delegate
-          respondsToSelector:@selector(pluginRegistrant)]) {
-    NSObject<FlutterPluginRegistrant>* pluginRegistrant =
-        [FlutterSharedApplication.application.delegate performSelector:@selector(pluginRegistrant)];
-    [pluginRegistrant registerWithRegistry:self];
-  }
 }
 
 - (BOOL)isViewOpaque {
@@ -823,6 +808,15 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 #pragma mark - UIViewController lifecycle notifications
 
+// Proposal 1 & 2
+- (void)viewIsAppearing:(BOOL)animated {
+  // FML_LOG(ERROR) << "viewIsAppearing";
+  // Register scene lifecycle events.
+  [self.engine addDelegatesToScene:self.view.window.windowScene];
+
+  [super viewIsAppearing:animated];
+}
+
 - (void)viewDidLoad {
   TRACE_EVENT0("flutter", "viewDidLoad");
 
@@ -904,6 +898,7 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 - (void)viewWillAppear:(BOOL)animated {
   TRACE_EVENT0("flutter", "viewWillAppear");
+  // FML_LOG(ERROR) << "viewWillAppear";
   if (self.engine.viewController == self) {
     // Send platform settings to Flutter, e.g., platform brightness.
     [self onUserSettingsChanged:nil];
@@ -922,6 +917,7 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 - (void)viewDidAppear:(BOOL)animated {
   TRACE_EVENT0("flutter", "viewDidAppear");
+  // FML_LOG(ERROR) << "viewDidAppear";
   if (self.engine.viewController == self) {
     [self onUserSettingsChanged:nil];
     [self onAccessibilityStatusChanged:nil];
@@ -935,6 +931,7 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 - (void)viewWillDisappear:(BOOL)animated {
   TRACE_EVENT0("flutter", "viewWillDisappear");
+  // FML_LOG(ERROR) << "viewWillDisappear";
   if (self.engine.viewController == self) {
     [self.engine.lifecycleChannel sendMessage:@"AppLifecycleState.inactive"];
   }
@@ -943,6 +940,7 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 - (void)viewDidDisappear:(BOOL)animated {
   TRACE_EVENT0("flutter", "viewDidDisappear");
+  // FML_LOG(ERROR) << "viewDidDisappear";
   if (self.engine.viewController == self) {
     [self invalidateKeyboardAnimationVSyncClient];
     [self ensureViewportMetricsIsCorrect];
@@ -1051,25 +1049,30 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 - (void)applicationBecameActive:(NSNotification*)notification {
   TRACE_EVENT0("flutter", "applicationBecameActive");
+  // FML_LOG(ERROR) << "FlutterViewController: applicationBecameActive";
   [self appOrSceneBecameActive];
 }
 
 - (void)applicationWillResignActive:(NSNotification*)notification {
   TRACE_EVENT0("flutter", "applicationWillResignActive");
+  // FML_LOG(ERROR) << "FlutterViewController: applicationWillResignActive";
   [self appOrSceneWillResignActive];
 }
 
 - (void)applicationWillTerminate:(NSNotification*)notification {
+  // FML_LOG(ERROR) << "FlutterViewController: applicationWillTerminate";
   [self appOrSceneWillTerminate];
 }
 
 - (void)applicationDidEnterBackground:(NSNotification*)notification {
   TRACE_EVENT0("flutter", "applicationDidEnterBackground");
+  // FML_LOG(ERROR) << "FlutterViewController: applicationDidEnterBackground";
   [self appOrSceneDidEnterBackground];
 }
 
 - (void)applicationWillEnterForeground:(NSNotification*)notification {
   TRACE_EVENT0("flutter", "applicationWillEnterForeground");
+  // FML_LOG(ERROR) << "FlutterViewController: applicationWillEnterForeground";
   [self appOrSceneWillEnterForeground];
 }
 
@@ -2680,7 +2683,14 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
 #pragma mark - State Restoration
 
 - (void)encodeRestorableStateWithCoder:(NSCoder*)coder {
+  FML_LOG(ERROR) << "encodeRestorableStateWithCoder";
   NSData* restorationData = [self.engine.restorationPlugin restorationData];
+
+  NSString *myString = [[NSString alloc] initWithData:restorationData encoding:NSUTF8StringEncoding];
+
+  FML_LOG(ERROR) << "data to encode: " << myString;
+
+
   [coder encodeBytes:(const unsigned char*)restorationData.bytes
               length:restorationData.length
               forKey:kFlutterRestorationStateAppData];
@@ -2688,10 +2698,16 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
 }
 
 - (void)decodeRestorableStateWithCoder:(NSCoder*)coder {
+  FML_LOG(ERROR) << "decodeRestorableStateWithCoder";
   NSUInteger restorationDataLength;
   const unsigned char* restorationBytes = [coder decodeBytesForKey:kFlutterRestorationStateAppData
                                                     returnedLength:&restorationDataLength];
   NSData* restorationData = [NSData dataWithBytes:restorationBytes length:restorationDataLength];
+
+  NSString *myString = [[NSString alloc] initWithData:restorationData encoding:NSUTF8StringEncoding];
+
+  FML_LOG(ERROR) << "decoded data: " << myString;
+
   [self.engine.restorationPlugin setRestorationData:restorationData];
 }
 
