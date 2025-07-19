@@ -18,6 +18,7 @@
 #include "flutter/shell/platform/embedder/embedder.h"
 
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterEngine.h"
+#import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterPluginAppLifeCycleDelegate.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterDartProject_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterIndirectScribbleDelegate.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterPlatformPlugin.h"
@@ -49,6 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (FlutterPlatformPlugin*)platformPlugin;
 - (FlutterTextInputPlugin*)textInputPlugin;
 - (FlutterRestorationPlugin*)restorationPlugin;
+- (FlutterPluginSceneLifeCycleDelegate*)sceneLifeCycleDelegate;
 - (void)launchEngine:(nullable NSString*)entrypoint
           libraryURI:(nullable NSString*)libraryOrNil
       entrypointArgs:(nullable NSArray<NSString*>*)entrypointArgs;
@@ -102,9 +104,6 @@ NS_ASSUME_NONNULL_BEGIN
  * This function must be called on the main thread.
  */
 + (nullable FlutterEngine*)engineForIdentifier:(int64_t)identifier;
-
-// Proposal 1 & 2
-- (void)addDelegatesToScene:(UIScene*)scene;
 
 @end
 

@@ -17,7 +17,9 @@
 NS_ASSUME_NONNULL_BEGIN
 @protocol FlutterPluginRegistrar;
 @protocol FlutterPluginRegistry;
+@class FlutterViewController;
 
+// This is the protocol that Flutter plugins should conform to
 @protocol FlutterSceneLifeCycleDelegate
 
 @optional
@@ -29,6 +31,10 @@ NS_ASSUME_NONNULL_BEGIN
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
                completionHandler:(void (^)(BOOL succeeded))completionHandler;
 
+
+- (void)flutterViewController:(FlutterViewController*)controller
+         didConnectToScene:(UIScene*)scene
+                      options:(UISceneConnectionOptions*)connectionOptions;
 @end
 
 #pragma mark -
@@ -132,7 +138,10 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return `YES` if this handles the request.
  */
-- (BOOL)application:(UIApplication*)application handleOpenURL:(NSURL*)url;
+- (BOOL)application:(UIApplication*)application handleOpenURL:(NSURL*)url
+    API_DEPRECATED(
+        "See -[UIApplicationDelegate application:handleOpenURL:] deprecation",
+        ios(2.0, 9.0));
 
 /**
  * Called if this has been registered for `UIApplicationDelegate` callbacks.
@@ -142,7 +151,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)application:(UIApplication*)application
               openURL:(NSURL*)url
     sourceApplication:(NSString*)sourceApplication
-           annotation:(id)annotation;
+           annotation:(id)annotation
+    API_DEPRECATED(
+        "See -[UIApplicationDelegate application:openURL:sourceApplication:annotation:] deprecation",
+        ios(4.2, 9.0));
 
 /**
  * Called if this has been registered for `UIApplicationDelegate` callbacks.
@@ -151,8 +163,7 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (BOOL)application:(UIApplication*)application
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
-               completionHandler:(void (^)(BOOL succeeded))completionHandler
-    API_AVAILABLE(ios(9.0));
+               completionHandler:(void (^)(BOOL succeeded))completionHandler;
 
 /**
  * Called if this has been registered for `UIApplicationDelegate` callbacks.

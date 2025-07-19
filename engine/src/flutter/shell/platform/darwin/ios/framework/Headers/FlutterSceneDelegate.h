@@ -18,11 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
  */
 FLUTTER_DARWIN_EXPORT
 
-// Proposal 1 & 2
 @interface FlutterSceneDelegate : NSObject <UIWindowSceneDelegate, FlutterSceneLifeCycleProvider>
-
-// Proposal 3
-// @interface FlutterSceneDelegate : NSObject <UIWindowSceneDelegate>
 
 @property(nonatomic, strong, nullable) UIWindow* window;
 @end

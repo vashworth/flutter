@@ -114,7 +114,6 @@ static constexpr int kNumProfilerSamplesPerSec = 5;
 // FlutterEngineRegistrar to implement a FlutterPluginRegistrar.
 @property(nonatomic, readonly) NSMutableDictionary* pluginPublications;
 @property(nonatomic, readonly) NSMutableDictionary<NSString*, FlutterEngineRegistrar*>* registrars;
-// Proposal 1 & 2
 @property(nonatomic, strong) FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate;
 
 @property(nonatomic, readwrite, copy) NSString* isolateId;
@@ -247,7 +246,6 @@ static constexpr int kNumProfilerSamplesPerSec = 5;
     [pluginRegistrant registerWithRegistry:self];
   }
 
-  // Proposal 1 & 2
   self.sceneLifeCycleDelegate = [[FlutterPluginSceneLifeCycleDelegate alloc] init];
 
   return self;
@@ -1334,24 +1332,8 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
   return _pluginPublications[pluginKey];
 }
 
-// Proposal 1 & 2
-// When a plugin registers to lifecycle events, it is added to the engine.
-// Later when a scene is created, it will be added to a scene.
 - (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate {
   [self.sceneLifeCycleDelegate addDelegate:delegate];
-}
-
-// Proposal 1 & 2
-// This function is called from the FlutterViewController. If there are multiple
-// FlutterViewControllers within a scene, it may be called multiple times for the same scene. We
-// only want to add to the scene once per engine, though. So first check if we've already added to this scene.
-// If we have, then skip.
-- (void)addDelegatesToScene:(UIScene*)scene {
-  // FML_LOG(ERROR) << "Connecting the FlutterSceneDelegate to the plugin delegates.";
-  if ([scene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
-    id<FlutterSceneLifeCycleProvider> lifeCycleProvider = (id<FlutterSceneLifeCycleProvider>)scene.delegate;
-    [lifeCycleProvider setSceneLifeCycleDelegate:self.sceneLifeCycleDelegate engineIdentifier:self.engineIdentifier];
-  }
 }
 
 #pragma mark - Notifications
@@ -1563,40 +1545,7 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
         (id<FlutterAppLifeCycleProvider>)appDelegate;
     [lifeCycleProvider addApplicationLifeCycleDelegate:delegate];
   }
-
-  // Proposal 1 & 2
   [_flutterEngine addSceneLifeCycleDelegate:delegate];
-
-  // Proposal 3
-  // if ([appDelegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
-  //   FML_LOG(ERROR) << "Connecting the plugin delegates to the app delegate.";
-  //   id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
-  //       (id<FlutterSceneLifeCycleProvider>)appDelegate;
-  //   [lifeCycleProvider addSceneLifeCycleDelegate:delegate];
-  // }
-
-  // The scene may not exist yet if plugins are registered in the AppDelegate
-
-  // The scene may already exist if plugins are registered in the ViewController
-
-  // FlutterPluginAppLifeCycleDelegate holds list of plugins
-  // When there are multiple engines, it may hold plugins from multiple engines
-
-  // When a scene is created, it only want the plugins from the engines within the scene. It could
-  // still have multiple engines/views.
-
-  // How does the scene get the engine and therefore plugins?
-  // It can't get it from the root view controller in add to app
-  // Could it get it from the app delegate?
-
-  // When a FlutterViewController is created, register the plugins with the scene.
-
-  // We can't use the lifecycle delegate in the app delegate because although it's registered for
-  // each scene, when an event hits, it loops through all of them and not just the ones for the
-  // current scene
-
-  // We can't use the lastConnectedScene because we don't know when to remove it from the app
-  // delegate
 }
 
 - (UIView*)view {

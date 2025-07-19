@@ -9,7 +9,6 @@
 
 #import "FlutterMacros.h"
 #import "FlutterPlugin.h"
-#import "FlutterPluginAppLifeCycleDelegate.h"
 
 /**
  * `UIApplicationDelegate` subclass for simple apps that want default behavior.
@@ -26,13 +25,8 @@
  */
 FLUTTER_DARWIN_EXPORT
 
-// Proposal 1 & 2
 @interface FlutterAppDelegate
     : UIResponder <UIApplicationDelegate, FlutterPluginRegistry, FlutterAppLifeCycleProvider>
-
-// Proposal 3
-// @interface FlutterAppDelegate
-//     : UIResponder <UIApplicationDelegate, FlutterPluginRegistry, FlutterAppLifeCycleProvider, FlutterSceneLifeCycleProvider>
 
 @property(nonatomic, strong, nullable) UIWindow* window;
 

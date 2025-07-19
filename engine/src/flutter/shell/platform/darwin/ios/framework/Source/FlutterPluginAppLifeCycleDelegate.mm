@@ -4,13 +4,13 @@
 
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterPluginAppLifeCycleDelegate.h"
 
+#import <objc/runtime.h>
 #include "flutter/fml/paths.h"
 #include "flutter/lib/ui/plugins/callback_cache.h"
 #import "flutter/shell/platform/darwin/common/InternalFlutterSwiftCommon/InternalFlutterSwiftCommon.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterAppDelegate_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterCallbackCache_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
-#import <objc/runtime.h>
 
 FLUTTER_ASSERT_ARC
 
@@ -466,19 +466,25 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
       Class classOfObject = object_getClass(delegate);
       NSLog(@"Class %@", classOfObject);
       unsigned int methodCount;
-      Method *methodList = class_copyMethodList(classOfObject, &methodCount);
+      Method* methodList = class_copyMethodList(classOfObject, &methodCount);
       for (unsigned int i = 0; i < methodCount; i++) {
-          SEL selector = method_getName(methodList[i]);
-          NSLog(@"Method #%d: %s", i, sel_getName(selector));
+        SEL selector = method_getName(methodList[i]);
+        NSLog(@"Method #%d: %s", i, sel_getName(selector));
       }
     }
-    // Don't fallback to applicationDidBecomeActive because that's handled by a notification, which
-    // still exists
+  }
+}
 
-    // else if ([delegate respondsToSelector:@selector(applicationDidBecomeActive:)]) {
-    //   // fallback to application?
-    //   [delegate applicationDidBecomeActive:FlutterSharedApplication.application];
-    // }
+- (void)flutterViewController:(FlutterViewController*)controller
+            didConnectToScene:(UIScene*)scene
+                      options:(UISceneConnectionOptions*)connectionOptions {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+    if (!delegate) {
+      continue;
+    }
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate flutterViewController:controller didConnectToScene:scene options:connectionOptions];
+    }
   }
 }
 

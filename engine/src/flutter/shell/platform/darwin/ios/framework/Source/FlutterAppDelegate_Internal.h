@@ -13,9 +13,6 @@
 
 @property(nonatomic, nullable, readonly) FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate;
 
-// Proposal 3
-// @property(nonatomic, nullable, readonly) FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate;
-
 - (nullable FlutterEngine*)takeLaunchEngine;
 
 @end

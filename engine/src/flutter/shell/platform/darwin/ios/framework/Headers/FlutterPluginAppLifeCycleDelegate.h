@@ -5,6 +5,7 @@
 #ifndef FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERPLUGINAPPLIFECYCLEDELEGATE_H_
 #define FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERPLUGINAPPLIFECYCLEDELEGATE_H_
 
+#import "FlutterEngine.h"
 #import "FlutterPlugin.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -143,9 +144,14 @@ FLUTTER_DARWIN_EXPORT
       restorationHandler:(void (^)(NSArray*))restorationHandler;
 @end
 
+// This
 @interface FlutterPluginSceneLifeCycleDelegate : NSObject
 
 - (void)addDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
+
+- (void)flutterViewController:(FlutterViewController*)controller
+            didConnectToScene:(UIScene*)scene
+                      options:(UISceneConnectionOptions*)connectionOptions;
 
 - (void)sceneDidBecomeActive:(UIScene*)scene;
 
@@ -157,13 +163,10 @@ FLUTTER_DARWIN_EXPORT
 
 @end
 
+// This is the protocol the SceneDelegate conforms to
 @protocol FlutterSceneLifeCycleProvider
 
-// Proposal 1 & 2
-- (void)setSceneLifeCycleDelegate:(FlutterPluginSceneLifeCycleDelegate*)delegate engineIdentifier:(int64_t)engineIdentifier;
-
-// Proposal 3
-// - (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
+- (void)addFlutterViewController:(FlutterViewController*)controller;
 @end
 
 NS_ASSUME_NONNULL_END

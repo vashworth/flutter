@@ -808,13 +808,22 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 #pragma mark - UIViewController lifecycle notifications
 
-// Proposal 1 & 2
 - (void)viewIsAppearing:(BOOL)animated {
-  // FML_LOG(ERROR) << "viewIsAppearing";
-  // Register scene lifecycle events.
-  [self.engine addDelegatesToScene:self.view.window.windowScene];
-
+  FML_LOG(ERROR) << "viewIsAppearing";
+  [self connectFlutterViewControllerWithScene];
   [super viewIsAppearing:animated];
+}
+
+- (void)connectFlutterViewControllerWithScene {
+  // The scene is not available until viewIsAppearing
+  UIWindowScene* scene = self.view.window.windowScene;
+
+  // self.view.window.windowScene
+  if ([scene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+    id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
+        (id<FlutterSceneLifeCycleProvider>)scene.delegate;
+    [lifeCycleProvider addFlutterViewController:self];
+  }
 }
 
 - (void)viewDidLoad {
@@ -2686,11 +2695,6 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
   FML_LOG(ERROR) << "encodeRestorableStateWithCoder";
   NSData* restorationData = [self.engine.restorationPlugin restorationData];
 
-  NSString *myString = [[NSString alloc] initWithData:restorationData encoding:NSUTF8StringEncoding];
-
-  FML_LOG(ERROR) << "data to encode: " << myString;
-
-
   [coder encodeBytes:(const unsigned char*)restorationData.bytes
               length:restorationData.length
               forKey:kFlutterRestorationStateAppData];
@@ -2703,10 +2707,6 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
   const unsigned char* restorationBytes = [coder decodeBytesForKey:kFlutterRestorationStateAppData
                                                     returnedLength:&restorationDataLength];
   NSData* restorationData = [NSData dataWithBytes:restorationBytes length:restorationDataLength];
-
-  NSString *myString = [[NSString alloc] initWithData:restorationData encoding:NSUTF8StringEncoding];
-
-  FML_LOG(ERROR) << "decoded data: " << myString;
 
   [self.engine.restorationPlugin setRestorationData:restorationData];
 }
