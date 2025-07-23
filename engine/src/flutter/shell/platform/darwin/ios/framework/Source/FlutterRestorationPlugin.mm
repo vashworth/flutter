@@ -35,6 +35,7 @@ FLUTTER_ASSERT_ARC
 }
 
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
+  // FML_LOG(ERROR) << "FlutterRestorationPlugin handleMethodCall: " << [call method].UTF8String;
   if ([[call method] isEqualToString:@"put"]) {
     NSAssert(self.pendingRequest == nil, @"Cannot put data while a get request is pending.");
     FlutterStandardTypedData* data = [call arguments];
@@ -53,6 +54,7 @@ FLUTTER_ASSERT_ARC
 }
 
 - (void)setRestorationData:(NSData*)data {
+  // FML_LOG(ERROR) << "FlutterRestorationPlugin setRestorationData";
   if (data != _restorationData) {
     _restorationData = [data copy];
   }
@@ -63,7 +65,13 @@ FLUTTER_ASSERT_ARC
   }
 }
 
+- (void)setRestorationEnabled:(BOOL)restorationEnabled {
+  // FML_LOG(ERROR) << "setRestorationEnabled " << restorationEnabled;
+  _restorationEnabled = restorationEnabled;
+}
+
 - (void)markRestorationComplete {
+  // FML_LOG(ERROR) << "markRestorationComplete";
   _waitForData = NO;
   if (self.pendingRequest != nil) {
     NSAssert(_restorationEnabled, @"No request can be pending when restoration is disabled.");
@@ -73,11 +81,13 @@ FLUTTER_ASSERT_ARC
 }
 
 - (void)reset {
+  // FML_LOG(ERROR) << "FlutterRestorationPlugin reset";
   self.pendingRequest = nil;
   self.restorationData = nil;
 }
 
 - (NSDictionary*)dataForFramework {
+  // FML_LOG(ERROR) << "FlutterRestorationPlugin dataForFramework";
   if (!_restorationEnabled) {
     return @{@"enabled" : @NO};
   }

@@ -23,18 +23,42 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FlutterSceneLifeCycleDelegate
 
 @optional
+- (void)flutterViewController:(FlutterViewController*)controller
+            didConnectToScene:(UIScene*)scene
+                      options:(UISceneConnectionOptions*)connectionOptions;
+
+- (void)sceneDidDisconnect:(UIScene*)scene;
+
+- (void)sceneWillEnterForeground:(UIScene*)scene;
+
 - (void)sceneDidBecomeActive:(UIScene*)scene;
 
+- (void)sceneWillResignActive:(UIScene*)scene;
+
 - (void)sceneDidEnterBackground:(UIScene*)scene;
+
+- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts;
+
+- (void)scene:(UIScene*)scene willContinueUserActivityWithType:(NSString*)userActivityType;
+
+- (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity;
+
+- (void)scene:(UIScene*)scene
+    didFailToContinueUserActivityWithType:(NSString*)userActivityType
+                                    error:(NSError*)error;
+
+- (void)scene:(UIScene*)scene didUpdateUserActivity:(NSUserActivity*)userActivity;
+
+// - (void)windowScene:(UIWindowScene*)windowScene
+//     didUpdateEffectiveGeometry:(UIWindowSceneGeometry*)previousEffectiveGeometry;
 
 - (void)windowScene:(UIWindowScene*)windowScene
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
                completionHandler:(void (^)(BOOL succeeded))completionHandler;
 
+- (void)windowScene:(UIWindowScene*)windowScene
+    userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata*)cloudKitShareMetadata;
 
-- (void)flutterViewController:(FlutterViewController*)controller
-         didConnectToScene:(UIScene*)scene
-                      options:(UISceneConnectionOptions*)connectionOptions;
 @end
 
 #pragma mark -
@@ -138,10 +162,10 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return `YES` if this handles the request.
  */
-- (BOOL)application:(UIApplication*)application handleOpenURL:(NSURL*)url
-    API_DEPRECATED(
-        "See -[UIApplicationDelegate application:handleOpenURL:] deprecation",
-        ios(2.0, 9.0));
+- (BOOL)application:(UIApplication*)application
+      handleOpenURL:(NSURL*)url
+    API_DEPRECATED("See -[UIApplicationDelegate application:handleOpenURL:] deprecation",
+                   ios(2.0, 9.0));
 
 /**
  * Called if this has been registered for `UIApplicationDelegate` callbacks.
@@ -152,9 +176,9 @@ NS_ASSUME_NONNULL_BEGIN
               openURL:(NSURL*)url
     sourceApplication:(NSString*)sourceApplication
            annotation:(id)annotation
-    API_DEPRECATED(
-        "See -[UIApplicationDelegate application:openURL:sourceApplication:annotation:] deprecation",
-        ios(4.2, 9.0));
+    API_DEPRECATED("See -[UIApplicationDelegate application:openURL:sourceApplication:annotation:] "
+                   "deprecation",
+                   ios(4.2, 9.0));
 
 /**
  * Called if this has been registered for `UIApplicationDelegate` callbacks.
@@ -210,8 +234,7 @@ typedef void (*FlutterPluginRegistrantCallback)(NSObject<FlutterPluginRegistry>*
  * Defines a set of optional callback methods and a method to set up the plugin
  * and register it to be called by other application components.
  */
-@protocol
-    FlutterPlugin <NSObject, FlutterApplicationLifeCycleDelegate, FlutterSceneLifeCycleDelegate>
+@protocol FlutterPlugin <NSObject, FlutterApplicationLifeCycleDelegate>
 @required
 /**
  * Registers this plugin using the context information and callback registration

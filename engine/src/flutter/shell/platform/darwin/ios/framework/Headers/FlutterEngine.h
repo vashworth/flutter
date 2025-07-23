@@ -210,6 +210,8 @@ FLUTTER_DARWIN_EXPORT
 - (BOOL)runWithEntrypoint:(nullable NSString*)entrypoint
              initialRoute:(nullable NSString*)initialRoute;
 
+- (void)setRestorationEnabled:(BOOL)restorationEnabled;
+
 /**
  * Runs a Dart program on an Isolate using the specified entrypoint and Dart library,
  * which may not be the same as the library containing the Dart program's `main()` function.

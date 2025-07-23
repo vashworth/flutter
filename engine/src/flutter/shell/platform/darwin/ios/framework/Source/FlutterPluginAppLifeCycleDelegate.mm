@@ -455,6 +455,41 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
   }
 }
 
+- (void)flutterViewController:(FlutterViewController*)controller
+            didConnectToScene:(UIScene*)scene
+                      options:(UISceneConnectionOptions*)connectionOptions {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+    if (!delegate) {
+      continue;
+    }
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate flutterViewController:controller didConnectToScene:scene options:connectionOptions];
+    }
+  }
+}
+
+- (void)sceneDidDisconnect:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+    if (!delegate) {
+      continue;
+    }
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneDidDisconnect:scene];
+    }
+  }
+}
+
+- (void)sceneWillEnterForeground:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+    if (!delegate) {
+      continue;
+    }
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneWillEnterForeground:scene];
+    }
+  }
+}
+
 - (void)sceneDidBecomeActive:(UIScene*)scene {
   for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
     if (!delegate) {
@@ -475,15 +510,13 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
   }
 }
 
-- (void)flutterViewController:(FlutterViewController*)controller
-            didConnectToScene:(UIScene*)scene
-                      options:(UISceneConnectionOptions*)connectionOptions {
+- (void)sceneWillResignActive:(UIScene*)scene {
   for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
     if (!delegate) {
       continue;
     }
     if ([delegate respondsToSelector:_cmd]) {
-      [delegate flutterViewController:controller didConnectToScene:scene options:connectionOptions];
+      [delegate sceneWillResignActive:scene];
     }
   }
 }
@@ -499,14 +532,32 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
   }
 }
 
+- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+}
+
+- (void)scene:(UIScene*)scene willContinueUserActivityWithType:(NSString*)userActivityType {
+}
+
+- (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity {
+}
+
+- (void)scene:(UIScene*)scene
+    didFailToContinueUserActivityWithType:(NSString*)userActivityType
+                                    error:(NSError*)error {
+}
+
+- (void)scene:(UIScene*)scene didUpdateUserActivity:(NSUserActivity*)userActivity {
+}
+
+// - (void)windowScene:(UIWindowScene*)windowScene
+//     didUpdateEffectiveGeometry:(UIWindowSceneGeometry*)previousEffectiveGeometry {
+
+// }
+
 - (void)windowScene:(UIWindowScene*)windowScene
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
                completionHandler:(void (^)(BOOL succeeded))completionHandler {
-  id appDelegate = FlutterSharedApplication.application.delegate;
-  FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate = nil;
-  if ([appDelegate respondsToSelector:@selector(lifeCycleDelegate)]) {
-    lifeCycleDelegate = [appDelegate lifeCycleDelegate];
-  }
+  FlutterPluginAppLifeCycleDelegate* appLifeCycleDelegate = [self applicationLifeCycleDelegate];
 
   for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
     if (!delegate) {
@@ -518,18 +569,30 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
                      completionHandler:completionHandler];
     } else {
       // Fallback to application callback
-
-      if (lifeCycleDelegate != nil) {
+      if (appLifeCycleDelegate != nil) {
         [FlutterLogger
             logWarning:
                 @"Plugin does not support scene. Falling back to application lifecycle event."];
-        [lifeCycleDelegate application:FlutterSharedApplication.application
-            performActionForShortcutItem:shortcutItem
-                       completionHandler:completionHandler];
+        [appLifeCycleDelegate application:FlutterSharedApplication.application
+             performActionForShortcutItem:shortcutItem
+                        completionHandler:completionHandler];
       } else {
         [FlutterLogger logWarning:@"Plugin does not support scene"];
       }
     }
   }
+}
+
+- (void)windowScene:(UIWindowScene*)windowScene
+    userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata*)cloudKitShareMetadata {
+}
+
+- (FlutterPluginAppLifeCycleDelegate*)applicationLifeCycleDelegate {
+  id appDelegate = FlutterSharedApplication.application.delegate;
+  FlutterPluginAppLifeCycleDelegate* lifeCycleDelegate = nil;
+  if ([appDelegate respondsToSelector:@selector(lifeCycleDelegate)]) {
+    lifeCycleDelegate = [appDelegate lifeCycleDelegate];
+  }
+  return lifeCycleDelegate;
 }
 @end

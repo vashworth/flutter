@@ -678,6 +678,11 @@ static constexpr int kNumProfilerSamplesPerSec = 5;
   }];
 }
 
+- (void)setRestorationEnabled:(BOOL)restorationEnabled {
+  _restorationEnabled = restorationEnabled;
+  [self.restorationPlugin setRestorationEnabled:restorationEnabled];
+}
+
 - (void)maybeSetupPlatformViewChannels {
   if (_shell && self.shell.IsSetup()) {
     __weak FlutterEngine* weakSelf = self;
@@ -1545,7 +1550,12 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
         (id<FlutterAppLifeCycleProvider>)appDelegate;
     [lifeCycleProvider addApplicationLifeCycleDelegate:delegate];
   }
-  [_flutterEngine addSceneLifeCycleDelegate:delegate];
+
+  if ([delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleDelegate)]) {
+    NSObject<FlutterSceneLifeCycleDelegate>* sceneDelegate =
+        (NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
+    [_flutterEngine addSceneLifeCycleDelegate:sceneDelegate];
+  }
 }
 
 - (UIView*)view {

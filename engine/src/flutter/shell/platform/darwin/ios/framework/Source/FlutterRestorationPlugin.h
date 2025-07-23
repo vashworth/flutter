@@ -18,6 +18,8 @@
 @property(nonatomic, copy) NSData* restorationData;
 - (void)markRestorationComplete;
 
+- (void)setRestorationEnabled:(BOOL)restorationEnabled;
+
 /**
  * Reset the state restoration plugin to prepare for a hot restart.
  *

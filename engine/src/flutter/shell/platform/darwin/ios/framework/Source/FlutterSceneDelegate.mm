@@ -11,6 +11,7 @@
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterEngine_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
 
+#import <UserNotifications/UserNotifications.h>
 #import <os/log.h>
 #include <memory>
 
@@ -19,6 +20,8 @@
 #include "flutter/fml/message_loop.h"
 
 FLUTTER_ASSERT_ARC
+
+static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 
 @interface FlutterSceneDelegate () {
 }
@@ -62,7 +65,7 @@ FLUTTER_ASSERT_ARC
 - (void)scene:(UIScene*)scene
     willConnectToSession:(UISceneSession*)session
                  options:(UISceneConnectionOptions*)connectionOptions {
-  NSLog(@"Scene willConnectToSession");
+  // NSLog(@"Scene willConnectToSession");
   self.sceneConnectionOptions = connectionOptions;
   NSObject<UIApplicationDelegate>* appDelegate = FlutterSharedApplication.application.delegate;
   if (appDelegate.window.rootViewController) {
@@ -80,11 +83,23 @@ FLUTTER_ASSERT_ARC
 }
 
 - (void)sceneDidDisconnect:(UIScene*)scene {
-  FML_LOG(ERROR) << "sceneDidDisconnect";
+  // FML_LOG(ERROR) << "sceneDidDisconnect";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate sceneDidDisconnect:scene];
+  }
 }
 
 - (void)sceneWillEnterForeground:(UIScene*)scene {
-  FML_LOG(ERROR) << "sceneWillEnterForeground";
+  // FML_LOG(ERROR) << "sceneWillEnterForeground";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate sceneWillEnterForeground:scene];
+  }
 }
 
 - (void)sceneDidBecomeActive:(UIScene*)scene {
@@ -98,13 +113,17 @@ FLUTTER_ASSERT_ARC
 }
 
 - (void)sceneWillResignActive:(UIScene*)scene {
-  FML_LOG(ERROR) << "sceneWillResignActive";
+  // FML_LOG(ERROR) << "sceneWillResignActive";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate sceneWillResignActive:scene];
+  }
 }
 
 - (void)sceneDidEnterBackground:(UIScene*)scene {
-  FML_LOG(ERROR) << "sceneDidEnterBackground";
-  // [self.lifeCycleDelegate sceneDidEnterBackground:scene];
-
+  // FML_LOG(ERROR) << "sceneDidEnterBackground";
   for (FlutterEngine* engine in [_engines allObjects]) {
     if (!engine) {
       continue;
@@ -115,43 +134,94 @@ FLUTTER_ASSERT_ARC
 
 - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
   // FML_LOG(ERROR) << "scene:openURLContexts";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate scene:scene openURLContexts:URLContexts];
+  }
 }
 
 - (void)scene:(UIScene*)scene willContinueUserActivityWithType:(NSString*)userActivityType {
   // FML_LOG(ERROR) << "scene:willContinueUserActivityWithType";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate scene:scene willContinueUserActivityWithType:userActivityType];
+  }
 }
 
 - (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity {
   // FML_LOG(ERROR) << "scene:continueUserActivity";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate scene:scene continueUserActivity:userActivity];
+  }
 }
 
 - (void)scene:(UIScene*)scene
     didFailToContinueUserActivityWithType:(NSString*)userActivityType
                                     error:(NSError*)error {
   // FML_LOG(ERROR) << "scene:didFailToContinueUserActivityWithType";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate scene:scene
+        didFailToContinueUserActivityWithType:userActivityType
+                                        error:error];
+  }
 }
 
 - (void)scene:(UIScene*)scene didUpdateUserActivity:(NSUserActivity*)userActivity {
   // FML_LOG(ERROR) << "scene:didUpdateUserActivity";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate scene:scene didUpdateUserActivity:userActivity];
+  }
 }
 
-- (void)windowScene:(UIWindowScene*)windowScene
-    didUpdateEffectiveGeometry:(UIWindowSceneGeometry*)previousEffectiveGeometry {
-  // FML_LOG(ERROR) << "windowScene:didUpdateEffectiveGeometry";
-}
+// - (void)windowScene:(UIWindowScene*)windowScene
+//     didUpdateEffectiveGeometry:(UIWindowSceneGeometry*)previousEffectiveGeometry {
+//   // FML_LOG(ERROR) << "windowScene:didUpdateEffectiveGeometry";
+//   for (FlutterEngine* engine in [_engines allObjects]) {
+//     if (!engine) {
+//       continue;
+//     }
+//     [engine.sceneLifeCycleDelegate windowScene:windowScene
+//     didUpdateEffectiveGeometry:previousEffectiveGeometry];
+//   }
+// }
 
 - (void)windowScene:(UIWindowScene*)windowScene
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
                completionHandler:(void (^)(BOOL succeeded))completionHandler {
   // FML_LOG(ERROR) << "windowScene:performActionForShortcutItem";
-  // [self.lifeCycleDelegate windowScene:windowScene
-  //        performActionForShortcutItem:shortcutItem
-  //                   completionHandler:completionHandler];
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate windowScene:windowScene
+                  performActionForShortcutItem:shortcutItem
+                             completionHandler:completionHandler];
+  }
 }
 
 - (void)windowScene:(UIWindowScene*)windowScene
     userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata*)cloudKitShareMetadata {
   // FML_LOG(ERROR) << "windowScene:userDidAcceptCloudKitShareWithMetadata";
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    if (!engine) {
+      continue;
+    }
+    [engine.sceneLifeCycleDelegate windowScene:windowScene
+        userDidAcceptCloudKitShareWithMetadata:cloudKitShareMetadata];
+  }
 }
 
 // - (UISceneWindowingControlStyle *) preferredWindowingControlStyleForScene:(UIWindowScene *)
@@ -179,19 +249,22 @@ FLUTTER_ASSERT_ARC
     activity = [[NSUserActivity alloc] initWithActivityType:scene.session.configuration.name];
   }
 
-  // For each engine, get the state
   for (FlutterEngine* engine in [_engines allObjects]) {
     if (!engine) {
       continue;
     }
-    NSData* restorationData = [engine.restorationPlugin restorationData];
-    if (restorationData) {
-      // Use the restoration identifier of the view controller as a stable key.
-      // The engine identifier changes across launches.
-      UIViewController* vc = (UIViewController*)engine.viewController;
-      NSString* restorationId = vc.restorationIdentifier;
-      if (restorationId && restorationId.length > 0) {
+    UIViewController* vc = (UIViewController*)engine.viewController;
+    NSString* restorationId = vc.restorationIdentifier;
+    if (restorationId && restorationId.length > 0) {
+      NSData* restorationData = [engine.restorationPlugin restorationData];
+      if (restorationData) {
+        int64_t stateDate = [self lastAppModificationTime];
+
+        FML_LOG(ERROR) << "save for " << restorationId.UTF8String;
         [activity addUserInfoEntriesFromDictionary:@{restorationId : restorationData}];
+        [activity addUserInfoEntriesFromDictionary:@{
+          kRestorationStateAppModificationKey : [NSNumber numberWithLongLong:stateDate]
+        }];
       }
     }
   }
@@ -201,23 +274,39 @@ FLUTTER_ASSERT_ARC
 
 - (void)scene:(UIScene*)scene
     restoreInteractionStateWithUserActivity:(NSUserActivity*)stateRestorationActivity {
-  FML_LOG(ERROR) << "scene:restoreInteractionStateWithUserActivity";
   NSDictionary<NSString*, id>* userInfo = stateRestorationActivity.userInfo;
   for (FlutterEngine* engine in [_engines allObjects]) {
     if (!engine) {
       continue;
     }
-    // Use the restoration identifier of the view controller as a stable key.
-    // The engine identifier changes across launches.
     UIViewController* vc = (UIViewController*)engine.viewController;
     NSString* restorationId = vc.restorationIdentifier;
     if (restorationId && restorationId.length > 0) {
+      NSNumber* stateDateNumber = userInfo[kRestorationStateAppModificationKey];
+      int64_t stateDate = 0;
+      if (stateDateNumber && [stateDateNumber isKindOfClass:[NSNumber class]]) {
+        stateDate = [stateDateNumber longLongValue];
+      }
+      if (self.lastAppModificationTime != stateDate) {
+        // Don't restore state if the app has been re-installed since the state was last saved
+        return;
+      }
       NSData* restorationData = userInfo[restorationId];
       if ([restorationData isKindOfClass:[NSData class]]) {
         [engine.restorationPlugin setRestorationData:restorationData];
       }
     }
   }
+}
+
+- (int64_t)lastAppModificationTime {
+  NSDate* fileDate;
+  NSError* error = nil;
+  [[[NSBundle mainBundle] executableURL] getResourceValue:&fileDate
+                                                   forKey:NSURLContentModificationDateKey
+                                                    error:&error];
+  NSAssert(error == nil, @"Cannot obtain modification date of main bundle: %@", error);
+  return [fileDate timeIntervalSince1970];
 }
 
 @end
