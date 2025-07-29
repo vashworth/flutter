@@ -204,7 +204,7 @@ abstract class ShortcutActivator {
   ///
   /// If provided, trigger keys can be used as a first-pass filter for incoming
   /// events in order to optimize lookups, as [Intent]s are stored in a [Map]
-  /// and indexed by trigger keys. It is up to the individual implementors of
+  /// and indexed by trigger keys. It is up to the individual implementers of
   /// this interface to decide if they ignore triggers or not.
   ///
   /// Subclasses should make sure that the return value of this method does not
@@ -305,10 +305,9 @@ class LogicalKeySet extends KeySet<LogicalKeyboardKey>
 
   @override
   Iterable<LogicalKeyboardKey> get triggers => _triggers;
-  late final Set<LogicalKeyboardKey> _triggers =
-      keys
-          .expand((LogicalKeyboardKey key) => _unmapSynonyms[key] ?? <LogicalKeyboardKey>[key])
-          .toSet();
+  late final Set<LogicalKeyboardKey> _triggers = keys
+      .expand((LogicalKeyboardKey key) => _unmapSynonyms[key] ?? <LogicalKeyboardKey>[key])
+      .toSet();
 
   bool _checkKeyRequirements(Set<LogicalKeyboardKey> pressed) {
     final Set<LogicalKeyboardKey> collapsedRequired = LogicalKeyboardKey.collapseSynonyms(keys);
@@ -353,19 +352,19 @@ class LogicalKeySet extends KeySet<LogicalKeyboardKey>
 
   @override
   String debugDescribeKeys() {
-    final List<LogicalKeyboardKey> sortedKeys =
-        keys.toList()..sort((LogicalKeyboardKey a, LogicalKeyboardKey b) {
-          // Put the modifiers first. If it has a synonym, then it's something
-          // like shiftLeft, altRight, etc.
-          final bool aIsModifier = a.synonyms.isNotEmpty || _modifiers.contains(a);
-          final bool bIsModifier = b.synonyms.isNotEmpty || _modifiers.contains(b);
-          if (aIsModifier && !bIsModifier) {
-            return -1;
-          } else if (bIsModifier && !aIsModifier) {
-            return 1;
-          }
-          return a.debugName!.compareTo(b.debugName!);
-        });
+    final List<LogicalKeyboardKey> sortedKeys = keys.toList()
+      ..sort((LogicalKeyboardKey a, LogicalKeyboardKey b) {
+        // Put the modifiers first. If it has a synonym, then it's something
+        // like shiftLeft, altRight, etc.
+        final bool aIsModifier = a.synonyms.isNotEmpty || _modifiers.contains(a);
+        final bool bIsModifier = b.synonyms.isNotEmpty || _modifiers.contains(b);
+        if (aIsModifier && !bIsModifier) {
+          return -1;
+        } else if (bIsModifier && !aIsModifier) {
+          return 1;
+        }
+        return a.debugName!.compareTo(b.debugName!);
+      });
     return sortedKeys.map<String>((LogicalKeyboardKey key) => key.debugName.toString()).join(' + ');
   }
 
@@ -1388,8 +1387,8 @@ class ShortcutRegistry with ChangeNotifier {
   ///  * [maybeOf], which is similar to this function, but will return null if
   ///    it doesn't find a [ShortcutRegistrar] ancestor.
   static ShortcutRegistry of(BuildContext context) {
-    final _ShortcutRegistrarScope? inherited =
-        context.dependOnInheritedWidgetOfExactType<_ShortcutRegistrarScope>();
+    final _ShortcutRegistrarScope? inherited = context
+        .dependOnInheritedWidgetOfExactType<_ShortcutRegistrarScope>();
     assert(() {
       if (inherited == null) {
         throw FlutterError(
@@ -1423,8 +1422,8 @@ class ShortcutRegistry with ChangeNotifier {
   ///    result, and will throw an exception if it doesn't find a
   ///    [ShortcutRegistrar] ancestor.
   static ShortcutRegistry? maybeOf(BuildContext context) {
-    final _ShortcutRegistrarScope? inherited =
-        context.dependOnInheritedWidgetOfExactType<_ShortcutRegistrarScope>();
+    final _ShortcutRegistrarScope? inherited = context
+        .dependOnInheritedWidgetOfExactType<_ShortcutRegistrarScope>();
     return inherited?.registry;
   }
 

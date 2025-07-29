@@ -52,11 +52,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const SearchBarThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -78,11 +77,10 @@ void main() {
       textCapitalization: TextCapitalization.characters,
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description[0], 'elevation: WidgetStatePropertyAll(3.0)');
     expect(description[1], 'backgroundColor: WidgetStatePropertyAll(${const Color(0xfffffff1)})');
@@ -211,16 +209,14 @@ void main() {
       return MaterialApp(
         theme: ThemeData.from(
           colorScheme: const ColorScheme.light(),
-          useMaterial3: true,
         ).copyWith(searchBarTheme: overallTheme),
         home: Scaffold(
           body: Center(
             // If the SearchBarThemeData widget is present, it's used
             // instead of the Theme's ThemeData.searchBarTheme.
-            child:
-                searchBarThemeData == null
-                    ? child
-                    : SearchBarTheme(data: searchBarThemeData, child: child),
+            child: searchBarThemeData == null
+                ? child
+                : SearchBarTheme(data: searchBarThemeData, child: child),
           ),
         ),
       );

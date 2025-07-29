@@ -10,8 +10,8 @@ import 'package:meta/meta.dart';
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
-import 'cocoon.dart';
 import 'devices.dart';
+import 'metrics_result_writer.dart';
 import 'task_result.dart';
 import 'utils.dart';
 
@@ -49,7 +49,7 @@ Future<void> runTasks(
   for (final String taskName in taskNames) {
     TaskResult result = TaskResult.success(null);
     int failureCount = 0;
-    while (failureCount <= Cocoon.retryNumber) {
+    while (failureCount <= MetricsResultWriter.retryNumber) {
       result = await rerunTask(
         taskName,
         deviceId: deviceId,
@@ -137,7 +137,7 @@ Future<TaskResult> rerunTask(
   section('Finished task "$taskName"');
 
   if (resultsPath != null) {
-    final Cocoon cocoon = Cocoon();
+    final MetricsResultWriter cocoon = MetricsResultWriter();
     await cocoon.writeTaskResultToFile(
       builderName: luciBuilder,
       gitBranch: gitBranch,
@@ -240,17 +240,17 @@ Future<TaskResult> runTask(
   try {
     final ConnectionResult result = await _connectToRunnerIsolate(await uri.future);
     print('[$taskName] Connected to VM server.');
-    isolateParams =
-        isolateParams == null ? <String, String>{} : Map<String, String>.of(isolateParams);
+    isolateParams = isolateParams == null
+        ? <String, String>{}
+        : Map<String, String>.of(isolateParams);
     isolateParams['runProcessCleanup'] = terminateStrayDartProcesses.toString();
     final VmService service = result.vmService;
     final String isolateId = result.isolate.id!;
-    final Map<String, dynamic> taskResultJson =
-        (await service.callServiceExtension(
-          'ext.cocoonRunTask',
-          args: isolateParams,
-          isolateId: isolateId,
-        )).json!;
+    final Map<String, dynamic> taskResultJson = (await service.callServiceExtension(
+      'ext.cocoonRunTask',
+      args: isolateParams,
+      isolateId: isolateId,
+    )).json!;
     // Notify the task process that the task result has been received and it
     // can proceed to shutdown.
     await _acknowledgeTaskResultReceived(service: service, isolateId: isolateId);

@@ -157,7 +157,7 @@ void main() {
       }
 
       const Size calendarLandscapeDialogSize = Size(496.0, 346.0);
-      const Size calendarPortraitDialogSizeM3 = Size(328.0, 512.0);
+      const Size calendarPortraitDialogSizeM3 = Size(360.0, 568.0);
 
       // Test landscape layout.
       await showPicker(tester, wideWindowSize);
@@ -177,7 +177,7 @@ void main() {
     });
 
     testWidgets('Default dialog properties', (WidgetTester tester) async {
-      final ThemeData theme = ThemeData(useMaterial3: true);
+      final ThemeData theme = ThemeData();
       await prepareDatePicker(tester, (Future<DateTime?> date) async {
         final Material dialogMaterial = tester.widget<Material>(
           find.descendant(of: find.byType(Dialog), matching: find.byType(Material)).first,
@@ -376,14 +376,13 @@ void main() {
                   builder: (BuildContext context) {
                     return ElevatedButton(
                       child: const Text('X'),
-                      onPressed:
-                          () => showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2018),
-                            lastDate: DateTime(2030),
-                            builder: (BuildContext context, Widget? child) => const SizedBox(),
-                          ),
+                      onPressed: () => showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2018),
+                        lastDate: DateTime(2030),
+                        builder: (BuildContext context, Widget? child) => const SizedBox(),
+                      ),
                     );
                   },
                 ),
@@ -415,15 +414,14 @@ void main() {
                   builder: (BuildContext context) {
                     return ElevatedButton(
                       child: const Text('X'),
-                      onPressed:
-                          () => showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2018),
-                            lastDate: DateTime(2030),
-                            barrierDismissible: false,
-                            builder: (BuildContext context, Widget? child) => const SizedBox(),
-                          ),
+                      onPressed: () => showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2018),
+                        lastDate: DateTime(2030),
+                        barrierDismissible: false,
+                        builder: (BuildContext context, Widget? child) => const SizedBox(),
+                      ),
                     );
                   },
                 ),
@@ -453,14 +451,13 @@ void main() {
                 builder: (BuildContext context) {
                   return ElevatedButton(
                     child: const Text('X'),
-                    onPressed:
-                        () => showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2018),
-                          lastDate: DateTime(2030),
-                          builder: (BuildContext context, Widget? child) => const SizedBox(),
-                        ),
+                    onPressed: () => showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2018),
+                      lastDate: DateTime(2030),
+                      builder: (BuildContext context, Widget? child) => const SizedBox(),
+                    ),
                   );
                 },
               ),
@@ -485,15 +482,14 @@ void main() {
                 builder: (BuildContext context) {
                   return ElevatedButton(
                     child: const Text('X'),
-                    onPressed:
-                        () => showDatePicker(
-                          context: context,
-                          barrierColor: Colors.pink,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2018),
-                          lastDate: DateTime(2030),
-                          builder: (BuildContext context, Widget? child) => const SizedBox(),
-                        ),
+                    onPressed: () => showDatePicker(
+                      context: context,
+                      barrierColor: Colors.pink,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2018),
+                      lastDate: DateTime(2030),
+                      builder: (BuildContext context, Widget? child) => const SizedBox(),
+                    ),
                   );
                 },
               ),
@@ -517,15 +513,14 @@ void main() {
                 builder: (BuildContext context) {
                   return ElevatedButton(
                     child: const Text('X'),
-                    onPressed:
-                        () => showDatePicker(
-                          context: context,
-                          barrierLabel: 'Custom Label',
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2018),
-                          lastDate: DateTime(2030),
-                          builder: (BuildContext context, Widget? child) => const SizedBox(),
-                        ),
+                    onPressed: () => showDatePicker(
+                      context: context,
+                      barrierLabel: 'Custom Label',
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2018),
+                      lastDate: DateTime(2030),
+                      builder: (BuildContext context, Widget? child) => const SizedBox(),
+                    ),
                   );
                 },
               ),
@@ -846,7 +841,6 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData(useMaterial3: true),
           home: Material(
             child: DatePickerDialog(
               initialDate: initialDate,
@@ -948,7 +942,6 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData(useMaterial3: true),
           home: Material(
             child: DatePickerDialog(
               initialDate: initialDate,
@@ -1491,8 +1484,9 @@ void main() {
 
     testWidgets('Default InputDecoration', (WidgetTester tester) async {
       await prepareDatePicker(tester, (Future<DateTime?> date) async {
-        final InputDecoration decoration =
-            tester.widget<TextField>(find.byType(TextField)).decoration!;
+        final InputDecoration decoration = tester
+            .widget<TextField>(find.byType(TextField))
+            .decoration!;
         expect(decoration.border, const OutlineInputBorder());
         expect(decoration.filled, false);
         expect(decoration.hintText, 'mm/dd/yyyy');
@@ -1664,6 +1658,31 @@ void main() {
       });
     });
 
+    // Regression test for https://github.com/flutter/flutter/issues/140311.
+    testWidgets('Text field stays visible when orientation is portrait and height is reduced', (
+      WidgetTester tester,
+    ) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(720, 1280);
+      tester.view.devicePixelRatio = 1.0;
+      initialEntryMode = DatePickerEntryMode.input;
+
+      // Text field and header are visible by default.
+      await prepareDatePicker(tester, useMaterial3: true, (Future<DateTime?> range) async {
+        expect(find.byType(TextField), findsOneWidget);
+        expect(find.text('Select date'), findsOne);
+      });
+
+      // Simulate the portait mode on a device with a small display when the virtual
+      // keyboard is visible.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 1000);
+      await tester.pumpAndSettle();
+
+      // Text field is visible and header is hidden.
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Select date'), findsNothing);
+    });
+
     // This is a regression test for https://github.com/flutter/flutter/issues/139120.
     testWidgets('Dialog contents are visible - textScaler 0.88, 1.0, 2.0', (
       WidgetTester tester,
@@ -1716,6 +1735,7 @@ void main() {
             label: '3, Sunday, January 3, 2016, Today',
             isButton: true,
             hasTapAction: true,
+            hasSelectedState: true,
             hasFocusAction: true,
             isFocusable: true,
           ),
@@ -1764,6 +1784,20 @@ void main() {
         );
       });
       semantics.dispose();
+    });
+
+    // Regression test for https://github.com/flutter/flutter/issues/158325.
+    testWidgets('Calendar mode respects tap target guidelines in portrait orientation', (
+      WidgetTester tester,
+    ) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+
+      await prepareDatePicker(tester, useMaterial3: true, (Future<DateTime?> date) async {
+        expect(find.byType(DatePickerDialog), findsOneWidget);
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      });
     });
 
     testWidgets('input mode', (WidgetTester tester) async {
@@ -1824,6 +1858,7 @@ void main() {
             hasPasteAction: true,
             hasMoveCursorBackwardByCharacterAction: true,
             hasMoveCursorBackwardByWordAction: true,
+            validationResult: SemanticsValidationResult.valid,
           ),
         );
 
@@ -1872,7 +1907,7 @@ void main() {
 
       final SemanticsNode node = tester.semantics.find(find.byType(DatePickerDialog));
       final SemanticsData semanticsData = node.getSemanticsData();
-      expect(semanticsData.hasFlag(SemanticsFlag.isFocusable), false);
+      expect(semanticsData.flagsCollection.isFocusable, false);
     });
   });
 
@@ -2469,8 +2504,9 @@ void main() {
 
       testWidgets('Default InputDecoration', (WidgetTester tester) async {
         await prepareDatePicker(tester, (Future<DateTime?> date) async {
-          final InputDecoration decoration =
-              tester.widget<TextField>(find.byType(TextField)).decoration!;
+          final InputDecoration decoration = tester
+              .widget<TextField>(find.byType(TextField))
+              .decoration!;
           expect(decoration.border, const UnderlineInputBorder());
           expect(decoration.filled, false);
           expect(decoration.hintText, 'mm/dd/yyyy');
@@ -2636,6 +2672,83 @@ void main() {
       await gesture.up();
     });
   });
+
+  group('Calendar Delegate', () {
+    testWidgets('Defaults to Gregorian calendar system', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: DatePickerDialog(
+              initialDate: initialDate,
+              firstDate: firstDate,
+              lastDate: lastDate,
+            ),
+          ),
+        ),
+      );
+
+      final DatePickerDialog dialog = tester.widget(find.byType(DatePickerDialog));
+      expect(dialog.calendarDelegate, isA<GregorianCalendarDelegate>());
+    });
+
+    testWidgets('Using custom calendar delegate implementation', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: DatePickerDialog(
+              initialDate: initialDate,
+              firstDate: firstDate,
+              lastDate: lastDate,
+              calendarDelegate: const TestCalendarDelegate(),
+            ),
+          ),
+        ),
+      );
+
+      final DatePickerDialog dialog = tester.widget(find.byType(DatePickerDialog));
+      expect(dialog.calendarDelegate, isA<TestCalendarDelegate>());
+    });
+
+    testWidgets('Displays calendar based on the calendar delegate', (WidgetTester tester) async {
+      Text getLastDayText() {
+        final Finder dayFinder = find.descendant(of: find.byType(Ink), matching: find.byType(Text));
+        return tester.widget(dayFinder.last);
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: DatePickerDialog(
+              initialDate: initialDate,
+              firstDate: firstDate,
+              lastDate: lastDate,
+              calendarDelegate: const TestCalendarDelegate(),
+            ),
+          ),
+        ),
+      );
+
+      final Finder nextMonthButton = find.byIcon(Icons.chevron_right);
+
+      Text lastDayText = getLastDayText();
+      expect(find.text('January 2016'), findsOneWidget);
+      expect(lastDayText.data, equals('28'));
+
+      await tester.tap(nextMonthButton);
+      await tester.pumpAndSettle();
+
+      lastDayText = getLastDayText();
+      expect(find.text('February 2016'), findsOneWidget);
+      expect(lastDayText.data, equals('21'));
+
+      await tester.tap(nextMonthButton);
+      await tester.pumpAndSettle();
+
+      lastDayText = getLastDayText();
+      expect(find.text('March 2016'), findsOneWidget);
+      expect(lastDayText.data, equals('28'));
+    });
+  });
 }
 
 class _RestorableDatePickerDialogTestWidget extends StatefulWidget {
@@ -2751,5 +2864,19 @@ class _DatePickerObserver extends NavigatorObserver {
       datePickerCount--;
     }
     super.didPop(route, previousRoute);
+  }
+}
+
+class TestCalendarDelegate extends GregorianCalendarDelegate {
+  const TestCalendarDelegate();
+
+  @override
+  int getDaysInMonth(int year, int month) {
+    return month.isEven ? 21 : 28;
+  }
+
+  @override
+  int firstDayOffset(int year, int month, MaterialLocalizations localizations) {
+    return 1;
   }
 }

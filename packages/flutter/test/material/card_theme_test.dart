@@ -48,11 +48,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const CardThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -69,11 +68,10 @@ void main() {
       shape: BeveledRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20.5))),
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description[0], 'clipBehavior: Clip.antiAlias');
     expect(description[1], 'color: MaterialColor(primary value: ${const Color(0xffffc107)})');
@@ -91,8 +89,13 @@ void main() {
   });
 
   testWidgets('Material3 - Passing no CardTheme returns defaults', (WidgetTester tester) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
-    await tester.pumpWidget(MaterialApp(theme: theme, home: const Scaffold(body: Card())));
+    final ThemeData theme = ThemeData();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const Scaffold(body: Card()),
+      ),
+    );
 
     final Padding padding = _getCardPadding(tester);
     final Material material = _getCardMaterial(tester);
@@ -113,7 +116,10 @@ void main() {
     final CardThemeData cardTheme = _cardTheme();
 
     await tester.pumpWidget(
-      MaterialApp(theme: ThemeData(cardTheme: cardTheme), home: const Scaffold(body: Card())),
+      MaterialApp(
+        theme: ThemeData(cardTheme: cardTheme),
+        home: const Scaffold(body: Card()),
+      ),
     );
 
     final Padding padding = _getCardPadding(tester);
@@ -171,7 +177,12 @@ void main() {
     final CardThemeData cardTheme = _cardTheme();
     final ThemeData themeData = _themeData().copyWith(cardTheme: cardTheme);
 
-    await tester.pumpWidget(MaterialApp(theme: themeData, home: const Scaffold(body: Card())));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: themeData,
+        home: const Scaffold(body: Card()),
+      ),
+    );
 
     final Material material = _getCardMaterial(tester);
     expect(material.color, cardTheme.color);
@@ -180,9 +191,14 @@ void main() {
   testWidgets('Material3 - ThemeData properties are used when no CardTheme is set', (
     WidgetTester tester,
   ) async {
-    final ThemeData themeData = ThemeData(useMaterial3: true);
+    final ThemeData themeData = ThemeData();
 
-    await tester.pumpWidget(MaterialApp(theme: themeData, home: const Scaffold(body: Card())));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: themeData,
+        home: const Scaffold(body: Card()),
+      ),
+    );
 
     final Material material = _getCardMaterial(tester);
     expect(material.color, themeData.colorScheme.surfaceContainerLow);
@@ -199,11 +215,13 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(cardTheme: cardTheme, useMaterial3: true),
+        theme: ThemeData(cardTheme: cardTheme),
         home: Scaffold(
           body: RepaintBoundary(
             key: painterKey,
-            child: Center(child: Card(child: SizedBox.fromSize(size: const Size(200, 300)))),
+            child: Center(
+              child: Card(child: SizedBox.fromSize(size: const Size(200, 300))),
+            ),
           ),
         ),
       ),
@@ -339,7 +357,12 @@ void main() {
     ) async {
       final ThemeData themeData = ThemeData(useMaterial3: false);
 
-      await tester.pumpWidget(MaterialApp(theme: themeData, home: const Scaffold(body: Card())));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: themeData,
+          home: const Scaffold(body: Card()),
+        ),
+      );
 
       final Material material = _getCardMaterial(tester);
       expect(material.color, themeData.cardColor);
@@ -347,7 +370,10 @@ void main() {
 
     testWidgets('Material2 - Passing no CardTheme returns defaults', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(theme: ThemeData(useMaterial3: false), home: const Scaffold(body: Card())),
+        MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: const Scaffold(body: Card()),
+        ),
       );
 
       final Padding padding = _getCardPadding(tester);
@@ -380,7 +406,9 @@ void main() {
           home: Scaffold(
             body: RepaintBoundary(
               key: painterKey,
-              child: Center(child: Card(child: SizedBox.fromSize(size: const Size(200, 300)))),
+              child: Center(
+                child: Card(child: SizedBox.fromSize(size: const Size(200, 300))),
+              ),
             ),
           ),
         ),

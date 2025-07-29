@@ -32,11 +32,7 @@ class NavigationDrawerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true),
-      home: const NavigationDrawerExample(),
-    );
+    return const MaterialApp(debugShowCheckedModeBanner: false, home: NavigationDrawerExample());
   }
 }
 
@@ -78,15 +74,14 @@ class _NavigationDrawerExampleState extends State<NavigationDrawerExample> {
             screenIndex = index;
           });
         },
-        destinations:
-            destinations.map((ExampleDestination destination) {
-              return NavigationDestination(
-                label: destination.label,
-                icon: destination.icon,
-                selectedIcon: destination.selectedIcon,
-                tooltip: destination.label,
-              );
-            }).toList(),
+        destinations: destinations.map((ExampleDestination destination) {
+          return NavigationDestination(
+            label: destination.label,
+            icon: destination.icon,
+            selectedIcon: destination.selectedIcon,
+            tooltip: destination.label,
+          );
+        }).toList(),
       ),
     );
   }
@@ -103,14 +98,13 @@ class _NavigationDrawerExampleState extends State<NavigationDrawerExample> {
               padding: const EdgeInsets.symmetric(horizontal: 5),
               child: NavigationRail(
                 minWidth: 50,
-                destinations:
-                    destinations.map((ExampleDestination destination) {
-                      return NavigationRailDestination(
-                        label: Text(destination.label),
-                        icon: destination.icon,
-                        selectedIcon: destination.selectedIcon,
-                      );
-                    }).toList(),
+                destinations: destinations.map((ExampleDestination destination) {
+                  return NavigationRailDestination(
+                    label: Text(destination.label),
+                    icon: destination.icon,
+                    selectedIcon: destination.selectedIcon,
+                  );
+                }).toList(),
                 selectedIndex: screenIndex,
                 useIndicator: true,
                 onDestinationSelected: (int index) {

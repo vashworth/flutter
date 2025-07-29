@@ -872,7 +872,10 @@ class ScrollableState extends State<Scrollable>
     assert(_drag == null);
     _drag = position.drag(details, _disposeDrag);
     assert(_drag != null);
-    assert(_hold == null);
+    // _hold might be non-null if the scroll position is currently animating.
+    if (_hold != null) {
+      _disposeHold();
+    }
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
@@ -982,8 +985,8 @@ class ScrollableState extends State<Scrollable>
 
   bool _handleScrollMetricsNotification(ScrollMetricsNotification notification) {
     if (notification.depth == 0) {
-      final RenderObject? scrollSemanticsRenderObject =
-          _scrollSemanticsKey.currentContext?.findRenderObject();
+      final RenderObject? scrollSemanticsRenderObject = _scrollSemanticsKey.currentContext
+          ?.findRenderObject();
       if (scrollSemanticsRenderObject != null) {
         scrollSemanticsRenderObject.markNeedsSemanticsUpdate();
       }
@@ -1746,7 +1749,7 @@ class _RenderScrollSemantics extends RenderProxyBox {
       if (child.isTagged(RenderViewport.excludeFromScrolling)) {
         excluded.add(child);
       } else {
-        if (!child.hasFlag(SemanticsFlag.isHidden)) {
+        if (!child.flagsCollection.isHidden) {
           firstVisibleIndex ??= child.indexInParent;
         }
         included.add(child);
@@ -1938,8 +1941,8 @@ class TwoDimensionalScrollable extends StatefulWidget {
   /// * [TwoDimensionalScrollable.of], which is similar to this method, but
   ///   asserts if no [Scrollable] ancestor is found.
   static TwoDimensionalScrollableState? maybeOf(BuildContext context) {
-    final _TwoDimensionalScrollableScope? widget =
-        context.dependOnInheritedWidgetOfExactType<_TwoDimensionalScrollableScope>();
+    final _TwoDimensionalScrollableScope? widget = context
+        .dependOnInheritedWidgetOfExactType<_TwoDimensionalScrollableScope>();
     return widget?.twoDimensionalScrollable;
   }
 

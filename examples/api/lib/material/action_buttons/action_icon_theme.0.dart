@@ -38,7 +38,6 @@ class ActionIconThemeExampleApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        useMaterial3: true,
         actionIconTheme: ActionIconThemeData(
           backButtonIconBuilder: (BuildContext context) {
             return const Icon(Icons.arrow_back_ios_new_rounded);
@@ -101,6 +100,9 @@ class MySecondPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('Second page')), endDrawer: const Drawer());
+    return Scaffold(
+      appBar: AppBar(title: const Text('Second page')),
+      endDrawer: const Drawer(),
+    );
   }
 }

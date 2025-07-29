@@ -18,8 +18,10 @@ Dave: What are you talking about, HAL?
 HAL: This mission is too important for me to allow you to jeopardize it.''';
 
 // [["Dave", "Open the pod bay..."] ...]
-final List<List<String>> _kNameLines =
-    _kDialogText.split('\n').map<List<String>>((String line) => line.split(':')).toList();
+final List<List<String>> _kNameLines = _kDialogText
+    .split('\n')
+    .map<List<String>>((String line) => line.split(':'))
+    .toList();
 
 final TextStyle _kDaveStyle = TextStyle(color: Colors.indigo.shade400, height: 1.8);
 final TextStyle _kHalStyle = TextStyle(color: Colors.red.shade400, fontFamily: 'monospace');
@@ -39,7 +41,10 @@ Widget toStyledText(String name, String text) {
       children: <TextSpan>[
         TextSpan(
           style: _kBold,
-          children: <TextSpan>[TextSpan(style: _kUnderline, text: name), const TextSpan(text: ':')],
+          children: <TextSpan>[
+            TextSpan(style: _kUnderline, text: name),
+            const TextSpan(text: ':'),
+          ],
         ),
         TextSpan(text: text),
       ],
@@ -106,7 +111,6 @@ class _StyledTextDemoState extends State<StyledTextDemo> {
 void main() {
   runApp(
     MaterialApp(
-      theme: ThemeData.light(),
       home: Scaffold(
         appBar: AppBar(title: const Text('Hal and Dave')),
         body: Material(color: Colors.grey.shade50, child: const StyledTextDemo()),

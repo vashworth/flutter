@@ -512,6 +512,7 @@ class Text extends StatelessWidget {
     this.textScaler,
     this.maxLines,
     this.semanticsLabel,
+    this.semanticsIdentifier,
     this.textWidthBasis,
     this.textHeightBehavior,
     this.selectionColor,
@@ -548,6 +549,7 @@ class Text extends StatelessWidget {
     this.textScaler,
     this.maxLines,
     this.semanticsLabel,
+    this.semanticsIdentifier,
     this.textWidthBasis,
     this.textHeightBehavior,
     this.selectionColor,
@@ -665,6 +667,14 @@ class Text extends StatelessWidget {
   /// {@endtemplate}
   final String? semanticsLabel;
 
+  /// A unique identifier for the semantics node for this widget.
+  ///
+  /// This is useful for cases where the text widget needs to have a uniquely
+  /// identifiable ID that is recognized through the automation tools without
+  /// having a dependency on the actual content of the text that can possibly be
+  /// dynamic in nature.
+  final String? semanticsIdentifier;
+
   /// {@macro flutter.painting.textPainter.textWidthBasis}
   final TextWidthBasis? textWidthBasis;
 
@@ -725,6 +735,7 @@ class Text extends StatelessWidget {
           text: TextSpan(
             style: effectiveTextStyle,
             text: data,
+            locale: locale,
             children: textSpan != null ? <InlineSpan>[textSpan!] : null,
           ),
         ),
@@ -752,15 +763,17 @@ class Text extends StatelessWidget {
         text: TextSpan(
           style: effectiveTextStyle,
           text: data,
+          locale: locale,
           children: textSpan != null ? <InlineSpan>[textSpan!] : null,
         ),
       );
     }
-    if (semanticsLabel != null) {
+    if (semanticsLabel != null || semanticsIdentifier != null) {
       result = Semantics(
         textDirection: textDirection,
         label: semanticsLabel,
-        child: ExcludeSemantics(child: result),
+        identifier: semanticsIdentifier,
+        child: ExcludeSemantics(excluding: semanticsLabel != null, child: result),
       );
     }
     return result;
@@ -803,6 +816,9 @@ class Text extends StatelessWidget {
     );
     if (semanticsLabel != null) {
       properties.add(StringProperty('semanticsLabel', semanticsLabel));
+    }
+    if (semanticsIdentifier != null) {
+      properties.add(StringProperty('semanticsIdentifier', semanticsIdentifier));
     }
   }
 }
@@ -965,8 +981,9 @@ class _SelectableTextContainerDelegate extends StaticSelectionContainerDelegate 
     // First pass, if the position is on a placeholder then dispatch the selection
     // event to the [Selectable] at the location and terminate.
     for (int index = 0; index < selectables.length; index += 1) {
-      final bool selectableIsPlaceholder =
-          !paragraph.selectableBelongsToParagraph(selectables[index]);
+      final bool selectableIsPlaceholder = !paragraph.selectableBelongsToParagraph(
+        selectables[index],
+      );
       if (selectableIsPlaceholder && selectables[index].boundingBoxes.isNotEmpty) {
         for (final Rect rect in selectables[index].boundingBoxes) {
           final Rect globalRect = MatrixUtils.transformRect(
@@ -1083,8 +1100,9 @@ class _SelectableTextContainerDelegate extends StaticSelectionContainerDelegate 
     );
     SelectionResult? finalResult;
     // Begin the search for the selection edge at the opposite edge if it exists.
-    final bool hasOppositeEdge =
-        isEnd ? currentSelectionStartIndex != -1 : currentSelectionEndIndex != -1;
+    final bool hasOppositeEdge = isEnd
+        ? currentSelectionStartIndex != -1
+        : currentSelectionEndIndex != -1;
     int newIndex = switch ((isEnd, hasOppositeEdge)) {
       (true, true) => currentSelectionStartIndex,
       (true, false) => 0,
@@ -1163,10 +1181,12 @@ class _SelectableTextContainerDelegate extends StaticSelectionContainerDelegate 
     //
     // This can happen when there is a scrollable child and the edge being adjusted
     // has been scrolled out of view.
-    final bool isCurrentEdgeWithinViewport =
-        isEnd ? value.endSelectionPoint != null : value.startSelectionPoint != null;
-    final bool isOppositeEdgeWithinViewport =
-        isEnd ? value.startSelectionPoint != null : value.endSelectionPoint != null;
+    final bool isCurrentEdgeWithinViewport = isEnd
+        ? value.endSelectionPoint != null
+        : value.startSelectionPoint != null;
+    final bool isOppositeEdgeWithinViewport = isEnd
+        ? value.startSelectionPoint != null
+        : value.endSelectionPoint != null;
     int newIndex = switch ((isEnd, isCurrentEdgeWithinViewport, isOppositeEdgeWithinViewport)) {
       (true, true, true) => currentSelectionEndIndex,
       (true, true, false) => currentSelectionEndIndex,
@@ -1314,7 +1334,7 @@ class _SelectableTextContainerDelegate extends StaticSelectionContainerDelegate 
     bool foundStart = false;
     bool forwardSelection = currentSelectionEndIndex >= currentSelectionStartIndex;
     if (currentSelectionEndIndex == currentSelectionStartIndex) {
-      // Determining selection direction is innacurate if currentSelectionStartIndex == currentSelectionEndIndex.
+      // Determining selection direction is inaccurate if currentSelectionStartIndex == currentSelectionEndIndex.
       // Use the range from the selectable within the selection as the source of truth for selection direction.
       final SelectedContentRange rangeAtSelectableInSelection =
           selectables[currentSelectionStartIndex].getSelection()!;
@@ -1352,8 +1372,10 @@ class _SelectableTextContainerDelegate extends StaticSelectionContainerDelegate 
             (selectionStartNormalized -
                     (shouldConsiderContentStart
                         ? paragraph
-                            .getPositionForOffset(selectables[index].boundingBoxes.first.centerLeft)
-                            .offset
+                              .getPositionForOffset(
+                                selectables[index].boundingBoxes.first.centerLeft,
+                              )
+                              .offset
                         : 0))
                 .abs();
         endOffset = startOffset + (selectionEndNormalized - selectionStartNormalized).abs();
@@ -1400,8 +1422,9 @@ class _SelectableTextContainerDelegate extends StaticSelectionContainerDelegate 
       return;
     }
     if (currentSelectionStartIndex == -1 || currentSelectionEndIndex == -1) {
-      final int skipIndex =
-          currentSelectionStartIndex == -1 ? currentSelectionEndIndex : currentSelectionStartIndex;
+      final int skipIndex = currentSelectionStartIndex == -1
+          ? currentSelectionEndIndex
+          : currentSelectionStartIndex;
       selectables
           .where((Selectable target) => target != selectables[skipIndex])
           .forEach(

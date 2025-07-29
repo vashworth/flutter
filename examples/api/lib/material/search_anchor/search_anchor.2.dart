@@ -20,10 +20,7 @@ class _SearchBarAppState extends State<SearchBarApp> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData themeData = ThemeData(useMaterial3: true);
-
     return MaterialApp(
-      theme: themeData,
       home: Scaffold(
         appBar: AppBar(title: const Text('Search Anchor Sample')),
         body: Column(
@@ -53,10 +50,9 @@ class _SearchBarAppState extends State<SearchBarApp> {
               },
             ),
             Center(
-              child:
-                  controller.text.isEmpty
-                      ? const Text('No item selected')
-                      : Text('Selected item: ${controller.value.text}'),
+              child: controller.text.isEmpty
+                  ? const Text('No item selected')
+                  : Text('Selected item: ${controller.value.text}'),
             ),
           ],
         ),

@@ -13,7 +13,7 @@ class TabBarApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(theme: ThemeData(useMaterial3: true), home: const TabBarExample());
+    return const MaterialApp(home: TabBarExample());
   }
 }
 
@@ -79,7 +79,10 @@ class _NestedTabBarState extends State<NestedTabBar> with TickerProviderStateMix
       children: <Widget>[
         TabBar.secondary(
           controller: _tabController,
-          tabs: const <Widget>[Tab(text: 'Overview'), Tab(text: 'Specifications')],
+          tabs: const <Widget>[
+            Tab(text: 'Overview'),
+            Tab(text: 'Specifications'),
+          ],
         ),
         Expanded(
           child: TabBarView(

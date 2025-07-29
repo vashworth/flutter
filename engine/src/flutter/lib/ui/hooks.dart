@@ -69,6 +69,11 @@ void _sendViewFocusEvent(int viewId, int viewFocusState, int viewFocusDirection)
 }
 
 @pragma('vm:entry-point')
+void _setEngineId(int engineId) {
+  PlatformDispatcher.instance._engineId = engineId;
+}
+
+@pragma('vm:entry-point')
 void _updateDisplays(
   List<int> ids,
   List<double> widths,
@@ -116,10 +121,9 @@ List<DisplayFeature> _decodeDisplayFeatures({
           bounds[rectOffset + 3] / devicePixelRatio,
         ),
         type: DisplayFeatureType.values[type[i]],
-        state:
-            state[i] < DisplayFeatureState.values.length
-                ? DisplayFeatureState.values[state[i]]
-                : DisplayFeatureState.unknown,
+        state: state[i] < DisplayFeatureState.values.length
+            ? DisplayFeatureState.values[state[i]]
+            : DisplayFeatureState.unknown,
       ),
     );
   }
@@ -278,8 +282,8 @@ void _dispatchPointerDataPacket(ByteData packet) {
 }
 
 @pragma('vm:entry-point')
-void _dispatchSemanticsAction(int nodeId, int action, ByteData? args) {
-  PlatformDispatcher.instance._dispatchSemanticsAction(nodeId, action, args);
+void _dispatchSemanticsAction(int viewId, int nodeId, int action, ByteData? args) {
+  PlatformDispatcher.instance._dispatchSemanticsAction(viewId, nodeId, action, args);
 }
 
 @pragma('vm:entry-point')

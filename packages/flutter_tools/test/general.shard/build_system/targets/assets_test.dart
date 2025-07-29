@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
 import 'package:args/args.dart';
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:file/memory.dart';
@@ -21,6 +23,7 @@ import 'package:flutter_tools/src/globals.dart' as globals;
 import '../../../src/common.dart';
 import '../../../src/context.dart';
 import '../../../src/fake_process_manager.dart';
+import '../../../src/package_config.dart';
 
 void main() {
   late Environment environment;
@@ -47,7 +50,6 @@ void main() {
         .createSync(recursive: true);
     fileSystem.file('assets/foo/bar.png').createSync(recursive: true);
     fileSystem.file('assets/wildcard/#bar.png').createSync(recursive: true);
-    fileSystem.directory('.dart_tool').childFile('package_config.json').createSync(recursive: true);
     fileSystem.file('pubspec.yaml')
       ..createSync()
       ..writeAsStringSync('''
@@ -64,20 +66,11 @@ flutter:
   testUsingContext(
     'includes LICENSE file inputs in dependencies',
     () async {
-      fileSystem.directory('.dart_tool').childFile('package_config.json')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('''
-{
-  "configVersion": 2,
-  "packages": [
-    {
-      "name": "foo",
-      "rootUri": "file:///bar",
-      "packageUri": "lib/"
-    }
-  ]
-}
-''');
+      writePackageConfigFiles(
+        directory: globals.fs.currentDirectory,
+        mainLibName: 'example',
+        packages: <String, String>{'foo': 'bar'},
+      );
       fileSystem.file('bar/LICENSE')
         ..createSync(recursive: true)
         ..writeAsStringSync('THIS IS A LICENSE');
@@ -104,12 +97,9 @@ flutter:
   testUsingContext(
     'Copies files to correct asset directory',
     () async {
+      writePackageConfigFiles(directory: globals.fs.currentDirectory, mainLibName: 'example');
       await const CopyAssets().build(environment);
 
-      expect(
-        fileSystem.file('${environment.buildDir.path}/flutter_assets/AssetManifest.json'),
-        exists,
-      );
       expect(
         fileSystem.file('${environment.buildDir.path}/flutter_assets/FontManifest.json'),
         exists,
@@ -152,6 +142,7 @@ flutter:
         flavors:
           - strawberry
   ''');
+          writePackageConfigFiles(directory: globals.fs.currentDirectory, mainLibName: 'example');
 
           fileSystem.file('assets/common/image.png').createSync(recursive: true);
           fileSystem.file('assets/vanilla/ice-cream.png').createSync(recursive: true);
@@ -200,6 +191,7 @@ flutter:
         flavors:
           - strawberry
   ''');
+          writePackageConfigFiles(directory: globals.fs.currentDirectory, mainLibName: 'example');
 
           fileSystem.file('assets/common/image.png').createSync(recursive: true);
           fileSystem.file('assets/vanilla/ice-cream.png').createSync(recursive: true);
@@ -241,7 +233,7 @@ flutter:
         userMessages: UserMessages(),
       );
 
-      final Environment environment = Environment.test(
+      final environment = Environment.test(
         fileSystem.currentDirectory,
         processManager: globals.processManager,
         artifacts: Artifacts.test(),
@@ -250,11 +242,6 @@ flutter:
         platform: globals.platform,
         defines: <String, String>{kBuildMode: BuildMode.debug.cliName},
       );
-
-      fileSystem
-          .directory('.dart_tool')
-          .childFile('package_config.json')
-          .createSync(recursive: true);
 
       fileSystem.file('pubspec.yaml')
         ..createSync()
@@ -267,6 +254,8 @@ flutter:
         - package: my_capitalizer_transformer
           args: ["-a", "-b", "--color", "green"]
 ''');
+
+      writePackageConfigFiles(directory: globals.fs.currentDirectory, mainLibName: 'example');
 
       fileSystem.file('input.txt')
         ..createSync(recursive: true)
@@ -282,22 +271,22 @@ flutter:
       Logger: () => logger,
       FileSystem: () => fileSystem,
       Platform: () => FakePlatform(),
-      ProcessManager:
-          () => FakeProcessManager.list(<FakeCommand>[
-            FakeCommand(
-              command: <Pattern>[
-                Artifacts.test().getArtifactPath(Artifact.engineDartBinary),
-                'run',
-                'my_capitalizer_transformer',
-                RegExp('--input=.*'),
-                RegExp('--output=.*'),
-                '-a',
-                '-b',
-                '--color',
-                'green',
-              ],
-              onRun: (List<String> args) {
-                final ArgResults parsedArgs = (ArgParser()
+      ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+        FakeCommand(
+          command: <Pattern>[
+            Artifacts.test().getArtifactPath(Artifact.engineDartBinary),
+            'run',
+            'my_capitalizer_transformer',
+            RegExp('--input=.*'),
+            RegExp('--output=.*'),
+            '-a',
+            '-b',
+            '--color',
+            'green',
+          ],
+          onRun: (List<String> args) {
+            final ArgResults parsedArgs =
+                (ArgParser()
                       ..addOption('input')
                       ..addOption('output')
                       ..addOption('color')
@@ -305,20 +294,20 @@ flutter:
                       ..addFlag('bbb', abbr: 'b'))
                     .parse(args);
 
-                expect(parsedArgs['aaa'], true);
-                expect(parsedArgs['bbb'], true);
-                expect(parsedArgs['color'], 'green');
+            expect(parsedArgs['aaa'], true);
+            expect(parsedArgs['bbb'], true);
+            expect(parsedArgs['color'], 'green');
 
-                final File input = fileSystem.file(parsedArgs['input'] as String);
-                expect(input, exists);
-                final String inputContents = input.readAsStringSync();
-                expect(inputContents, 'abc');
-                fileSystem.file(parsedArgs['output'])
-                  ..createSync()
-                  ..writeAsStringSync(inputContents.toUpperCase());
-              },
-            ),
-          ]),
+            final File input = fileSystem.file(parsedArgs['input'] as String);
+            expect(input, exists);
+            final String inputContents = input.readAsStringSync();
+            expect(inputContents, 'abc');
+            fileSystem.file(parsedArgs['output'])
+              ..createSync()
+              ..writeAsStringSync(inputContents.toUpperCase());
+          },
+        ),
+      ]),
     },
   );
 
@@ -331,7 +320,7 @@ flutter:
         userMessages: UserMessages(),
       );
 
-      final Environment environment = Environment.test(
+      final environment = Environment.test(
         fileSystem.currentDirectory,
         processManager: globals.processManager,
         artifacts: Artifacts.test(),
@@ -340,11 +329,6 @@ flutter:
         platform: globals.platform,
         defines: <String, String>{kBuildMode: BuildMode.debug.cliName},
       );
-
-      fileSystem
-          .directory('.dart_tool')
-          .childFile('package_config.json')
-          .createSync(recursive: true);
 
       fileSystem.file('pubspec.yaml')
         ..createSync()
@@ -358,6 +342,8 @@ flutter:
           args: ["-a", "-b", "--color", "green"]
 ''');
 
+      writePackageConfigFiles(directory: globals.fs.currentDirectory, mainLibName: 'example');
+
       await fileSystem.file('input.txt').create(recursive: true);
 
       await expectToolExitLater(
@@ -370,33 +356,32 @@ flutter:
       Logger: () => logger,
       FileSystem: () => fileSystem,
       Platform: () => FakePlatform(),
-      ProcessManager:
-          () => FakeProcessManager.list(<FakeCommand>[
-            FakeCommand(
-              command: <Pattern>[
-                Artifacts.test().getArtifactPath(Artifact.engineDartBinary),
-                'run',
-                'my_transformer',
-                RegExp('--input=.*'),
-                RegExp('--output=.*'),
-                '-a',
-                '-b',
-                '--color',
-                'green',
-              ],
-              exitCode: 1,
-            ),
-          ]),
+      ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+        FakeCommand(
+          command: <Pattern>[
+            Artifacts.test().getArtifactPath(Artifact.engineDartBinary),
+            'run',
+            'my_transformer',
+            RegExp('--input=.*'),
+            RegExp('--output=.*'),
+            '-a',
+            '-b',
+            '--color',
+            'green',
+          ],
+          exitCode: 1,
+        ),
+      ]),
     },
   );
 
   testUsingContext(
     'asset transformation, per each asset, uses unique paths for temporary files',
     () async {
-      final List<String> inputFilePaths = <String>[];
-      final List<String> outputFilePaths = <String>[];
+      final inputFilePaths = <String>[];
+      final outputFilePaths = <String>[];
 
-      final FakeCommand transformerCommand = FakeCommand(
+      final transformerCommand = FakeCommand(
         command: <Pattern>[
           Artifacts.test().getArtifactPath(Artifact.engineDartBinary),
           'run',
@@ -405,13 +390,14 @@ flutter:
           RegExp('--output=.*'),
         ],
         onRun: (List<String> args) {
-          final ArgResults parsedArgs = (ArgParser()
-                ..addOption('input')
-                ..addOption('output'))
-              .parse(args);
+          final ArgResults parsedArgs =
+              (ArgParser()
+                    ..addOption('input')
+                    ..addOption('output'))
+                  .parse(args);
 
-          final String input = parsedArgs['input'] as String;
-          final String output = parsedArgs['output'] as String;
+          final input = parsedArgs['input'] as String;
+          final output = parsedArgs['output'] as String;
 
           inputFilePaths.add(input);
           outputFilePaths.add(output);
@@ -428,7 +414,7 @@ flutter:
         userMessages: UserMessages(),
       );
 
-      final Environment environment = Environment.test(
+      final environment = Environment.test(
         fileSystem.currentDirectory,
         processManager: FakeProcessManager.list(<FakeCommand>[
           transformerCommand,
@@ -441,11 +427,6 @@ flutter:
         defines: <String, String>{kBuildMode: BuildMode.debug.cliName},
       );
 
-      fileSystem
-          .directory('.dart_tool')
-          .childFile('package_config.json')
-          .createSync(recursive: true);
-
       fileSystem.file('pubspec.yaml')
         ..createSync()
         ..writeAsStringSync('''
@@ -456,6 +437,8 @@ flutter:
         transformers:
           - package: my_capitalizer_transformer
   ''');
+
+      writePackageConfigFiles(directory: globals.fs.currentDirectory, mainLibName: 'example');
 
       fileSystem.file('input.txt')
         ..createSync(recursive: true)
@@ -473,8 +456,108 @@ flutter:
     overrides: <Type, Generator>{
       Logger: () => logger,
       FileSystem: () => fileSystem,
-      Platform: () => FakePlatform(),
+      Platform: () => FakePlatform(numberOfProcessors: 64),
       ProcessManager: () => FakeProcessManager.empty(),
+    },
+  );
+
+  testUsingContext(
+    'Uses processors~/2 to transform assets',
+    () async {
+      const assetsToTransform = 5;
+
+      final inputFilePaths = <String>[];
+      final outputFilePaths = <String>[];
+      final markTransformDone = Completer<void>();
+      var totalTransformsRunning = 0;
+
+      final transformerCommand = FakeCommand(
+        command: <Pattern>[
+          Artifacts.test().getArtifactPath(Artifact.engineDartBinary),
+          'run',
+          'my_capitalizer_transformer',
+          RegExp('--input=.*'),
+          RegExp('--output=.*'),
+        ],
+        onRun: (List<String> args) {
+          totalTransformsRunning++;
+          final ArgResults parsedArgs =
+              (ArgParser()
+                    ..addOption('input')
+                    ..addOption('output'))
+                  .parse(args);
+
+          final input = parsedArgs['input'] as String;
+          final output = parsedArgs['output'] as String;
+
+          inputFilePaths.add(input);
+          outputFilePaths.add(output);
+
+          fileSystem.file(output)
+            ..createSync()
+            ..writeAsStringSync('foo');
+        },
+        completer: markTransformDone,
+      );
+
+      Cache.flutterRoot = Cache.defaultFlutterRoot(
+        platform: globals.platform,
+        fileSystem: fileSystem,
+        userMessages: UserMessages(),
+      );
+
+      final environment = Environment.test(
+        fileSystem.currentDirectory,
+        processManager: FakeProcessManager.list(
+          List<FakeCommand>.filled(assetsToTransform, transformerCommand, growable: true),
+        ),
+        artifacts: Artifacts.test(),
+        fileSystem: fileSystem,
+        logger: logger,
+        platform: globals.platform,
+        defines: <String, String>{kBuildMode: BuildMode.debug.cliName},
+      );
+
+      fileSystem.file('pubspec.yaml')
+        ..createSync()
+        ..writeAsStringSync('''
+  name: example
+  flutter:
+    assets:
+      - path: input.txt
+        transformers:
+          - package: my_capitalizer_transformer
+  ''');
+
+      writePackageConfigFiles(directory: globals.fs.currentDirectory, mainLibName: 'example');
+
+      fileSystem.file('input.txt')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('abc');
+
+      for (var i = 0; i < assetsToTransform - 1; i++) {
+        fileSystem.directory('${i + 2}x').childFile('input.txt')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('def');
+      }
+
+      final Future<void> waitFor = const CopyAssets().build(environment);
+      await pumpEventQueue();
+      expect(
+        totalTransformsRunning,
+        2,
+        reason: 'Only 2 transforms should be running at a time (4 ~/ 2)',
+      );
+      markTransformDone.complete();
+      await waitFor;
+
+      expect(inputFilePaths.toSet(), hasLength(4));
+      expect(outputFilePaths.toSet(), hasLength(4));
+    },
+    overrides: <Type, Generator>{
+      Platform: () => FakePlatform(numberOfProcessors: 4),
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
     },
   );
 

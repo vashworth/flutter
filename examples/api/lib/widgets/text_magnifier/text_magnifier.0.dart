@@ -20,7 +20,6 @@ class TextMagnifierExampleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(useMaterial3: true),
       home: Scaffold(
         body: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 48.0),
@@ -30,9 +29,8 @@ class TextMagnifierExampleApp extends StatelessWidget {
               // Create a custom magnifier configuration that
               // this `TextField` will use to build a magnifier with.
               magnifierConfiguration: TextMagnifierConfiguration(
-                magnifierBuilder:
-                    (_, _, ValueNotifier<MagnifierInfo> magnifierInfo) =>
-                        CustomMagnifier(magnifierInfo: magnifierInfo),
+                magnifierBuilder: (_, _, ValueNotifier<MagnifierInfo> magnifierInfo) =>
+                    CustomMagnifier(magnifierInfo: magnifierInfo),
               ),
               controller: TextEditingController(text: text),
             ),

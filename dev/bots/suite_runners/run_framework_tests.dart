@@ -62,15 +62,12 @@ Future<void> frameworkTestsRunner() async {
   }
 
   Future<void> runLibraries() async {
-    final List<String> tests =
-        Directory(path.join(flutterRoot, 'packages', 'flutter', 'test'))
-            .listSync(followLinks: false)
-            .whereType<Directory>()
-            .where((Directory dir) => !dir.path.endsWith('widgets'))
-            .map<String>(
-              (Directory dir) => path.join('test', path.basename(dir.path)) + path.separator,
-            )
-            .toList();
+    final List<String> tests = Directory(path.join(flutterRoot, 'packages', 'flutter', 'test'))
+        .listSync(followLinks: false)
+        .whereType<Directory>()
+        .where((Directory dir) => !dir.path.endsWith('widgets'))
+        .map<String>((Directory dir) => path.join('test', path.basename(dir.path)) + path.separator)
+        .toList();
     printProgress(
       '${green}Running packages/flutter tests$reset for $cyan${tests.join(", ")}$reset',
     );
@@ -91,8 +88,9 @@ Future<void> frameworkTestsRunner() async {
     await runCommand(dart, <String>[
       path.join(flutterRoot, 'dev', 'tools', 'examples_smoke_test.dart'),
     ], workingDirectory: path.join(flutterRoot, 'examples', 'api'));
-    for (final FileSystemEntity entity
-        in Directory(path.join(flutterRoot, 'examples')).listSync()) {
+    for (final FileSystemEntity entity in Directory(
+      path.join(flutterRoot, 'examples'),
+    ).listSync()) {
       if (entity is! Directory || !Directory(path.join(entity.path, 'test')).existsSync()) {
         continue;
       }
@@ -247,48 +245,7 @@ Future<void> frameworkTestsRunner() async {
     await runFixTests('integration_test');
     await runFixTests('flutter_driver');
     await runPrivateTests();
-  }
 
-  Future<void> runMisc() async {
-    printProgress(
-      '${green}Running package tests$reset for directories other than packages/flutter',
-    );
-    await testHarnessTestsRunner();
-    await runExampleTests();
-    await runFlutterTest(
-      path.join(flutterRoot, 'dev', 'a11y_assessments'),
-      tests: <String>['test'],
-    );
-    await runDartTest(path.join(flutterRoot, 'dev', 'bots'));
-    await runDartTest(
-      path.join(flutterRoot, 'dev', 'devicelab'),
-      ensurePrecompiledTool: false, // See https://github.com/flutter/flutter/issues/86209
-    );
-    await runDartTest(path.join(flutterRoot, 'dev', 'conductor', 'core'), forceSingleCore: true);
-    // TODO(gspencergoog): Remove the exception for fatalWarnings once https://github.com/flutter/flutter/issues/113782 has landed.
-    await runFlutterTest(
-      path.join(flutterRoot, 'dev', 'integration_tests', 'android_semantics_testing'),
-      fatalWarnings: false,
-    );
-    await runFlutterTest(path.join(flutterRoot, 'dev', 'integration_tests', 'ui'));
-    await runFlutterTest(path.join(flutterRoot, 'dev', 'manual_tests'));
-    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools'));
-    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools', 'vitool'));
-    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools', 'gen_defaults'));
-    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools', 'gen_keycodes'));
-    await runFlutterTest(path.join(flutterRoot, 'dev', 'benchmarks', 'test_apps', 'stocks'));
-    await runFlutterTest(
-      path.join(flutterRoot, 'packages', 'flutter_driver'),
-      tests: <String>[path.join('test', 'src', 'real_tests')],
-    );
-    await runFlutterTest(
-      path.join(flutterRoot, 'packages', 'integration_test'),
-      options: <String>[
-        '--enable-vmservice',
-        // Web-specific tests depend on Chromium, so they run as part of the web_long_running_tests shard.
-        '--exclude-tags=web',
-      ],
-    );
     // Run java unit tests for integration_test
     //
     // Generate Gradle wrapper if it doesn't exist.
@@ -317,6 +274,48 @@ Future<void> frameworkTestsRunner() async {
         'example',
         'android',
       ),
+    );
+  }
+
+  Future<void> runMisc() async {
+    printProgress(
+      '${green}Running package tests$reset for directories other than packages/flutter',
+    );
+    await testHarnessTestsRunner();
+    await runExampleTests();
+    await runFlutterTest(
+      path.join(flutterRoot, 'dev', 'a11y_assessments'),
+      tests: <String>['test'],
+    );
+    await runDartTest(path.join(flutterRoot, 'dev', 'bots'));
+    await runDartTest(
+      path.join(flutterRoot, 'dev', 'devicelab'),
+      ensurePrecompiledTool: false, // See https://github.com/flutter/flutter/issues/86209
+    );
+    await runDartTest(path.join(flutterRoot, 'dev', 'packages_autoroller'));
+    // TODO(gspencergoog): Remove the exception for fatalWarnings once https://github.com/flutter/flutter/issues/113782 has landed.
+    await runFlutterTest(
+      path.join(flutterRoot, 'dev', 'integration_tests', 'android_semantics_testing'),
+      fatalWarnings: false,
+    );
+    await runFlutterTest(path.join(flutterRoot, 'dev', 'integration_tests', 'ui'));
+    await runFlutterTest(path.join(flutterRoot, 'dev', 'manual_tests'));
+    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools'));
+    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools', 'vitool'));
+    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools', 'gen_defaults'));
+    await runFlutterTest(path.join(flutterRoot, 'dev', 'tools', 'gen_keycodes'));
+    await runFlutterTest(path.join(flutterRoot, 'dev', 'benchmarks', 'test_apps', 'stocks'));
+    await runFlutterTest(
+      path.join(flutterRoot, 'packages', 'flutter_driver'),
+      tests: <String>[path.join('test', 'src', 'real_tests')],
+    );
+    await runFlutterTest(
+      path.join(flutterRoot, 'packages', 'integration_test'),
+      options: <String>[
+        '--enable-vmservice',
+        // Web-specific tests depend on Chromium, so they run as part of the web_long_running_tests shard.
+        '--exclude-tags=web',
+      ],
     );
     await runFlutterTest(path.join(flutterRoot, 'packages', 'flutter_goldens'));
     await runFlutterTest(path.join(flutterRoot, 'packages', 'flutter_localizations'));

@@ -600,8 +600,8 @@ void main() {
     const PointerCancelEvent cancel = PointerCancelEvent(pointer: 5, position: Offset(10.0, 10.0));
 
     final TapGestureRecognizer tap = TapGestureRecognizer();
-    final HorizontalDragGestureRecognizer drag =
-        HorizontalDragGestureRecognizer()..onStart = (_) {}; // Need a callback to compete
+    final HorizontalDragGestureRecognizer drag = HorizontalDragGestureRecognizer()
+      ..onStart = (_) {}; // Need a callback to compete
     addTearDown(drag.dispose);
 
     final List<String> recognized = <String>[];
@@ -725,17 +725,16 @@ void main() {
     final List<String> recognized = <String>[];
     late TapGestureRecognizer tap;
     setUp(() {
-      tap =
-          TapGestureRecognizer()
-            ..onTapDown = (TapDownDetails details) {
-              recognized.add('down');
-            }
-            ..onTapUp = (TapUpDetails details) {
-              recognized.add('up');
-            }
-            ..onTapCancel = () {
-              recognized.add('cancel');
-            };
+      tap = TapGestureRecognizer()
+        ..onTapDown = (TapDownDetails details) {
+          recognized.add('down');
+        }
+        ..onTapUp = (TapUpDetails details) {
+          recognized.add('up');
+        }
+        ..onTapCancel = () {
+          recognized.add('cancel');
+        };
       addTearDown(tap.dispose);
     });
 
@@ -840,53 +839,49 @@ void main() {
     late TapGestureRecognizer secondary;
     late TapGestureRecognizer tertiary;
     setUp(() {
-      primary =
-          TapGestureRecognizer()
-            ..onTapDown = (TapDownDetails details) {
-              recognized.add('primaryDown');
-            }
-            ..onTapUp = (TapUpDetails details) {
-              recognized.add('primaryUp');
-            }
-            ..onTapCancel = () {
-              recognized.add('primaryCancel');
-            };
+      primary = TapGestureRecognizer()
+        ..onTapDown = (TapDownDetails details) {
+          recognized.add('primaryDown');
+        }
+        ..onTapUp = (TapUpDetails details) {
+          recognized.add('primaryUp');
+        }
+        ..onTapCancel = () {
+          recognized.add('primaryCancel');
+        };
       addTearDown(primary.dispose);
-      primary2 =
-          TapGestureRecognizer()
-            ..onTapDown = (TapDownDetails details) {
-              recognized.add('primary2Down');
-            }
-            ..onTapUp = (TapUpDetails details) {
-              recognized.add('primary2Up');
-            }
-            ..onTapCancel = () {
-              recognized.add('primary2Cancel');
-            };
+      primary2 = TapGestureRecognizer()
+        ..onTapDown = (TapDownDetails details) {
+          recognized.add('primary2Down');
+        }
+        ..onTapUp = (TapUpDetails details) {
+          recognized.add('primary2Up');
+        }
+        ..onTapCancel = () {
+          recognized.add('primary2Cancel');
+        };
       addTearDown(primary2.dispose);
-      secondary =
-          TapGestureRecognizer()
-            ..onSecondaryTapDown = (TapDownDetails details) {
-              recognized.add('secondaryDown');
-            }
-            ..onSecondaryTapUp = (TapUpDetails details) {
-              recognized.add('secondaryUp');
-            }
-            ..onSecondaryTapCancel = () {
-              recognized.add('secondaryCancel');
-            };
+      secondary = TapGestureRecognizer()
+        ..onSecondaryTapDown = (TapDownDetails details) {
+          recognized.add('secondaryDown');
+        }
+        ..onSecondaryTapUp = (TapUpDetails details) {
+          recognized.add('secondaryUp');
+        }
+        ..onSecondaryTapCancel = () {
+          recognized.add('secondaryCancel');
+        };
       addTearDown(secondary.dispose);
-      tertiary =
-          TapGestureRecognizer()
-            ..onTertiaryTapDown = (TapDownDetails details) {
-              recognized.add('tertiaryDown');
-            }
-            ..onTertiaryTapUp = (TapUpDetails details) {
-              recognized.add('tertiaryUp');
-            }
-            ..onTertiaryTapCancel = () {
-              recognized.add('tertiaryCancel');
-            };
+      tertiary = TapGestureRecognizer()
+        ..onTertiaryTapDown = (TapDownDetails details) {
+          recognized.add('tertiaryDown');
+        }
+        ..onTertiaryTapUp = (TapUpDetails details) {
+          recognized.add('tertiaryUp');
+        }
+        ..onTertiaryTapCancel = () {
+          recognized.add('tertiaryCancel');
+        };
       addTearDown(tertiary.dispose);
     });
 
@@ -953,38 +948,37 @@ void main() {
     const PointerCancelEvent cancel6 = PointerCancelEvent(pointer: 6);
 
     setUp(() {
-      tap =
-          TapGestureRecognizer()
-            ..onTapDown = (TapDownDetails details) {
-              recognized.add('primaryDown');
-            }
-            ..onTap = () {
-              recognized.add('primary');
-            }
-            ..onTapUp = (TapUpDetails details) {
-              recognized.add('primaryUp');
-            }
-            ..onTapCancel = () {
-              recognized.add('primaryCancel');
-            }
-            ..onSecondaryTapDown = (TapDownDetails details) {
-              recognized.add('secondaryDown');
-            }
-            ..onSecondaryTapUp = (TapUpDetails details) {
-              recognized.add('secondaryUp');
-            }
-            ..onSecondaryTapCancel = () {
-              recognized.add('secondaryCancel');
-            }
-            ..onTertiaryTapDown = (TapDownDetails details) {
-              recognized.add('tertiaryDown');
-            }
-            ..onTertiaryTapUp = (TapUpDetails details) {
-              recognized.add('tertiaryUp');
-            }
-            ..onTertiaryTapCancel = () {
-              recognized.add('tertiaryCancel');
-            };
+      tap = TapGestureRecognizer()
+        ..onTapDown = (TapDownDetails details) {
+          recognized.add('primaryDown');
+        }
+        ..onTap = () {
+          recognized.add('primary');
+        }
+        ..onTapUp = (TapUpDetails details) {
+          recognized.add('primaryUp');
+        }
+        ..onTapCancel = () {
+          recognized.add('primaryCancel');
+        }
+        ..onSecondaryTapDown = (TapDownDetails details) {
+          recognized.add('secondaryDown');
+        }
+        ..onSecondaryTapUp = (TapUpDetails details) {
+          recognized.add('secondaryUp');
+        }
+        ..onSecondaryTapCancel = () {
+          recognized.add('secondaryCancel');
+        }
+        ..onTertiaryTapDown = (TapDownDetails details) {
+          recognized.add('tertiaryDown');
+        }
+        ..onTertiaryTapUp = (TapUpDetails details) {
+          recognized.add('tertiaryUp');
+        }
+        ..onTertiaryTapCancel = () {
+          recognized.add('tertiaryCancel');
+        };
     });
 
     tearDown(() {
@@ -1076,16 +1070,15 @@ void main() {
   testGesture('A second tap after rejection is ignored', (GestureTester tester) {
     bool didTap = false;
 
-    final TapGestureRecognizer tap =
-        TapGestureRecognizer()
-          ..onTap = () {
-            didTap = true;
-          };
+    final TapGestureRecognizer tap = TapGestureRecognizer()
+      ..onTap = () {
+        didTap = true;
+      };
     addTearDown(tap.dispose);
 
     // Add drag recognizer for competition
-    final HorizontalDragGestureRecognizer drag =
-        HorizontalDragGestureRecognizer()..onStart = (_) {};
+    final HorizontalDragGestureRecognizer drag = HorizontalDragGestureRecognizer()
+      ..onStart = (_) {};
     addTearDown(drag.dispose);
 
     final TestPointer pointer1 = TestPointer();
@@ -1109,5 +1102,30 @@ void main() {
     tester.route(down2);
 
     expect(didTap, isFalse);
+  });
+
+  testGesture('onTapMove works', (GestureTester tester) {
+    TapMoveDetails? tapMoveDetails;
+    final TapGestureRecognizer tap = TapGestureRecognizer(postAcceptSlopTolerance: null)
+      ..onTapMove = (TapMoveDetails detail) {
+        tapMoveDetails = detail;
+      };
+    addTearDown(tap.dispose);
+
+    final TestPointer pointer1 = TestPointer();
+    final PointerDownEvent down = pointer1.down(Offset.zero);
+    tap.addPointer(down);
+    tester.closeArena(1);
+    tester.route(down);
+    tester.route(pointer1.move(const Offset(50.0, 0)));
+    expect(tapMoveDetails, isNotNull);
+    expect(tapMoveDetails!.globalPosition, const Offset(50.0, 0));
+    expect(tapMoveDetails!.delta, const Offset(50.0, 0));
+    tapMoveDetails = null;
+
+    tester.route(pointer1.move(const Offset(60.0, 10)));
+    expect(tapMoveDetails, isNotNull);
+    expect(tapMoveDetails!.globalPosition, const Offset(60.0, 10));
+    expect(tapMoveDetails!.delta, const Offset(10.0, 10));
   });
 }

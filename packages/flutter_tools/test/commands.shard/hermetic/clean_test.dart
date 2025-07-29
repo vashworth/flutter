@@ -5,6 +5,7 @@
 import 'package:args/command_runner.dart';
 import 'package:file/memory.dart';
 import 'package:file_testing/file_testing.dart';
+import 'package:flutter_tools/src/base/error_handling_io.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/platform.dart';
@@ -19,6 +20,7 @@ import 'package:test/fake.dart';
 
 import '../../src/common.dart';
 import '../../src/context.dart';
+import '../../src/package_config.dart';
 import '../../src/test_flutter_command_runner.dart';
 
 void main() {
@@ -75,7 +77,6 @@ void main() {
           expect(projectUnderTest.macos.flutterPluginSwiftPackageDirectory, isNot(exists));
           expect(projectUnderTest.windows.ephemeralDirectory, isNot(exists));
 
-          expect(projectUnderTest.flutterPluginsFile, isNot(exists));
           expect(projectUnderTest.flutterPluginsDependenciesFile, isNot(exists));
           expect(
             projectUnderTest.directory
@@ -107,7 +108,7 @@ void main() {
           xcodeProjectInterpreter.isInstalled = true;
           xcodeProjectInterpreter.version = Version(1000, 0, 0);
 
-          final CleanCommand command = CleanCommand();
+          final command = CleanCommand();
           final CommandRunner<void> runner = createTestCommandRunner(command);
           await runner.run(<String>['clean', '--scheme=custom-scheme']);
 
@@ -151,7 +152,7 @@ void main() {
           xcodeProjectInterpreter.isInstalled = true;
           xcodeProjectInterpreter.version = Version(1000, 0, 0);
 
-          final CleanCommand command = CleanCommand();
+          final command = CleanCommand();
           expect(
             () => createTestCommandRunner(command).run(<String>['clean', '--scheme']),
             throwsUsageException(),
@@ -218,7 +219,7 @@ void main() {
             const FileSystemException('Deletion failed'),
           );
 
-          final CleanCommand command = CleanCommand();
+          final command = CleanCommand();
           command.deleteFile(file);
           expect(testLogger.errorText, contains('A program may still be using a file'));
         },
@@ -233,8 +234,14 @@ void main() {
       testUsingContext(
         '$CleanCommand handles missing delete permissions',
         () async {
-          final FileExceptionHandler handler = FileExceptionHandler();
-          final FileSystem fileSystem = MemoryFileSystem.test(opHandle: handler.opHandle);
+          final handler = FileExceptionHandler();
+
+          // Ensures we handle ErrorHandlingFileSystem appropriately in prod.
+          // See https://github.com/flutter/flutter/issues/108978.
+          final FileSystem fileSystem = ErrorHandlingFileSystem(
+            delegate: MemoryFileSystem.test(opHandle: handler.opHandle),
+            platform: windowsPlatform,
+          );
           final File throwingFile = fileSystem.file('bad')..createSync();
           handler.addError(
             throwingFile,
@@ -244,7 +251,7 @@ void main() {
 
           xcodeProjectInterpreter.isInstalled = false;
 
-          final CleanCommand command = CleanCommand();
+          final command = CleanCommand();
           command.deleteFile(throwingFile);
 
           expect(
@@ -273,10 +280,8 @@ FlutterProject setupProjectUnderTest(Directory currentDirectory, bool setupXcode
         .createSync(recursive: true);
   }
   projectUnderTest.dartTool.createSync(recursive: true);
-  projectUnderTest.directory
-      .childDirectory('.dart_tool')
-      .childFile('package_config.jon')
-      .createSync(recursive: true);
+  writePackageConfigFiles(directory: projectUnderTest.directory, mainLibName: 'my_app');
+
   projectUnderTest.android.ephemeralDirectory.createSync(recursive: true);
 
   projectUnderTest.ios.ephemeralDirectory.createSync(recursive: true);
@@ -292,7 +297,6 @@ FlutterProject setupProjectUnderTest(Directory currentDirectory, bool setupXcode
   projectUnderTest.macos.ephemeralDirectory.createSync(recursive: true);
   projectUnderTest.macos.flutterPluginSwiftPackageDirectory.createSync(recursive: true);
   projectUnderTest.windows.ephemeralDirectory.createSync(recursive: true);
-  projectUnderTest.flutterPluginsFile.createSync(recursive: true);
   projectUnderTest.flutterPluginsDependenciesFile.createSync(recursive: true);
 
   return projectUnderTest;
@@ -300,10 +304,10 @@ FlutterProject setupProjectUnderTest(Directory currentDirectory, bool setupXcode
 
 class FakeXcodeProjectInterpreter extends Fake implements XcodeProjectInterpreter {
   @override
-  bool isInstalled = true;
+  var isInstalled = true;
 
   @override
-  Version version = Version(0, 0, 0);
+  var version = Version(0, 0, 0);
 
   @override
   Future<XcodeProjectInfo> getInfo(String projectPath, {String? projectFilename}) async {
@@ -313,7 +317,7 @@ class FakeXcodeProjectInterpreter extends Fake implements XcodeProjectInterprete
     ], BufferLogger.test());
   }
 
-  final List<CleanWorkspaceCall> workspaces = <CleanWorkspaceCall>[];
+  final workspaces = <CleanWorkspaceCall>[];
 
   @override
   Future<void> cleanWorkspace(String workspacePath, String scheme, {bool verbose = false}) async {

@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:ui' show SemanticsRole;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,11 +113,17 @@ void main() {
       ],
     );
     await tester.pumpWidget(
-      Directionality(textDirection: TextDirection.ltr, child: Center(child: table)),
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(child: table),
+      ),
     );
     // Move table to a different location to simulate detaching and re-attaching effect.
     await tester.pumpWidget(
-      Directionality(textDirection: TextDirection.ltr, child: Center(child: Center(child: table))),
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(child: Center(child: table)),
+      ),
     );
 
     expect(tester.takeException(), isNull);
@@ -851,7 +856,9 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Table(
           children: <TableRow>[
-            TableRow(children: <Widget>[KeyedSubtree(key: key, child: const Text('Hello'))]),
+            TableRow(
+              children: <Widget>[KeyedSubtree(key: key, child: const Text('Hello'))],
+            ),
           ],
         ),
       );
@@ -959,11 +966,11 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: Table(
-            children: <TableRow>[
+            children: const <TableRow>[
               TableRow(
                 children: <Widget>[
-                  TableCell(child: const Text('Data Cell 1')),
-                  TableCell(child: const Text('Data Cell 2')),
+                  TableCell(child: Text('Data Cell 1')),
+                  TableCell(child: Text('Data Cell 2')),
                 ],
               ),
             ],
@@ -986,14 +993,19 @@ void main() {
                       role: SemanticsRole.table,
                       children: <TestSemantics>[
                         TestSemantics(
-                          label: 'Data Cell 1',
-                          textDirection: TextDirection.ltr,
-                          role: SemanticsRole.cell,
-                        ),
-                        TestSemantics(
-                          label: 'Data Cell 2',
-                          textDirection: TextDirection.ltr,
-                          role: SemanticsRole.cell,
+                          role: SemanticsRole.row,
+                          children: <TestSemantics>[
+                            TestSemantics(
+                              label: 'Data Cell 1',
+                              textDirection: TextDirection.ltr,
+                              role: SemanticsRole.cell,
+                            ),
+                            TestSemantics(
+                              label: 'Data Cell 2',
+                              textDirection: TextDirection.ltr,
+                              role: SemanticsRole.cell,
+                            ),
+                          ],
                         ),
                       ],
                     ),

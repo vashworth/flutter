@@ -41,7 +41,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Material(child: Center(child: TextField(focusNode: focusNode, autofocus: true))),
+        home: Material(
+          child: Center(child: TextField(focusNode: focusNode, autofocus: true)),
+        ),
       ),
     );
 
@@ -327,8 +329,8 @@ void main() {
 
   testWidgets(
     'onGenerateRoute / onUnknownRoute',
-    experimentalLeakTesting:
-        LeakTesting.settings.withIgnoredAll(), // leaking by design because of exception
+    experimentalLeakTesting: LeakTesting.settings
+        .withIgnoredAll(), // leaking by design because of exception
     (WidgetTester tester) async {
       final List<String> log = <String>[];
       await tester.pumpWidget(
@@ -425,7 +427,7 @@ void main() {
     // didChangeAccessibilityFeatures
     tester.platformDispatcher.accessibilityFeaturesTestValue = FakeAccessibilityFeatures.allOn;
 
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(routeBuildCount, equals(1));
     expect(dependentBuildCount, equals(5));
@@ -443,7 +445,7 @@ void main() {
         ),
       ),
     );
-    expect(textScaler, TextScaler.noScaling);
+    expect(textScaler, isSystemTextScaler(withScaleFactor: 1.0));
   });
 
   testWidgets('MaterialApp.navigatorKey', (WidgetTester tester) async {
@@ -798,7 +800,7 @@ void main() {
   });
 
   testWidgets('MaterialApp animates theme changes', (WidgetTester tester) async {
-    final ThemeData lightTheme = ThemeData.light();
+    final ThemeData lightTheme = ThemeData();
     final ThemeData darkTheme = ThemeData.dark();
     await tester.pumpWidget(
       MaterialApp(
@@ -820,7 +822,6 @@ void main() {
     // Change to dark theme
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData.light(),
         darkTheme: ThemeData.dark(),
         themeMode: ThemeMode.dark,
         home: Builder(
@@ -836,13 +837,16 @@ void main() {
 
     // Default curve is linear so background should be half way between
     // the two colors.
-    final Color halfBGColor =
-        Color.lerp(lightTheme.scaffoldBackgroundColor, darkTheme.scaffoldBackgroundColor, 0.5)!;
+    final Color halfBGColor = Color.lerp(
+      lightTheme.scaffoldBackgroundColor,
+      darkTheme.scaffoldBackgroundColor,
+      0.5,
+    )!;
     expect(tester.widget<Material>(find.byType(Material)).color, halfBGColor);
   });
 
   testWidgets('MaterialApp theme animation can be turned off', (WidgetTester tester) async {
-    final ThemeData lightTheme = ThemeData.light();
+    final ThemeData lightTheme = ThemeData();
     final ThemeData darkTheme = ThemeData.dark();
     int scaffoldRebuilds = 0;
 
@@ -872,7 +876,6 @@ void main() {
     // Change to dark theme
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData.light(),
         darkTheme: ThemeData.dark(),
         themeMode: ThemeMode.dark,
         themeAnimationDuration: Duration.zero,
@@ -944,7 +947,10 @@ void main() {
       colorScheme: const ColorScheme.light().copyWith(secondary: secondaryColor),
     );
     await tester.pumpWidget(
-      MaterialApp(theme: theme, home: const SingleChildScrollView(child: SizedBox(height: 2000.0))),
+      MaterialApp(
+        theme: theme,
+        home: const SingleChildScrollView(child: SizedBox(height: 2000.0)),
+      ),
     );
 
     final RenderObject painter = tester.renderObject(find.byType(CustomPaint).first);
@@ -961,22 +967,24 @@ void main() {
           expect(initialRoute, '/abc');
           return <Route<void>>[
             PageRouteBuilder<void>(
-              pageBuilder: (
-                BuildContext context,
-                Animation<double> animation,
-                Animation<double> secondaryAnimation,
-              ) {
-                return const Text('non-regular page one');
-              },
+              pageBuilder:
+                  (
+                    BuildContext context,
+                    Animation<double> animation,
+                    Animation<double> secondaryAnimation,
+                  ) {
+                    return const Text('non-regular page one');
+                  },
             ),
             PageRouteBuilder<void>(
-              pageBuilder: (
-                BuildContext context,
-                Animation<double> animation,
-                Animation<double> secondaryAnimation,
-              ) {
-                return const Text('non-regular page two');
-              },
+              pageBuilder:
+                  (
+                    BuildContext context,
+                    Animation<double> animation,
+                    Animation<double> secondaryAnimation,
+                  ) {
+                    return const Text('non-regular page two');
+                  },
             ),
           ];
         },
@@ -1189,21 +1197,19 @@ void main() {
     late PlatformRouteInformationProvider provider;
     addTearDown(() => provider.dispose());
     final RouterConfig<RouteInformation> routerConfig = RouterConfig<RouteInformation>(
-      routeInformationProvider:
-          provider = PlatformRouteInformationProvider(
-            initialRouteInformation: RouteInformation(uri: Uri.parse('initial')),
-          ),
+      routeInformationProvider: provider = PlatformRouteInformationProvider(
+        initialRouteInformation: RouteInformation(uri: Uri.parse('initial')),
+      ),
       routeInformationParser: SimpleRouteInformationParser(),
-      routerDelegate:
-          routerDelegate = SimpleNavigatorRouterDelegate(
-            builder: (BuildContext context, RouteInformation information) {
-              return Text(information.uri.toString());
-            },
-            onPopPage: (Route<void> route, void result, SimpleNavigatorRouterDelegate delegate) {
-              delegate.routeInformation = RouteInformation(uri: Uri.parse('popped'));
-              return route.didPop(result);
-            },
-          ),
+      routerDelegate: routerDelegate = SimpleNavigatorRouterDelegate(
+        builder: (BuildContext context, RouteInformation information) {
+          return Text(information.uri.toString());
+        },
+        onPopPage: (Route<void> route, void result, SimpleNavigatorRouterDelegate delegate) {
+          delegate.routeInformation = RouteInformation(uri: Uri.parse('popped'));
+          return route.didPop(result);
+        },
+      ),
       backButtonDispatcher: RootBackButtonDispatcher(),
     );
     await tester.pumpWidget(MaterialApp.router(routerConfig: routerConfig));
@@ -1338,7 +1344,6 @@ void main() {
     (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData(useMaterial3: true),
           scrollBehavior: const MaterialScrollBehavior(),
           home: ListView(
             children: const <Widget>[SizedBox(height: 1000.0, width: 1000.0, child: Text('Test'))],
@@ -1393,7 +1398,6 @@ void main() {
     (WidgetTester tester) async {
       Widget buildFrame(Clip clipBehavior) {
         return MaterialApp(
-          theme: ThemeData(useMaterial3: true),
           home: Column(
             children: <Widget>[
               SizedBox(
@@ -1580,7 +1584,7 @@ void main() {
   );
 
   testWidgets('Override theme animation using AnimationStyle', (WidgetTester tester) async {
-    final ThemeData lightTheme = ThemeData.light();
+    final ThemeData lightTheme = ThemeData();
     final ThemeData darkTheme = ThemeData.dark();
 
     Widget buildWidget({ThemeMode themeMode = ThemeMode.light, AnimationStyle? animationStyle}) {

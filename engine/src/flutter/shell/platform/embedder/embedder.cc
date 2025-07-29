@@ -16,6 +16,7 @@
 #include "flutter/fml/closure.h"
 #include "flutter/fml/make_copyable.h"
 #include "flutter/fml/native_library.h"
+#include "flutter/fml/status_or.h"
 #include "flutter/fml/thread.h"
 #include "third_party/dart/runtime/bin/elf_loader.h"
 #include "third_party/dart/runtime/include/dart_native_api.h"
@@ -429,21 +430,20 @@ InferOpenGLPlatformViewCreationCallback(
         };
   }
 
-  std::function<SkMatrix(void)> gl_surface_transformation_callback = nullptr;
+  std::function<flutter::DlMatrix(void)> gl_surface_transformation_callback =
+      nullptr;
   if (SAFE_ACCESS(open_gl_config, surface_transformation, nullptr) != nullptr) {
     gl_surface_transformation_callback =
         [ptr = config->open_gl.surface_transformation, user_data]() {
           FlutterTransformation transformation = ptr(user_data);
-          return SkMatrix::MakeAll(transformation.scaleX,  //
-                                   transformation.skewX,   //
-                                   transformation.transX,  //
-                                   transformation.skewY,   //
-                                   transformation.scaleY,  //
-                                   transformation.transY,  //
-                                   transformation.pers0,   //
-                                   transformation.pers1,   //
-                                   transformation.pers2    //
+          // clang-format off
+          return flutter::DlMatrix(
+              transformation.scaleX, transformation.skewY,  0.0f, transformation.pers0,
+              transformation.skewX,  transformation.scaleY, 0.0f, transformation.pers1,
+              0.0f,                  0.0f,                  1.0f, 0.0f,
+              transformation.transX, transformation.transY, 0.0f, transformation.pers2
           );
+          // clang-format on
         };
 
     // If there is an external view embedder, ask it to apply the surface
@@ -1529,12 +1529,14 @@ CreateEmbedderRenderTarget(
   return render_target;
 }
 
-static std::pair<std::unique_ptr<flutter::EmbedderExternalViewEmbedder>,
-                 bool /* halt engine launch if true */>
+/// Creates an EmbedderExternalViewEmbedder.
+///
+/// When a non-OK status is returned, engine startup should be halted.
+static fml::StatusOr<std::unique_ptr<flutter::EmbedderExternalViewEmbedder>>
 InferExternalViewEmbedderFromArgs(const FlutterCompositor* compositor,
                                   bool enable_impeller) {
   if (compositor == nullptr) {
-    return {nullptr, false};
+    return std::unique_ptr<flutter::EmbedderExternalViewEmbedder>{nullptr};
   }
 
   auto c_create_callback =
@@ -1550,15 +1552,15 @@ InferExternalViewEmbedderFromArgs(const FlutterCompositor* compositor,
 
   // Make sure the required callbacks are present
   if (!c_create_callback || !c_collect_callback) {
-    FML_LOG(ERROR) << "Required compositor callbacks absent.";
-    return {nullptr, true};
+    return fml::Status(fml::StatusCode::kInvalidArgument,
+                       "Required compositor callbacks absent.");
   }
   // Either the present view or the present layers callback must be provided.
   if ((!c_present_view_callback && !c_present_callback) ||
       (c_present_view_callback && c_present_callback)) {
-    FML_LOG(ERROR) << "Either present_layers_callback or present_view_callback "
-                      "must be provided but not both.";
-    return {nullptr, true};
+    return fml::Status(fml::StatusCode::kInvalidArgument,
+                       "Either present_layers_callback or "
+                       "present_view_callback must be provided but not both.");
   }
 
   FlutterCompositor captured_compositor = *compositor;
@@ -1601,10 +1603,9 @@ InferExternalViewEmbedderFromArgs(const FlutterCompositor* compositor,
     };
   }
 
-  return {std::make_unique<flutter::EmbedderExternalViewEmbedder>(
-              avoid_backing_store_cache, create_render_target_callback,
-              present_callback),
-          false};
+  return std::make_unique<flutter::EmbedderExternalViewEmbedder>(
+      avoid_backing_store_cache, create_render_target_callback,
+      present_callback);
 }
 
 // Translates embedder metrics to engine metrics, or returns a string on error.
@@ -1843,9 +1844,9 @@ CreateEmbedderSemanticsUpdateCallbackV1(
         update_semantics_custom_action_callback,
     void* user_data) {
   return [update_semantics_node_callback,
-          update_semantics_custom_action_callback,
-          user_data](const flutter::SemanticsNodeUpdates& nodes,
-                     const flutter::CustomAccessibilityActionUpdates& actions) {
+          update_semantics_custom_action_callback, user_data](
+             int64_t view_id, const flutter::SemanticsNodeUpdates& nodes,
+             const flutter::CustomAccessibilityActionUpdates& actions) {
     flutter::EmbedderSemanticsUpdate update{nodes, actions};
     FlutterSemanticsUpdate* update_ptr = update.get();
 
@@ -1890,7 +1891,7 @@ CreateEmbedderSemanticsUpdateCallbackV2(
     FlutterUpdateSemanticsCallback update_semantics_callback,
     void* user_data) {
   return [update_semantics_callback, user_data](
-             const flutter::SemanticsNodeUpdates& nodes,
+             int64_t view_id, const flutter::SemanticsNodeUpdates& nodes,
              const flutter::CustomAccessibilityActionUpdates& actions) {
     flutter::EmbedderSemanticsUpdate update{nodes, actions};
 
@@ -1905,9 +1906,9 @@ CreateEmbedderSemanticsUpdateCallbackV3(
     FlutterUpdateSemanticsCallback2 update_semantics_callback,
     void* user_data) {
   return [update_semantics_callback, user_data](
-             const flutter::SemanticsNodeUpdates& nodes,
+             int64_t view_id, const flutter::SemanticsNodeUpdates& nodes,
              const flutter::CustomAccessibilityActionUpdates& actions) {
-    flutter::EmbedderSemanticsUpdate2 update{nodes, actions};
+    flutter::EmbedderSemanticsUpdate2 update{view_id, nodes, actions};
 
     update_semantics_callback(update.get(), user_data);
   };
@@ -2093,6 +2094,8 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
     settings.root_isolate_create_callback =
         [callback, user_data](const auto& isolate) { callback(user_data); };
   }
+
+  // Wire up callback for engine and print logging.
   if (SAFE_ACCESS(args, log_message_callback, nullptr) != nullptr) {
     FlutterLogMessageCallback callback =
         SAFE_ACCESS(args, log_message_callback, nullptr);
@@ -2101,7 +2104,17 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
                                         const std::string& message) {
       callback(tag.c_str(), message.c_str(), user_data);
     };
+  } else {
+    settings.log_message_callback = [](const std::string& tag,
+                                       const std::string& message) {
+      // Fall back to logging to stdout if unspecified.
+      if (tag.empty()) {
+        std::cout << tag << ": ";
+      }
+      std::cout << message << std::endl;
+    };
   }
+
   if (SAFE_ACCESS(args, log_tag, nullptr) != nullptr) {
     settings.log_tag = SAFE_ACCESS(args, log_tag, nullptr);
   }
@@ -2246,7 +2259,8 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
 
   auto external_view_embedder_result = InferExternalViewEmbedderFromArgs(
       SAFE_ACCESS(args, compositor, nullptr), settings.enable_impeller);
-  if (external_view_embedder_result.second) {
+  if (!external_view_embedder_result.ok()) {
+    FML_LOG(ERROR) << external_view_embedder_result.status().message();
     return LOG_EMBEDDER_ERROR(kInvalidArguments,
                               "Compositor arguments were invalid.");
   }
@@ -2264,7 +2278,8 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
 
   auto on_create_platform_view = InferPlatformViewCreationCallback(
       config, user_data, platform_dispatch_table,
-      std::move(external_view_embedder_result.first), settings.enable_impeller);
+      std::move(external_view_embedder_result.value()),
+      settings.enable_impeller);
 
   if (!on_create_platform_view) {
     return LOG_EMBEDDER_ERROR(
@@ -2379,8 +2394,10 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
     if (has_ui_thread_message_loop) {
       fml::MessageLoop::GetCurrent().AddTaskObserver(key, callback);
     }
+    return fml::TaskQueueId::Invalid();
   };
-  settings.task_observer_remove = [has_ui_thread_message_loop](intptr_t key) {
+  settings.task_observer_remove = [has_ui_thread_message_loop](
+                                      fml::TaskQueueId queue_id, intptr_t key) {
     if (has_ui_thread_message_loop) {
       fml::MessageLoop::GetCurrent().RemoveTaskObserver(key);
     }
@@ -2408,6 +2425,10 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
       arguments[i] = std::string{args->dart_entrypoint_argv[i]};
     }
     run_configuration.SetEntrypointArgs(std::move(arguments));
+  }
+
+  if (SAFE_ACCESS(args, engine_id, 0) != 0) {
+    run_configuration.SetEngineId(args->engine_id);
   }
 
   if (!run_configuration.IsValid()) {
@@ -3173,14 +3194,27 @@ FlutterEngineResult FlutterEngineDispatchSemanticsAction(
     FlutterSemanticsAction action,
     const uint8_t* data,
     size_t data_length) {
+  FlutterSendSemanticsActionInfo info{
+      .struct_size = sizeof(FlutterSendSemanticsActionInfo),
+      .view_id = kFlutterImplicitViewId,
+      .node_id = node_id,
+      .action = action,
+      .data = data,
+      .data_length = data_length};
+  return FlutterEngineSendSemanticsAction(engine, &info);
+}
+
+FlutterEngineResult FlutterEngineSendSemanticsAction(
+    FLUTTER_API_SYMBOL(FlutterEngine) engine,
+    const FlutterSendSemanticsActionInfo* info) {
   if (engine == nullptr) {
     return LOG_EMBEDDER_ERROR(kInvalidArguments, "Invalid engine handle.");
   }
-  auto engine_action = static_cast<flutter::SemanticsAction>(action);
+  auto engine_action = static_cast<flutter::SemanticsAction>(info->action);
   if (!reinterpret_cast<flutter::EmbedderEngine*>(engine)
            ->DispatchSemanticsAction(
-               node_id, engine_action,
-               fml::MallocMapping::Copy(data, data_length))) {
+               info->view_id, info->node_id, engine_action,
+               fml::MallocMapping::Copy(info->data, info->data_length))) {
     return LOG_EMBEDDER_ERROR(kInternalInconsistency,
                               "Could not dispatch semantics action.");
   }
@@ -3689,6 +3723,7 @@ FlutterEngineResult FlutterEngineGetProcAddresses(
   SET_PROC(UpdateAccessibilityFeatures,
            FlutterEngineUpdateAccessibilityFeatures);
   SET_PROC(DispatchSemanticsAction, FlutterEngineDispatchSemanticsAction);
+  SET_PROC(SendSemanticsAction, FlutterEngineSendSemanticsAction);
   SET_PROC(OnVsync, FlutterEngineOnVsync);
   SET_PROC(ReloadSystemFonts, FlutterEngineReloadSystemFonts);
   SET_PROC(TraceEventDurationBegin, FlutterEngineTraceEventDurationBegin);

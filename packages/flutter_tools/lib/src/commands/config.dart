@@ -9,6 +9,7 @@ import '../base/common.dart';
 import '../convert.dart';
 import '../features.dart';
 import '../globals.dart' as globals;
+import '../ios/code_signing.dart';
 import '../runner/flutter_command.dart';
 import '../runner/flutter_command_runner.dart';
 
@@ -28,10 +29,17 @@ class ConfigCommand extends FlutterCommand {
           'and "--${FlutterGlobalOptions.kDisableAnalyticsFlag}" top level flags.)',
     );
     argParser.addFlag(
-      'clear-ios-signing-cert',
+      'clear-ios-signing-settings',
+      negatable: false,
+      aliases: <String>['clear-ios-signing-cert'],
+      help:
+          'Clear the saved development certificate or provisioning profile choice used to sign apps for iOS device deployment.',
+    );
+    argParser.addFlag(
+      'select-ios-signing-settings',
       negatable: false,
       help:
-          'Clear the saved development certificate choice used to sign apps for iOS device deployment.',
+          'Complete prompt to select and save code signing settings used to sign apps for iOS device deployment.',
     );
     argParser.addOption('android-sdk', help: 'The Android SDK directory.');
     argParser.addOption(
@@ -53,18 +61,18 @@ class ConfigCommand extends FlutterCommand {
       help: 'The relative path to override a projects build directory.',
       valueHelp: 'out/',
     );
-    argParser.addFlag(
-      'machine',
-      negatable: false,
-      hide: !verboseHelp,
-      help: 'Print config values as json.',
-    );
-    for (final Feature feature in allFeatures) {
+    addMachineOutputFlag(verboseHelp: verboseHelp);
+    for (final Feature feature in featureFlags.allFeatures) {
       final String? configSetting = feature.configSetting;
       if (configSetting == null) {
         continue;
       }
-      argParser.addFlag(configSetting, help: feature.generateHelpMessage());
+      final String channel = globals.flutterVersion.channel;
+      argParser.addFlag(
+        configSetting,
+        help: feature.generateHelpMessage(),
+        defaultsTo: feature.getSettingForChannel(channel).enabledByDefault,
+      );
     }
     argParser.addFlag(
       'clear-features',
@@ -74,10 +82,10 @@ class ConfigCommand extends FlutterCommand {
   }
 
   @override
-  final String name = 'config';
+  final name = 'config';
 
   @override
-  final String description =
+  final description =
       'Configure Flutter settings.\n\n'
       'To remove a setting, configure it to an empty string.\n\n'
       'The Flutter tool anonymously reports feature usage statistics and basic crash reports to help improve '
@@ -87,7 +95,7 @@ class ConfigCommand extends FlutterCommand {
   final String category = FlutterCommandCategory.sdk;
 
   @override
-  final List<String> aliases = <String>['configure'];
+  final aliases = <String>['configure'];
 
   @override
   bool get shouldUpdateCache => false;
@@ -118,13 +126,13 @@ class ConfigCommand extends FlutterCommand {
       return FlutterCommandResult.success();
     }
 
-    if (boolArg('machine')) {
+    if (outputMachineFormat) {
       await handleMachine();
       return FlutterCommandResult.success();
     }
 
     if (boolArg('clear-features')) {
-      for (final Feature feature in allFeatures) {
+      for (final Feature feature in featureFlags.allFeatures) {
         final String? configSetting = feature.configSetting;
         if (configSetting != null) {
           globals.config.removeValue(configSetting);
@@ -153,8 +161,23 @@ class ConfigCommand extends FlutterCommand {
       _updateConfig('jdk-dir', stringArg('jdk-dir')!);
     }
 
-    if (argResults!.wasParsed('clear-ios-signing-cert')) {
-      _updateConfig('ios-signing-cert', '');
+    if (argResults!.wasParsed('clear-ios-signing-settings')) {
+      XcodeCodeSigningSettings.resetSettings(globals.config, globals.logger);
+    }
+
+    if (argResults!.wasParsed('select-ios-signing-settings')) {
+      final settings = XcodeCodeSigningSettings(
+        config: globals.config,
+        logger: globals.logger,
+        platform: globals.platform,
+        processUtils: globals.processUtils,
+        fileSystem: globals.fs,
+        fileSystemUtils: globals.fsUtils,
+        terminal: globals.terminal,
+        plistParser: globals.plistParser,
+      );
+
+      await settings.selectSettings();
     }
 
     if (argResults!.wasParsed('build-dir')) {
@@ -165,7 +188,7 @@ class ConfigCommand extends FlutterCommand {
       _updateConfig('build-dir', buildDir);
     }
 
-    for (final Feature feature in allFeatures) {
+    for (final Feature feature in featureFlags.allFeatures) {
       final String? configSetting = feature.configSetting;
       if (configSetting == null) {
         continue;
@@ -188,7 +211,7 @@ class ConfigCommand extends FlutterCommand {
 
   Future<void> handleMachine() async {
     // Get all the current values.
-    final Map<String, Object?> results = <String, Object?>{};
+    final results = <String, Object?>{};
     for (final String key in globals.config.keys) {
       results[key] = globals.config.getValue(key);
     }
@@ -222,22 +245,22 @@ class ConfigCommand extends FlutterCommand {
 
   /// List all config settings. for feature flags, include whether they are available.
   String get settingsText {
-    final Map<String, Feature> featuresByName = <String, Feature>{};
+    final featuresByName = <String, Feature>{};
     final String channel = globals.flutterVersion.channel;
-    for (final Feature feature in allFeatures) {
+    for (final Feature feature in featureFlags.allFeatures) {
       final String? configSetting = feature.configSetting;
       if (configSetting != null) {
         featuresByName[configSetting] = feature;
       }
     }
-    final Set<String> keys = <String>{
-      ...allFeatures.map((Feature e) => e.configSetting).whereType<String>(),
+    final keys = <String>{
+      ...featureFlags.allFeatures.map((Feature e) => e.configSetting).whereType<String>(),
       ...globals.config.keys,
     };
     final Iterable<String> settings = keys.map<String>((String key) {
       Object? value = globals.config.getValue(key);
       value ??= '(Not set)';
-      final StringBuffer buffer = StringBuffer('  $key: $value');
+      final buffer = StringBuffer('  $key: $value');
       if (featuresByName.containsKey(key)) {
         final FeatureChannelSetting setting = featuresByName[key]!.getSettingForChannel(channel);
         if (!setting.available) {
@@ -246,7 +269,7 @@ class ConfigCommand extends FlutterCommand {
       }
       return buffer.toString();
     });
-    final StringBuffer buffer = StringBuffer();
+    final buffer = StringBuffer();
     buffer.writeln('All Settings:');
     if (settings.isEmpty) {
       buffer.writeln('  No configs have been configured.');
@@ -262,6 +285,6 @@ class ConfigCommand extends FlutterCommand {
   }
 
   /// Raising the reload tip for setting changes.
-  final String requireReloadTipText =
+  final requireReloadTipText =
       'You may need to restart any open editors for them to read new settings.';
 }

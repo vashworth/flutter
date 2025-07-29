@@ -12,15 +12,12 @@ import 'package:flutter_tools/src/macos/xcode.dart';
 import '../../src/common.dart';
 import '../../src/fake_process_manager.dart';
 
-const FakeCommand kWhichSysctlCommand = FakeCommand(command: <String>['which', 'sysctl']);
+const kWhichSysctlCommand = FakeCommand(command: <String>['which', 'sysctl']);
 
-const FakeCommand kARMCheckCommand = FakeCommand(
-  command: <String>['sysctl', 'hw.optional.arm64'],
-  exitCode: 1,
-);
+const kARMCheckCommand = FakeCommand(command: <String>['sysctl', 'hw.optional.arm64'], exitCode: 1);
 
-const List<String> kDefaultClang = <String>[
-  '-miphoneos-version-min=12.0',
+const kDefaultClang = <String>[
+  '-miphoneos-version-min=13.0',
   '-isysroot',
   'path/to/sdk',
   '-dynamiclib',
@@ -81,12 +78,12 @@ void main() {
 
     testWithoutContext('iOS arm64', () async {
       final String genSnapshotPath = artifacts.getArtifactPath(
-        Artifact.genSnapshot,
+        Artifact.genSnapshotArm64,
         platform: TargetPlatform.ios,
         mode: BuildMode.release,
       );
       processManager.addCommand(
-        FakeCommand(command: <String>['${genSnapshotPath}_arm64', '--additional_arg']),
+        FakeCommand(command: <String>[genSnapshotPath, '--additional_arg']),
       );
 
       final int result = await genSnapshot.run(
@@ -197,14 +194,14 @@ void main() {
       final String assembly = fileSystem.path.join(outputPath, 'snapshot_assembly.S');
       final String debugPath = fileSystem.path.join('foo', 'app.ios-arm64.symbols');
       final String genSnapshotPath = artifacts.getArtifactPath(
-        Artifact.genSnapshot,
+        Artifact.genSnapshotArm64,
         platform: TargetPlatform.ios,
         mode: BuildMode.profile,
       );
       processManager.addCommands(<FakeCommand>[
         FakeCommand(
           command: <String>[
-            '${genSnapshotPath}_arm64',
+            genSnapshotPath,
             '--deterministic',
             '--snapshot_kind=app-aot-assembly',
             '--assembly=$assembly',
@@ -222,7 +219,7 @@ void main() {
             'cc',
             '-arch',
             'arm64',
-            '-miphoneos-version-min=12.0',
+            '-miphoneos-version-min=13.0',
             '-isysroot',
             'path/to/sdk',
             '-c',
@@ -272,14 +269,14 @@ void main() {
       final String outputPath = fileSystem.path.join('build', 'foo');
       final String assembly = fileSystem.path.join(outputPath, 'snapshot_assembly.S');
       final String genSnapshotPath = artifacts.getArtifactPath(
-        Artifact.genSnapshot,
+        Artifact.genSnapshotArm64,
         platform: TargetPlatform.ios,
         mode: BuildMode.profile,
       );
       processManager.addCommands(<FakeCommand>[
         FakeCommand(
           command: <String>[
-            '${genSnapshotPath}_arm64',
+            genSnapshotPath,
             '--deterministic',
             '--snapshot_kind=app-aot-assembly',
             '--assembly=$assembly',
@@ -295,7 +292,7 @@ void main() {
             'cc',
             '-arch',
             'arm64',
-            '-miphoneos-version-min=12.0',
+            '-miphoneos-version-min=13.0',
             '-isysroot',
             'path/to/sdk',
             '-c',
@@ -343,14 +340,14 @@ void main() {
     testWithoutContext('builds iOS snapshot', () async {
       final String outputPath = fileSystem.path.join('build', 'foo');
       final String genSnapshotPath = artifacts.getArtifactPath(
-        Artifact.genSnapshot,
+        Artifact.genSnapshotArm64,
         platform: TargetPlatform.ios,
         mode: BuildMode.release,
       );
       processManager.addCommands(<FakeCommand>[
         FakeCommand(
           command: <String>[
-            '${genSnapshotPath}_arm64',
+            genSnapshotPath,
             '--deterministic',
             '--snapshot_kind=app-aot-assembly',
             '--assembly=${fileSystem.path.join(outputPath, 'snapshot_assembly.S')}',
@@ -365,7 +362,7 @@ void main() {
             'cc',
             '-arch',
             'arm64',
-            '-miphoneos-version-min=12.0',
+            '-miphoneos-version-min=13.0',
             '-isysroot',
             'path/to/sdk',
             '-c',

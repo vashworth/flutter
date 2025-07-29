@@ -31,11 +31,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const MaterialBannerThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -55,11 +54,10 @@ void main() {
       leadingPadding: EdgeInsets.only(left: 8.0),
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[
       'backgroundColor: ${const Color(0xfffffff0)}',
@@ -77,7 +75,7 @@ void main() {
     WidgetTester tester,
   ) async {
     const String contentText = 'Content';
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     late final ThemeData localizedTheme;
 
     await tester.pumpWidget(
@@ -123,7 +121,7 @@ void main() {
     (WidgetTester tester) async {
       const String contentText = 'Content';
       const Key tapTarget = Key('tap-target');
-      final ThemeData theme = ThemeData(useMaterial3: true);
+      final ThemeData theme = ThemeData();
       late final ThemeData localizedTheme;
 
       await tester.pumpWidget(

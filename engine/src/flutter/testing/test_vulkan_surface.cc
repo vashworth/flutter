@@ -48,6 +48,7 @@ std::unique_ptr<TestVulkanSurface> TestVulkanSurface::Create(
 
   SkSurfaceProps surface_properties(0, kUnknown_SkPixelGeometry);
 
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   auto result = std::unique_ptr<TestVulkanSurface>(
       new TestVulkanSurface(std::move(image_result.value())));
   result->surface_ = SkSurfaces::WrapBackendTexture(
@@ -94,7 +95,7 @@ sk_sp<SkImage> TestVulkanSurface::GetSurfaceSnapshot() const {
     return nullptr;
   }
 
-  auto host_snapshot = device_snapshot->makeRasterImage();
+  auto host_snapshot = device_snapshot->makeRasterImage(nullptr);
 
   if (!host_snapshot) {
     FML_LOG(ERROR) << "Could not create the host snapshot while attempting to "

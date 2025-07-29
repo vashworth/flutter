@@ -10,7 +10,6 @@ void main() {
   testWidgets('Material3 has sentence case labels', (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: Stepper(
             onStepTapped: (int i) {},
@@ -186,7 +185,6 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: Stepper(
             type: StepperType.horizontal,
@@ -778,7 +776,7 @@ void main() {
       borderRadius: BorderRadius.all(Radius.circular(2)),
     );
 
-    final ThemeData themeLight = ThemeData(useMaterial3: true);
+    final ThemeData themeLight = ThemeData();
     await tester.pumpWidget(buildFrame(themeLight));
 
     const String continueStr = 'Continue';
@@ -801,7 +799,7 @@ void main() {
       rectMoreOrLessEquals(cancelButtonRect, epsilon: 0.001),
     );
 
-    final ThemeData themeDark = ThemeData.dark(useMaterial3: true);
+    final ThemeData themeDark = ThemeData.dark();
     await tester.pumpWidget(buildFrame(themeDark));
     await tester.pumpAndSettle(); // Complete the theme animation.
 
@@ -895,7 +893,7 @@ void main() {
       );
     }
 
-    final ThemeData themeLight = ThemeData(useMaterial3: true);
+    final ThemeData themeLight = ThemeData();
     final ColorScheme colorsLight = themeLight.colorScheme;
     await tester.pumpWidget(buildFrame(themeLight));
 
@@ -913,7 +911,7 @@ void main() {
       colorsLight.onSurface.withOpacity(0.38).value,
     );
 
-    final ThemeData themeDark = ThemeData.dark(useMaterial3: true);
+    final ThemeData themeDark = ThemeData.dark();
     final ColorScheme colorsDark = themeDark.colorScheme;
     await tester.pumpWidget(buildFrame(themeDark));
     await tester.pumpAndSettle(); // Complete the theme animation.
@@ -985,7 +983,7 @@ void main() {
     // Regression test for https://github.com/flutter/flutter/pull/77732
     Widget buildFrame({bool isActive = true, Brightness? brightness}) {
       return MaterialApp(
-        theme: brightness == Brightness.dark ? ThemeData.dark() : ThemeData.light(),
+        theme: brightness == Brightness.dark ? ThemeData.dark() : ThemeData(),
         home: Scaffold(
           body: Center(
             child: Stepper(
@@ -1005,7 +1003,7 @@ void main() {
     }
 
     // Light theme
-    final ColorScheme light = ThemeData.light().colorScheme;
+    final ColorScheme light = ThemeData().colorScheme;
     await tester.pumpWidget(buildFrame(brightness: Brightness.light));
     expect(circleFillColor(), light.primary);
     await tester.pumpWidget(buildFrame(isActive: false, brightness: Brightness.light));
@@ -1114,15 +1112,14 @@ void main() {
     await tester.pumpWidget(widget);
 
     // Set up a getter to examine the MacGuffin's color
-    Color getColor() =>
-        tester
-            .widget<ColoredBox>(
-              find.descendant(
-                of: find.byKey(const Key('tappable-color')),
-                matching: find.byType(ColoredBox),
-              ),
-            )
-            .color;
+    Color getColor() => tester
+        .widget<ColoredBox>(
+          find.descendant(
+            of: find.byKey(const Key('tappable-color')),
+            matching: find.byType(ColoredBox),
+          ),
+        )
+        .color;
 
     // We are on step 1
     expect(find.text('Step 2 Content'), findsNothing);
@@ -1300,12 +1297,8 @@ void main() {
                 as BoxDecoration?)
             ?.color;
 
-    Color lineColor(String keyStep) {
-      return tester
-          .widget<ColoredBox>(
-            find.descendant(of: find.byKey(Key(keyStep)), matching: find.byType(ColoredBox).last),
-          )
-          .color;
+    Color lineColor() {
+      return tester.widget<ColoredBox>(find.byType(ColoredBox)).color;
     }
 
     // Step 1
@@ -1316,7 +1309,7 @@ void main() {
     expect(circleColor('1'), selectedColor);
     expect(circleColor('2'), disabledColor);
     // in two steps case there will be single line
-    expect(lineColor('line0'), selectedColor);
+    expect(lineColor(), selectedColor);
 
     // now hitting step two
     await tester.tap(find.text('step2'));
@@ -1329,7 +1322,7 @@ void main() {
     expect(circleColor('1'), selectedColor);
     expect(circleColor('2'), selectedColor);
 
-    expect(lineColor('line0'), selectedColor);
+    expect(lineColor(), selectedColor);
   });
 
   testWidgets('Stepper stepIconBuilder test', (WidgetTester tester) async {

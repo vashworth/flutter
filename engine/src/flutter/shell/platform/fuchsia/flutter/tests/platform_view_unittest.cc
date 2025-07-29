@@ -49,7 +49,7 @@ class MockExternalViewEmbedder : public flutter::ExternalViewEmbedder {
                   const fml::RefPtr<fml::RasterThreadMerger>&
                       raster_thread_merger) override {}
 
-  void PrepareFlutterView(SkISize frame_size,
+  void PrepareFlutterView(flutter::DlISize frame_size,
                           double device_pixel_ratio) override {}
 
   void SubmitFlutterView(
@@ -121,7 +121,8 @@ class MockPlatformViewDelegate : public flutter::PlatformView::Delegate {
       std::unique_ptr<flutter::KeyDataPacket> packet,
       std::function<void(bool)> callback) {}
   // |flutter::PlatformView::Delegate|
-  void OnPlatformViewDispatchSemanticsAction(int32_t id,
+  void OnPlatformViewDispatchSemanticsAction(int64_t view_id,
+                                             int32_t node_id,
                                              flutter::SemanticsAction action,
                                              fml::MallocMapping args) {}
   // |flutter::PlatformView::Delegate|

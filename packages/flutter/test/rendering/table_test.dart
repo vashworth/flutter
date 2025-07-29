@@ -28,6 +28,7 @@ void main() {
         'RenderTable#00000 NEEDS-PAINT\n'
         ' │ parentData: <none>\n'
         ' │ constraints: BoxConstraints(w=800.0, h=600.0)\n'
+        ' │ semantic boundary\n'
         ' │ size: Size(800.0, 600.0)\n'
         ' │ default column width: FlexColumnWidth(1.0)\n'
         ' │ table size: 0×0\n'
@@ -63,15 +64,14 @@ void main() {
     RenderTable table;
     layout(
       RenderPositionedBox(
-        child:
-            table = RenderTable(
-              columns: 5,
-              rows: 5,
-              defaultColumnWidth: const IntrinsicColumnWidth(),
-              textDirection: TextDirection.ltr,
-              defaultVerticalAlignment: TableCellVerticalAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-            ),
+        child: table = RenderTable(
+          columns: 5,
+          rows: 5,
+          defaultColumnWidth: const IntrinsicColumnWidth(),
+          textDirection: TextDirection.ltr,
+          defaultVerticalAlignment: TableCellVerticalAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+        ),
       ),
     );
 
@@ -98,6 +98,7 @@ void main() {
         'RenderTable#00000 relayoutBoundary=up1 NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE\n'
         ' │ parentData: offset=Offset(335.0, 185.0) (can use size)\n'
         ' │ constraints: BoxConstraints(0.0<=w<=800.0, 0.0<=h<=600.0)\n'
+        ' │ semantic boundary\n'
         ' │ size: Size(130.0, 230.0)\n'
         ' │ default column width: IntrinsicColumnWidth(flex: null)\n'
         ' │ table size: 5×5\n'

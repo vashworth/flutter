@@ -48,6 +48,8 @@ const List<double> _kDisabledDarkGradientOpacities = <double>[0.08, 0.14];
 
 /// A macOS style checkbox.
 ///
+/// {@youtube 560 315 https://www.youtube.com/watch?v=ua54JU7k1Us}
+///
 /// The checkbox itself does not maintain any state. Instead, when the state of
 /// the checkbox changes, the widget calls the [onChanged] callback. Most
 /// widgets that use a checkbox will listen for the [onChanged] callback and
@@ -429,24 +431,22 @@ class _CupertinoCheckboxState extends State<CupertinoCheckbox>
         focusNode: widget.focusNode,
         autofocus: widget.autofocus,
         size: const Size.square(kMinInteractiveDimensionCupertino),
-        painter:
-            _painter
-              ..position = position
-              ..reaction = reaction
-              ..focusColor = effectiveFocusOverlayColor
-              ..downPosition = downPosition
-              ..isFocused = currentStates.contains(WidgetState.focused)
-              ..isHovered = currentStates.contains(WidgetState.hovered)
-              ..activeColor = effectiveActiveColor
-              ..inactiveColor = effectiveInactiveColor
-              ..checkColor = _defaultCheckColor.resolve(currentStates)
-              ..value = value
-              ..previousValue = _previousValue
-              ..isActive = widget.onChanged != null
-              ..shape =
-                  widget.shape ?? RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0))
-              ..side = effectiveBorderSide
-              ..brightness = CupertinoTheme.of(context).brightness,
+        painter: _painter
+          ..position = position
+          ..reaction = reaction
+          ..focusColor = effectiveFocusOverlayColor
+          ..downPosition = downPosition
+          ..isFocused = currentStates.contains(WidgetState.focused)
+          ..isHovered = currentStates.contains(WidgetState.hovered)
+          ..activeColor = effectiveActiveColor
+          ..inactiveColor = effectiveInactiveColor
+          ..checkColor = _defaultCheckColor.resolve(currentStates)
+          ..value = value
+          ..previousValue = _previousValue
+          ..isActive = widget.onChanged != null
+          ..shape = widget.shape ?? RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0))
+          ..side = effectiveBorderSide
+          ..brightness = CupertinoTheme.of(context).brightness,
       ),
     );
   }
@@ -609,21 +609,18 @@ class _CheckboxPainter extends ToggleablePainter {
     }
     // The checkbox's opacity changes when pressed.
     if (downPosition != null) {
-      final Paint pressedPaint =
-          Paint()
-            ..color =
-                brightness == Brightness.light
-                    ? CupertinoColors.black.withOpacity(_kPressedOverlayOpacity)
-                    : CupertinoColors.white.withOpacity(_kPressedOverlayOpacity);
+      final Paint pressedPaint = Paint()
+        ..color = brightness == Brightness.light
+            ? CupertinoColors.black.withOpacity(_kPressedOverlayOpacity)
+            : CupertinoColors.white.withOpacity(_kPressedOverlayOpacity);
       canvas.drawPath(shape.getOuterPath(outer), pressedPaint);
     }
     if (isFocused) {
       final Rect focusOuter = outer.inflate(1);
-      final Paint borderPaint =
-          Paint()
-            ..color = focusColor
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.5;
+      final Paint borderPaint = Paint()
+        ..color = focusColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5;
       _drawBox(canvas, focusOuter, borderPaint, side, value ?? true);
     }
   }

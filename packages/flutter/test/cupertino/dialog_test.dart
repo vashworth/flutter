@@ -14,6 +14,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../widgets/semantics_tester.dart';
@@ -922,7 +923,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // Expect the modal dialog box to take all available height.
-    expect(tester.getSize(find.byType(ClipRRect)), equals(const Size(310.0, 560.0 - 24.0 * 2)));
+    expect(
+      tester.getSize(find.byType(ClipRSuperellipse)),
+      equals(const Size(310.0, 560.0 - 24.0 * 2)),
+    );
 
     // Check sizes/locations of the text. The text is large so these 2 buttons are stacked.
     // Visually the "Cancel" button and "OK" button are the same height when using the
@@ -974,7 +978,7 @@ void main() {
     const double topAndBottomMargin = 40.0;
     const double topAndBottomPadding = 24.0 * 2;
     const double leftAndRightPadding = 40.0 * 2;
-    final Finder modalFinder = find.byType(ClipRRect);
+    final Finder modalFinder = find.byType(ClipRSuperellipse);
     expect(
       tester.getSize(modalFinder),
       equals(
@@ -1081,7 +1085,7 @@ void main() {
       return element.widget.runtimeType.toString() == '_CupertinoAlertActionSection';
     });
 
-    final Finder modalBoundaryFinder = find.byType(ClipRRect);
+    final Finder modalBoundaryFinder = find.byType(ClipRSuperellipse);
 
     expect(tester.getSize(contentSectionFinder), tester.getSize(modalBoundaryFinder));
 
@@ -1128,7 +1132,7 @@ void main() {
       return element.widget.runtimeType.toString() == '_CupertinoAlertContentSection';
     });
 
-    final Finder modalBoundaryFinder = find.byType(ClipRRect);
+    final Finder modalBoundaryFinder = find.byType(ClipRSuperellipse);
 
     expect(tester.getSize(contentSectionFinder), tester.getSize(modalBoundaryFinder));
   });
@@ -1449,7 +1453,7 @@ void main() {
     // The buttons should be out of the screen
     expect(
       tester.getTopLeft(find.text('Button 0')).dy,
-      greaterThan(tester.getBottomLeft(find.byType(ClipRRect)).dy),
+      greaterThan(tester.getBottomLeft(find.byType(ClipRSuperellipse)).dy),
     );
     await expectLater(
       find.byType(CupertinoAlertDialog),
@@ -1734,6 +1738,60 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('showCupertinoDialog - custom barrierColor', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: Builder(
+          builder: (BuildContext context) {
+            return Center(
+              child: Column(
+                children: <Widget>[
+                  CupertinoButton(
+                    child: const Text('Custom BarrierColor'),
+                    onPressed: () {
+                      showCupertinoDialog<void>(
+                        context: context,
+                        barrierColor: Colors.red,
+                        builder: (BuildContext context) {
+                          return CupertinoAlertDialog(
+                            title: const Text('Title'),
+                            content: const Text('Content'),
+                            actions: <Widget>[
+                              const CupertinoDialogAction(child: Text('Yes')),
+                              CupertinoDialogAction(
+                                child: const Text('No'),
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Custom BarrierColor'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ModalBarrier>(find.byType(ModalBarrier).last).color, equals(Colors.red));
+
+    await tester.tap(find.text('No'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => widget is ModalBarrier && widget.color == Colors.red,
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('CupertinoDialogRoute is state restorable', (WidgetTester tester) async {
     await tester.pumpWidget(
       const CupertinoApp(restorationScopeId: 'app', home: _RestorableDialogTestWidget()),
@@ -1815,15 +1873,14 @@ void main() {
       ),
     );
 
-    final List<CupertinoScrollbar> scrollbars =
-        find
-            .descendant(
-              of: find.byType(CupertinoAlertDialog),
-              matching: find.byType(CupertinoScrollbar),
-            )
-            .evaluate()
-            .map((Element e) => e.widget as CupertinoScrollbar)
-            .toList();
+    final List<CupertinoScrollbar> scrollbars = find
+        .descendant(
+          of: find.byType(CupertinoAlertDialog),
+          matching: find.byType(CupertinoScrollbar),
+        )
+        .evaluate()
+        .map((Element e) => e.widget as CupertinoScrollbar)
+        .toList();
 
     expect(scrollbars.length, 2);
     expect(scrollbars[0].controller != scrollbars[1].controller, isTrue);
@@ -2033,6 +2090,72 @@ void main() {
 
     expect(elements.length, 1, reason: 'No DecoratedBox matches the specified criteria.');
   });
+
+  testWidgets('Check for Directionality', (WidgetTester tester) async {
+    Future<void> pumpWidget({required bool isLTR}) async {
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: Directionality(
+            textDirection: isLTR ? TextDirection.ltr : TextDirection.rtl,
+            child: const CupertinoAlertDialog(
+              actions: <CupertinoDialogAction>[
+                CupertinoDialogAction(isDefaultAction: true, child: Text('No')),
+                CupertinoDialogAction(child: Text('Yes')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pumpWidget(isLTR: true);
+    Offset yesButton = tester.getCenter(find.text('Yes'));
+    Offset noButton = tester.getCenter(find.text('No'));
+    expect(yesButton.dx > noButton.dx, true);
+    await pumpWidget(isLTR: false);
+    yesButton = tester.getCenter(find.text('Yes'));
+    noButton = tester.getCenter(find.text('No'));
+    expect(yesButton.dx > noButton.dx, false);
+  });
+
+  testWidgets('CupertinoDialogAction.mouseCursor can customize the mouse cursor', (
+    WidgetTester tester,
+  ) async {
+    const SystemMouseCursor customCursor = SystemMouseCursors.grab;
+
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: Directionality(
+          textDirection: TextDirection.ltr,
+          child: CupertinoAlertDialog(
+            actions: <CupertinoDialogAction>[
+              CupertinoDialogAction(
+                mouseCursor: customCursor,
+                child: const Text('Yes'),
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final TestGesture gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      pointer: 1,
+    );
+    await gesture.addPointer(location: const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.basic,
+    );
+
+    final Offset actionSheetAction = tester.getCenter(find.text('Yes'));
+    await gesture.moveTo(actionSheetAction);
+    await tester.pumpAndSettle();
+    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), customCursor);
+  });
 }
 
 RenderBox findActionButtonRenderBoxByTitle(WidgetTester tester, String title) {
@@ -2075,7 +2198,9 @@ Widget boilerplate(Widget child) {
 }
 
 Widget createAppWithCenteredButton(Widget child) {
-  return CupertinoApp(home: Center(child: CupertinoButton(onPressed: null, child: child)));
+  return CupertinoApp(
+    home: Center(child: CupertinoButton(onPressed: null, child: child)),
+  );
 }
 
 @pragma('vm:entry-point')
@@ -2121,6 +2246,7 @@ class _RestorableDialogTestWidget extends StatelessWidget {
 // The `theme` will be applied to the app and determines the background.
 class TestScaffoldApp extends StatefulWidget {
   const TestScaffoldApp({super.key, required this.theme, required this.dialog});
+
   final CupertinoThemeData theme;
   final Widget dialog;
 
@@ -2141,28 +2267,26 @@ class TestScaffoldAppState extends State<TestScaffoldApp> {
       debugShowCheckedModeBanner: false,
       theme: widget.theme,
       home: Builder(
-        builder:
-            (BuildContext context) => CupertinoPageScaffold(
-              child: Center(
-                child:
-                    _pressedButton
-                        ? Container()
-                        : CupertinoButton(
-                          onPressed: () {
-                            setState(() {
-                              _pressedButton = true;
-                            });
-                            showCupertinoDialog<void>(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return widget.dialog;
-                              },
-                            );
-                          },
-                          child: const Text('Go'),
-                        ),
-              ),
-            ),
+        builder: (BuildContext context) => CupertinoPageScaffold(
+          child: Center(
+            child: _pressedButton
+                ? Container()
+                : CupertinoButton(
+                    onPressed: () {
+                      setState(() {
+                        _pressedButton = true;
+                      });
+                      showCupertinoDialog<void>(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return widget.dialog;
+                        },
+                      );
+                    },
+                    child: const Text('Go'),
+                  ),
+          ),
+        ),
       ),
     );
   }

@@ -5,7 +5,6 @@
 import 'dart:async';
 import 'dart:ffi';
 import 'dart:js_interop';
-
 import 'dart:typed_data';
 
 import 'package:ui/src/engine.dart';
@@ -24,7 +23,7 @@ class SkwasmTypeface extends SkwasmObjectWrapper<RawTypeface> {
   SkwasmTypeface(SkDataHandle data) : super(typefaceCreate(data), _registry);
 
   static final SkwasmFinalizationRegistry<RawTypeface> _registry =
-      SkwasmFinalizationRegistry<RawTypeface>(typefaceDispose);
+      SkwasmFinalizationRegistry<RawTypeface>((TypefaceHandle handle) => typefaceDispose(handle));
 }
 
 class SkwasmFontCollection implements FlutterFontCollection {
@@ -42,8 +41,9 @@ class SkwasmFontCollection implements FlutterFontCollection {
   final Map<String, List<SkwasmTypeface>> registeredTypefaces = <String, List<SkwasmTypeface>>{};
 
   void setDefaultFontFamilies(List<String> families) => withStackScope((StackScope scope) {
-    final Pointer<SkStringHandle> familyPointers =
-        scope.allocPointerArray(families.length).cast<SkStringHandle>();
+    final Pointer<SkStringHandle> familyPointers = scope
+        .allocPointerArray(families.length)
+        .cast<SkStringHandle>();
     for (int i = 0; i < families.length; i++) {
       familyPointers[i] = skStringFromDartString(families[i]);
     }
@@ -109,15 +109,15 @@ class SkwasmFontCollection implements FlutterFontCollection {
     int length = 0;
     final List<JSUint8Array> chunks = <JSUint8Array>[];
     await response.read((JSUint8Array chunk) {
-      length += chunk.length.toDartInt;
+      length += chunk.length;
       chunks.add(chunk);
     });
     final SkDataHandle fontData = skDataCreate(length);
     int dataAddress = skDataGetPointer(fontData).cast<Int8>().address;
-    final JSUint8Array wasmMemory = createUint8ArrayFromBuffer(skwasmInstance.wasmMemory.buffer);
+    final JSUint8Array wasmMemory = JSUint8Array(skwasmInstance.wasmMemory.buffer);
     for (final JSUint8Array chunk in chunks) {
-      wasmMemory.set(chunk, dataAddress.toJS);
-      dataAddress += chunk.length.toDartInt;
+      wasmMemory.set(chunk, dataAddress);
+      dataAddress += chunk.length;
     }
     final SkwasmTypeface typeface = SkwasmTypeface(fontData);
     skDataDispose(fontData);
@@ -137,15 +137,15 @@ class SkwasmFontCollection implements FlutterFontCollection {
     int length = 0;
     final List<JSUint8Array> chunks = <JSUint8Array>[];
     await response.read((JSUint8Array chunk) {
-      length += chunk.length.toDartInt;
+      length += chunk.length;
       chunks.add(chunk);
     });
     final SkDataHandle fontData = skDataCreate(length);
     int dataAddress = skDataGetPointer(fontData).cast<Int8>().address;
-    final JSUint8Array wasmMemory = createUint8ArrayFromBuffer(skwasmInstance.wasmMemory.buffer);
+    final JSUint8Array wasmMemory = JSUint8Array(skwasmInstance.wasmMemory.buffer);
     for (final JSUint8Array chunk in chunks) {
-      wasmMemory.set(chunk, dataAddress.toJS);
-      dataAddress += chunk.length.toDartInt;
+      wasmMemory.set(chunk, dataAddress);
+      dataAddress += chunk.length;
     }
 
     final SkwasmTypeface typeface = SkwasmTypeface(fontData);
@@ -180,6 +180,7 @@ class SkwasmFontCollection implements FlutterFontCollection {
     } else {
       fontCollectionRegisterTypeface(handle, typeface.handle, nullptr);
     }
+    fontCollectionClearCaches(handle);
     return true;
   }
 
@@ -192,24 +193,24 @@ class SkwasmFontCollection implements FlutterFontCollection {
 }
 
 class SkwasmFallbackRegistry implements FallbackFontRegistry {
-  SkwasmFallbackRegistry(this.fontCollection);
+  SkwasmFallbackRegistry(this._fontCollection);
 
-  final SkwasmFontCollection fontCollection;
+  final SkwasmFontCollection _fontCollection;
 
   @override
   List<int> getMissingCodePoints(List<int> codePoints, List<String> fontFamilies) =>
       withStackScope((StackScope scope) {
-        final List<SkwasmTypeface> typefaces =
-            fontFamilies
-                .map((String family) => fontCollection.registeredTypefaces[family])
-                .fold(
-                  const Iterable<SkwasmTypeface>.empty(),
-                  (Iterable<SkwasmTypeface> accumulated, List<SkwasmTypeface>? typefaces) =>
-                      typefaces == null ? accumulated : accumulated.followedBy(typefaces),
-                )
-                .toList();
-        final Pointer<TypefaceHandle> typefaceBuffer =
-            scope.allocPointerArray(typefaces.length).cast<TypefaceHandle>();
+        final List<SkwasmTypeface> typefaces = fontFamilies
+            .map((String family) => _fontCollection.registeredTypefaces[family])
+            .fold(
+              const Iterable<SkwasmTypeface>.empty(),
+              (Iterable<SkwasmTypeface> accumulated, List<SkwasmTypeface>? typefaces) =>
+                  typefaces == null ? accumulated : accumulated.followedBy(typefaces),
+            )
+            .toList();
+        final Pointer<TypefaceHandle> typefaceBuffer = scope
+            .allocPointerArray(typefaces.length)
+            .cast<TypefaceHandle>();
         for (int i = 0; i < typefaces.length; i++) {
           typefaceBuffer[i] = typefaces[i].handle;
         }
@@ -228,9 +229,9 @@ class SkwasmFallbackRegistry implements FallbackFontRegistry {
 
   @override
   Future<void> loadFallbackFont(String familyName, String url) =>
-      fontCollection.loadFontFromUrl(familyName, url);
+      _fontCollection.loadFontFromUrl(familyName, url);
 
   @override
   void updateFallbackFontFamilies(List<String> families) =>
-      fontCollection.setDefaultFontFamilies(families);
+      _fontCollection.setDefaultFontFamilies(families);
 }

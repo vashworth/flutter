@@ -77,11 +77,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const PopupMenuThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -109,11 +108,10 @@ void main() {
       iconSize: 31.0,
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[
       'color: ${const Color(0xfffffff1)}',
@@ -137,7 +135,7 @@ void main() {
     final Key popupButtonApp = UniqueKey();
     final Key enabledPopupItemKey = UniqueKey();
     final Key disabledPopupItemKey = UniqueKey();
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -259,7 +257,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true, popupMenuTheme: popupMenuTheme),
+        theme: ThemeData(popupMenuTheme: popupMenuTheme),
         key: popupButtonApp,
         home: Material(
           child: Column(
@@ -386,7 +384,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true, popupMenuTheme: popupMenuTheme),
+        theme: ThemeData(popupMenuTheme: popupMenuTheme),
         key: popupButtonApp,
         home: Material(
           child: Column(
@@ -690,7 +688,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData(useMaterial3: true, popupMenuTheme: popupMenuTheme),
+          theme: ThemeData(popupMenuTheme: popupMenuTheme),
           key: popupButtonApp,
           home: Material(
             child: Column(

@@ -20,6 +20,7 @@
 #include "fml/closure.h"
 #include "fml/make_copyable.h"
 #include "fml/synchronization/waitable_event.h"
+#include "impeller/renderer/context.h"
 #include "third_party/skia/include/core/SkColorSpace.h"
 #include "third_party/skia/include/core/SkData.h"
 #include "third_party/skia/include/core/SkImage.h"
@@ -73,7 +74,7 @@ fml::TaskRunnerAffineWeakPtr<SnapshotDelegate> Rasterizer::GetSnapshotDelegate()
 }
 
 void Rasterizer::SetImpellerContext(
-    std::weak_ptr<impeller::Context> impeller_context) {
+    std::shared_ptr<impeller::ImpellerContextFuture> impeller_context) {
   impeller_context_ = std::move(impeller_context);
 }
 
@@ -457,7 +458,9 @@ sk_sp<SkImage> Rasterizer::ConvertToRasterImage(sk_sp<SkImage> image) {
 // |SnapshotDelegate|
 void Rasterizer::CacheRuntimeStage(
     const std::shared_ptr<impeller::RuntimeStage>& runtime_stage) {
-  snapshot_controller_->CacheRuntimeStage(runtime_stage);
+  if (snapshot_controller_) {
+    snapshot_controller_->CacheRuntimeStage(runtime_stage);
+  }
 }
 
 fml::Milliseconds Rasterizer::GetFrameBudget() const {
@@ -702,8 +705,8 @@ DrawSurfaceStatus Rasterizer::DrawToSurfaceUnsafe(
 
   DlCanvas* embedder_root_canvas = nullptr;
   if (external_view_embedder_) {
-    external_view_embedder_->PrepareFlutterView(
-        ToSkISize(layer_tree.frame_size()), device_pixel_ratio);
+    external_view_embedder_->PrepareFlutterView(layer_tree.frame_size(),
+                                                device_pixel_ratio);
     // TODO(dkwingsmt): Add view ID here.
     embedder_root_canvas = external_view_embedder_->GetRootCanvas();
   }

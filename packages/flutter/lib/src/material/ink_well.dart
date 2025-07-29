@@ -365,18 +365,36 @@ class InkResponse extends StatelessWidget {
   final GestureLongPressCallback? onLongPress;
 
   /// Called when the user taps this part of the material with a secondary button.
+  ///
+  /// See also:
+  ///
+  ///  * [kSecondaryButton], the button this callback responds to.
   final GestureTapCallback? onSecondaryTap;
 
   /// Called when the user taps down on this part of the material with a
   /// secondary button.
+  ///
+  /// See also:
+  ///
+  ///  * [kSecondaryButton], the button this callback responds to.
   final GestureTapDownCallback? onSecondaryTapDown;
 
   /// Called when the user releases a secondary button tap that was started on
   /// this part of the material. [onSecondaryTap] is called immediately after.
+  ///
+  /// See also:
+  ///
+  ///  * [onSecondaryTap], a handler triggered right after this one that doesn't
+  ///    pass any details about the tap.
+  ///  * [kSecondaryButton], the button this callback responds to.
   final GestureTapUpCallback? onSecondaryTapUp;
 
   /// Called when the user cancels a secondary button tap that was started on
   /// this part of the material.
+  ///
+  /// See also:
+  ///
+  ///  * [kSecondaryButton], the button this callback responds to.
   final GestureTapCallback? onSecondaryTapCancel;
 
   /// Called when this part of the material either becomes highlighted or stops
@@ -1057,8 +1075,9 @@ class _InkResponseState extends State<_InkResponseStateWidget>
         widget.overlayColor?.resolve(statesController.value) ??
         widget.splashColor ??
         Theme.of(context).splashColor;
-    final RectCallback? rectCallback =
-        widget.containedInkWell ? widget.getRectCallback!(referenceBox) : null;
+    final RectCallback? rectCallback = widget.containedInkWell
+        ? widget.getRectCallback!(referenceBox)
+        : null;
     final BorderRadius? borderRadius = widget.borderRadius;
     final ShapeBorder? customBorder = widget.customBorder;
 
@@ -1363,10 +1382,9 @@ class _InkResponseState extends State<_InkResponseStateWidget>
               mouseCursor: effectiveMouseCursor,
               child: Semantics(
                 onTap: widget.excludeFromSemantics || widget.onTap == null ? null : simulateTap,
-                onLongPress:
-                    widget.excludeFromSemantics || widget.onLongPress == null
-                        ? null
-                        : simulateLongPress,
+                onLongPress: widget.excludeFromSemantics || widget.onLongPress == null
+                    ? null
+                    : simulateLongPress,
                 child: GestureDetector(
                   onTapDown: _primaryEnabled ? handleTapDown : null,
                   onTapUp: _primaryEnabled ? handleTapUp : null,

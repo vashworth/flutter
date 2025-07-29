@@ -24,8 +24,8 @@ Future<PackageConfig> currentPackageConfig() async {
 // TODO(sigurdm): Only call this once per run - and read in from BuildInfo.
 File? findPackageConfigFile(Directory dir) {
   final FileSystem fileSystem = dir.fileSystem;
+  Directory candidateDir = fileSystem.directory(fileSystem.path.normalize(dir.absolute.path));
 
-  Directory candidateDir = fileSystem.directory(dir.path).absolute;
   while (true) {
     final File candidatePackageConfigFile = candidateDir
         .childDirectory('.dart_tool')
@@ -61,7 +61,7 @@ Future<PackageConfig> loadPackageConfigWithLogging(
   bool throwOnError = true,
 }) async {
   final FileSystem fileSystem = file.fileSystem;
-  bool didError = false;
+  var didError = false;
   final PackageConfig result = await loadPackageConfigUri(
     file.absolute.uri,
     loader: (Uri uri) async {
@@ -76,7 +76,7 @@ Future<PackageConfig> loadPackageConfigWithLogging(
         return;
       }
       logger.printTrace(error.toString());
-      String message = '${file.path} does not exist.';
+      var message = '${file.path} does not exist.';
       final String pubspecPath = fileSystem.path.absolute(
         fileSystem.path.dirname(file.path),
         'pubspec.yaml',

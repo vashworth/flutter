@@ -24,9 +24,11 @@ void main() {
     const ColorScheme colorScheme = ColorScheme.light();
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData.from(colorScheme: colorScheme, useMaterial3: true),
+        theme: ThemeData.from(colorScheme: colorScheme),
         home: Scaffold(
-          body: Center(child: IconButton(onPressed: () {}, icon: const Icon(Icons.ac_unit))),
+          body: Center(
+            child: IconButton(onPressed: () {}, icon: const Icon(Icons.ac_unit)),
+          ),
         ),
       ),
     );
@@ -103,16 +105,17 @@ void main() {
       return MaterialApp(
         theme: ThemeData.from(
           colorScheme: const ColorScheme.light(),
-          useMaterial3: true,
         ).copyWith(iconButtonTheme: IconButtonThemeData(style: overallStyle)),
         home: Scaffold(
           body: Center(
             // If the IconButtonTheme widget is present, it's used
             // instead of the Theme's ThemeData.iconButtonTheme.
-            child:
-                themeStyle == null
-                    ? child
-                    : IconButtonTheme(data: IconButtonThemeData(style: themeStyle), child: child),
+            child: themeStyle == null
+                ? child
+                : IconButtonTheme(
+                    data: IconButtonThemeData(style: themeStyle),
+                    child: child,
+                  ),
           ),
         ),
       );
@@ -228,10 +231,7 @@ void main() {
 
     Widget buildFrame({Color? overallShadowColor, Color? themeShadowColor, Color? shadowColor}) {
       return MaterialApp(
-        theme: ThemeData.from(
-          colorScheme: colorScheme,
-          useMaterial3: true,
-        ).copyWith(shadowColor: overallShadowColor),
+        theme: ThemeData.from(colorScheme: colorScheme).copyWith(shadowColor: overallShadowColor),
         home: Scaffold(
           body: Center(
             child: IconButtonTheme(

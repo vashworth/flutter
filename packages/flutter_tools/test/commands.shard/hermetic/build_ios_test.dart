@@ -27,10 +27,11 @@ import 'package:unified_analytics/unified_analytics.dart';
 import '../../general.shard/ios/xcresult_test_data.dart';
 import '../../src/common.dart';
 import '../../src/context.dart';
-import '../../src/fake_pub_deps.dart';
 import '../../src/fakes.dart';
+import '../../src/package_config.dart';
 import '../../src/test_build_system.dart';
 import '../../src/test_flutter_command_runner.dart';
+import '../../src/throwing_pub.dart';
 
 class FakeXcodeProjectInterpreterWithBuildSettings extends FakeXcodeProjectInterpreter {
   FakeXcodeProjectInterpreterWithBuildSettings({
@@ -86,8 +87,8 @@ void main() {
 
   // Sets up the minimal mock project files necessary to look like a Flutter project.
   void createCoreMockProjectFiles() {
-    fileSystem.file('pubspec.yaml').createSync();
-    fileSystem.directory('.dart_tool').childFile('package_config.json').createSync(recursive: true);
+    fileSystem.file('pubspec.yaml').writeAsStringSync('name: my_app');
+    writePackageConfigFiles(directory: fileSystem.currentDirectory, mainLibName: 'my_app');
     fileSystem.file(fileSystem.path.join('lib', 'main.dart')).createSync(recursive: true);
   }
 
@@ -105,7 +106,7 @@ void main() {
     createCoreMockProjectFiles();
   }
 
-  const FakeCommand xattrCommand = FakeCommand(
+  const xattrCommand = FakeCommand(
     command: <String>['xattr', '-r', '-d', 'com.apple.FinderInfo', '/'],
   );
 
@@ -185,7 +186,8 @@ void main() {
         'FLUTTER_SUPPRESS_ANALYTICS=true',
         'COMPILER_INDEX_STORE_ENABLE=NO',
       ],
-      stdout: '''
+      stdout:
+          '''
       TARGET_BUILD_DIR=build/ios/Release-iphoneos
       WRAPPER_NAME=Runner.app
       $stdout
@@ -198,7 +200,7 @@ void main() {
   testUsingContext(
     'ios build fails when there is no ios project',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -223,7 +225,7 @@ void main() {
   testUsingContext(
     'ios build fails in debug with code analysis',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -250,7 +252,7 @@ void main() {
   testUsingContext(
     'ios build fails on non-macOS platform',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -258,14 +260,13 @@ void main() {
         osUtils: FakeOperatingSystemUtils(),
       );
       fileSystem.file('pubspec.yaml').createSync();
-      fileSystem
-          .directory('.dart_tool')
-          .childFile('package_config.json')
-          .createSync(recursive: true);
+      writePackageConfigFiles(directory: fileSystem.currentDirectory, mainLibName: 'my_app');
       fileSystem.file(fileSystem.path.join('lib', 'main.dart')).createSync(recursive: true);
 
-      final bool supported =
-          BuildIOSCommand(logger: BufferLogger.test(), verboseHelp: false).supported;
+      final bool supported = BuildIOSCommand(
+        logger: BufferLogger.test(),
+        verboseHelp: false,
+      ).supported;
       expect(
         createTestCommandRunner(command).run(const <String>['build', 'ios', '--no-pub']),
         supported ? throwsToolExit() : throwsA(isA<UsageException>()),
@@ -282,7 +283,7 @@ void main() {
   testUsingContext(
     'ios build outputs path and size when successful',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: MemoryFileSystem.test(),
@@ -299,19 +300,18 @@ void main() {
     },
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
-      Pub: FakePubWithPrimedDeps.new,
-      ProcessManager:
-          () => FakeProcessManager.list(<FakeCommand>[
-            xattrCommand,
-            setUpFakeXcodeBuildHandler(
-              onRun: (_) {
-                fileSystem
-                    .directory('build/ios/Release-iphoneos/Runner.app')
-                    .createSync(recursive: true);
-              },
-            ),
-            setUpRsyncCommand(),
-          ]),
+      Pub: ThrowingPub.new,
+      ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+        xattrCommand,
+        setUpFakeXcodeBuildHandler(
+          onRun: (_) {
+            fileSystem
+                .directory('build/ios/Release-iphoneos/Runner.app')
+                .createSync(recursive: true);
+          },
+        ),
+        setUpRsyncCommand(),
+      ]),
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -320,7 +320,7 @@ void main() {
   testUsingContext(
     'ios build invokes xcode build',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -347,7 +347,7 @@ void main() {
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
-      Pub: FakePubWithPrimedDeps.new,
+      Pub: ThrowingPub.new,
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -356,7 +356,7 @@ void main() {
   testUsingContext(
     'ios build invokes xcode build with disable port publication setting',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -372,20 +372,19 @@ void main() {
     },
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
-      ProcessManager:
-          () => FakeProcessManager.list(<FakeCommand>[
-            xattrCommand,
-            setUpFakeXcodeBuildHandler(
-              disablePortPublication: true,
-              onRun: (_) {
-                fileSystem
-                    .directory('build/ios/Release-iphoneos/Runner.app')
-                    .createSync(recursive: true);
-              },
-            ),
-            setUpRsyncCommand(),
-          ]),
-      Pub: FakePubWithPrimedDeps.new,
+      ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+        xattrCommand,
+        setUpFakeXcodeBuildHandler(
+          disablePortPublication: true,
+          onRun: (_) {
+            fileSystem
+                .directory('build/ios/Release-iphoneos/Runner.app')
+                .createSync(recursive: true);
+          },
+        ),
+        setUpRsyncCommand(),
+      ]),
+      Pub: ThrowingPub.new,
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -394,7 +393,7 @@ void main() {
   testUsingContext(
     'ios build invokes xcode build without disable port publication setting when not in CI',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -410,19 +409,18 @@ void main() {
     },
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
-      ProcessManager:
-          () => FakeProcessManager.list(<FakeCommand>[
-            xattrCommand,
-            setUpFakeXcodeBuildHandler(
-              onRun: (_) {
-                fileSystem
-                    .directory('build/ios/Release-iphoneos/Runner.app')
-                    .createSync(recursive: true);
-              },
-            ),
-            setUpRsyncCommand(),
-          ]),
-      Pub: FakePubWithPrimedDeps.new,
+      ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+        xattrCommand,
+        setUpFakeXcodeBuildHandler(
+          onRun: (_) {
+            fileSystem
+                .directory('build/ios/Release-iphoneos/Runner.app')
+                .createSync(recursive: true);
+          },
+        ),
+        setUpRsyncCommand(),
+      ]),
+      Pub: ThrowingPub.new,
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -431,7 +429,7 @@ void main() {
   testUsingContext(
     'ios build invokes xcode build with renamed xcodeproj and xcworkspace',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         osUtils: FakeOperatingSystemUtils(),
@@ -469,7 +467,7 @@ void main() {
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
-      Pub: FakePubWithPrimedDeps.new,
+      Pub: ThrowingPub.new,
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -478,7 +476,7 @@ void main() {
   testUsingContext(
     'ios build invokes xcode build with device ID',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -507,7 +505,7 @@ void main() {
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
-      Pub: FakePubWithPrimedDeps.new,
+      Pub: ThrowingPub.new,
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -516,7 +514,7 @@ void main() {
   testUsingContext(
     'ios simulator build invokes xcode build',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -544,7 +542,7 @@ void main() {
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
-      Pub: FakePubWithPrimedDeps.new,
+      Pub: ThrowingPub.new,
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -553,7 +551,7 @@ void main() {
   testUsingContext(
     'ios build invokes xcode build with verbosity',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -579,7 +577,7 @@ void main() {
     overrides: <Type, Generator>{
       FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
-      Pub: FakePubWithPrimedDeps.new,
+      Pub: ThrowingPub.new,
       Platform: () => macosPlatform,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
     },
@@ -588,7 +586,7 @@ void main() {
   testUsingContext(
     'Performs code size analysis and sends analytics',
     () async {
-      final BuildCommand command = BuildCommand(
+      final command = BuildCommand(
         androidSdk: FakeAndroidSdk(),
         buildSystem: TestBuildSystem.all(BuildResult(success: true)),
         fileSystem: fileSystem,
@@ -619,11 +617,10 @@ void main() {
           },
         ),
         setUpRsyncCommand(
-          onRun:
-              (_) =>
-                  fileSystem.file('build/ios/iphoneos/Runner.app/Frameworks/App.framework/App')
-                    ..createSync(recursive: true)
-                    ..writeAsBytesSync(List<int>.generate(10000, (int index) => 0)),
+          onRun: (_) =>
+              fileSystem.file('build/ios/iphoneos/Runner.app/Frameworks/App.framework/App')
+                ..createSync(recursive: true)
+                ..writeAsBytesSync(List<int>.generate(10000, (int index) => 0)),
         ),
       ]);
       createMinimalMockProjectFiles();
@@ -641,7 +638,7 @@ void main() {
       Logger: () => logger,
       ProcessManager: () => processManager,
       Platform: () => macosPlatform,
-      Pub: FakePubWithPrimedDeps.new,
+      Pub: ThrowingPub.new,
       FileSystemUtils: () => FileSystemUtils(fileSystem: fileSystem, platform: macosPlatform),
       Analytics: () => fakeAnalytics,
       XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
@@ -649,7 +646,7 @@ void main() {
   );
 
   group('Analytics for impeller plist setting', () {
-    const String plistContents = '''
+    const plistContents = '''
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -659,7 +656,7 @@ void main() {
 </dict>
 </plist>
 ''';
-    const FakeCommand plutilCommand = FakeCommand(
+    const plutilCommand = FakeCommand(
       command: <String>['/usr/bin/plutil', '-convert', 'xml1', '-o', '-', '/ios/Runner/Info.plist'],
       stdout: plistContents,
     );
@@ -667,7 +664,7 @@ void main() {
     testUsingContext(
       'Sends an analytics event when Impeller is enabled',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: MemoryFileSystem.test(),
@@ -685,30 +682,26 @@ void main() {
       },
       overrides: <Type, Generator>{
         FileSystem: () => fileSystem,
-        ProcessManager:
-            () => FakeProcessManager.list(<FakeCommand>[
-              xattrCommand,
-              setUpFakeXcodeBuildHandler(
-                onRun: (_) {
-                  fileSystem
-                      .directory('build/ios/Release-iphoneos/Runner.app')
-                      .createSync(recursive: true);
-                },
-              ),
-              setUpRsyncCommand(
-                onRun:
-                    (_) =>
-                        fileSystem.file(
-                            'build/ios/iphoneos/Runner.app/Frameworks/App.framework/App',
-                          )
-                          ..createSync(recursive: true)
-                          ..writeAsBytesSync(List<int>.generate(10000, (int index) => 0)),
-              ),
-            ]),
+        ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+          xattrCommand,
+          setUpFakeXcodeBuildHandler(
+            onRun: (_) {
+              fileSystem
+                  .directory('build/ios/Release-iphoneos/Runner.app')
+                  .createSync(recursive: true);
+            },
+          ),
+          setUpRsyncCommand(
+            onRun: (_) =>
+                fileSystem.file('build/ios/iphoneos/Runner.app/Frameworks/App.framework/App')
+                  ..createSync(recursive: true)
+                  ..writeAsBytesSync(List<int>.generate(10000, (int index) => 0)),
+          ),
+        ]),
         Platform: () => macosPlatform,
         FileSystemUtils: () => FileSystemUtils(fileSystem: fileSystem, platform: macosPlatform),
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Analytics: () => fakeAnalytics,
       },
     );
@@ -716,7 +709,7 @@ void main() {
     testUsingContext(
       'Sends an analytics event when Impeller is disabled',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -741,42 +734,37 @@ void main() {
       },
       overrides: <Type, Generator>{
         FileSystem: () => fileSystem,
-        ProcessManager:
-            () => FakeProcessManager.list(<FakeCommand>[
-              xattrCommand,
-              setUpFakeXcodeBuildHandler(
-                onRun: (_) {
-                  fileSystem
-                      .directory('build/ios/Release-iphoneos/Runner.app')
-                      .createSync(recursive: true);
-                },
-              ),
-              setUpRsyncCommand(
-                onRun:
-                    (_) =>
-                        fileSystem.file(
-                            'build/ios/iphoneos/Runner.app/Frameworks/App.framework/App',
-                          )
-                          ..createSync(recursive: true)
-                          ..writeAsBytesSync(List<int>.generate(10000, (int index) => 0)),
-              ),
-            ]),
+        ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+          xattrCommand,
+          setUpFakeXcodeBuildHandler(
+            onRun: (_) {
+              fileSystem
+                  .directory('build/ios/Release-iphoneos/Runner.app')
+                  .createSync(recursive: true);
+            },
+          ),
+          setUpRsyncCommand(
+            onRun: (_) =>
+                fileSystem.file('build/ios/iphoneos/Runner.app/Frameworks/App.framework/App')
+                  ..createSync(recursive: true)
+                  ..writeAsBytesSync(List<int>.generate(10000, (int index) => 0)),
+          ),
+        ]),
         Platform: () => macosPlatform,
         FileSystemUtils: () => FileSystemUtils(fileSystem: fileSystem, platform: macosPlatform),
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
-        FlutterProjectFactory:
-            () => FlutterProjectFactory(fileSystem: fileSystem, logger: BufferLogger.test()),
-        PlistParser:
-            () => PlistParser(
-              fileSystem: fileSystem,
-              logger: BufferLogger.test(),
-              processManager: FakeProcessManager.list(<FakeCommand>[
-                plutilCommand,
-                plutilCommand,
-                plutilCommand,
-              ]),
-            ),
-        Pub: FakePubWithPrimedDeps.new,
+        FlutterProjectFactory: () =>
+            FlutterProjectFactory(fileSystem: fileSystem, logger: BufferLogger.test()),
+        PlistParser: () => PlistParser(
+          fileSystem: fileSystem,
+          logger: BufferLogger.test(),
+          processManager: FakeProcessManager.list(<FakeCommand>[
+            plutilCommand,
+            plutilCommand,
+            plutilCommand,
+          ]),
+        ),
+        Pub: ThrowingPub.new,
         Analytics: () => fakeAnalytics,
       },
     );
@@ -786,7 +774,7 @@ void main() {
     testUsingContext(
       'Trace error if xcresult is empty.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -818,7 +806,7 @@ void main() {
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -827,7 +815,7 @@ void main() {
     testUsingContext(
       'Display xcresult issues on console if parsed, suppress Xcode output',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -866,7 +854,7 @@ void main() {
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -875,7 +863,7 @@ void main() {
     testUsingContext(
       'Do not display xcresult issues that needs to be discarded.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -919,7 +907,7 @@ void main() {
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -928,7 +916,7 @@ void main() {
     testUsingContext(
       'Trace if xcresult bundle does not exist.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -957,7 +945,7 @@ void main() {
       overrides: <Type, Generator>{
         FileSystem: () => fileSystem,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -966,7 +954,7 @@ void main() {
     testUsingContext(
       'Extra error message for provision profile issue in xcresult bundle.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1013,7 +1001,7 @@ void main() {
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1022,7 +1010,7 @@ void main() {
     testUsingContext(
       'Display xcresult issues with no provisioning profile.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1060,7 +1048,7 @@ void main() {
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1069,7 +1057,7 @@ void main() {
     testUsingContext(
       'Extra error message for missing simulator platform in xcresult bundle.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1101,7 +1089,7 @@ void main() {
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1110,7 +1098,7 @@ void main() {
     testUsingContext(
       'Delete xcresult bundle before each xcodebuild command.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1159,7 +1147,7 @@ void main() {
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1168,7 +1156,7 @@ void main() {
     testUsingContext(
       'Failed to parse xcresult but display missing provisioning profile issue from stdout.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1203,7 +1191,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1212,7 +1200,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
     testUsingContext(
       'Failed to parse xcresult but detected no development team issue.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1244,17 +1232,17 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
-        XcodeProjectInterpreter:
-            () => FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
+        XcodeProjectInterpreter: () =>
+            FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
       },
     );
 
     testUsingContext(
       'xcresult did not detect issue but detected by stdout.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1273,24 +1261,21 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
       },
       overrides: <Type, Generator>{
         FileSystem: () => fileSystem,
-        ProcessManager:
-            () => FakeProcessManager.list(<FakeCommand>[
-              xattrCommand,
-              setUpFakeXcodeBuildHandler(
-                exitCode: 1,
-                stdout: '''
+        ProcessManager: () => FakeProcessManager.list(<FakeCommand>[
+          xattrCommand,
+          setUpFakeXcodeBuildHandler(
+            exitCode: 1,
+            stdout: '''
 Runner requires a provisioning profile. Select a provisioning profile in the Signing & Capabilities editor
 ''',
-                onRun: (_) {
-                  fileSystem.systemTempDirectory
-                      .childDirectory(_xcBundleDirectoryPath)
-                      .createSync();
-                },
-              ),
-              setUpXCResultCommand(stdout: kSampleResultJsonNoIssues),
-              setUpRsyncCommand(),
-            ]),
-        Pub: FakePubWithPrimedDeps.new,
+            onRun: (_) {
+              fileSystem.systemTempDirectory.childDirectory(_xcBundleDirectoryPath).createSync();
+            },
+          ),
+          setUpXCResultCommand(stdout: kSampleResultJsonNoIssues),
+          setUpRsyncCommand(),
+        ]),
+        Pub: ThrowingPub.new,
         EnvironmentType: () => EnvironmentType.physical,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
@@ -1300,7 +1285,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
     testUsingContext(
       'xcresult did not detect issue, no development team is detected from build setting.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1331,17 +1316,17 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
       overrides: <Type, Generator>{
         FileSystem: () => fileSystem,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
-        XcodeProjectInterpreter:
-            () => FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
+        XcodeProjectInterpreter: () =>
+            FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
       },
     );
 
     testUsingContext(
       'No development team issue error message is not displayed if no provisioning profile issue is detected from xcresult first.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1374,17 +1359,17 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
-        XcodeProjectInterpreter:
-            () => FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
+        XcodeProjectInterpreter: () =>
+            FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
       },
     );
 
     testUsingContext(
       'General provisioning profile issue error message is not displayed if no development team issue is detected first.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1424,10 +1409,10 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
-        XcodeProjectInterpreter:
-            () => FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
+        XcodeProjectInterpreter: () =>
+            FakeXcodeProjectInterpreterWithBuildSettings(developmentTeam: null),
       },
     );
   });
@@ -1436,7 +1421,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
     testUsingContext(
       'Trace error if xcresult is empty.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1471,7 +1456,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1480,7 +1465,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
     testUsingContext(
       'Display xcresult issues on console if parsed.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1519,7 +1504,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1528,7 +1513,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
     testUsingContext(
       'Do not display xcresult issues that needs to be discarded.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1576,7 +1561,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1585,7 +1570,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
     testUsingContext(
       'Trace if xcresult bundle does not exist.',
       () async {
-        final BuildCommand command = BuildCommand(
+        final command = BuildCommand(
           androidSdk: FakeAndroidSdk(),
           buildSystem: TestBuildSystem.all(BuildResult(success: true)),
           fileSystem: fileSystem,
@@ -1617,7 +1602,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
         FileSystem: () => fileSystem,
         Logger: () => logger,
         ProcessManager: () => processManager,
-        Pub: FakePubWithPrimedDeps.new,
+        Pub: ThrowingPub.new,
         Platform: () => macosPlatform,
         XcodeProjectInterpreter: () => FakeXcodeProjectInterpreterWithBuildSettings(),
       },
@@ -1625,7 +1610,7 @@ Runner requires a provisioning profile. Select a provisioning profile in the Sig
   });
 }
 
-const String _xcBundleDirectoryPath =
+const _xcBundleDirectoryPath =
     '/.tmp_rand0/flutter_ios_build_temp_dirrand0/temporary_xcresult_bundle';
 
 class FakeAndroidSdk extends Fake implements AndroidSdk {

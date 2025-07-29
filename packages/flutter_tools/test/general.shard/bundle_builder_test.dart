@@ -67,14 +67,13 @@ void main() {
   testWithoutContext(
     'writeBundle applies transformations to any assets that have them defined',
     () async {
-      final MemoryFileSystem fileSystem = MemoryFileSystem.test();
-      final File asset =
-          fileSystem.file('my-asset.txt')
-            ..createSync()
-            ..writeAsBytesSync(<int>[1, 2, 3]);
-      final Artifacts artifacts = Artifacts.test();
+      final fileSystem = MemoryFileSystem.test();
+      final File asset = fileSystem.file('my-asset.txt')
+        ..createSync()
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final artifacts = Artifacts.test();
 
-      final FakeProcessManager processManager = FakeProcessManager.list(<FakeCommand>[
+      final processManager = FakeProcessManager.list(<FakeCommand>[
         FakeCommand(
           command: <Pattern>[
             artifacts.getArtifactPath(Artifact.engineDartBinary),
@@ -84,10 +83,11 @@ void main() {
             '--output=/.tmp_rand0/rand0/my-asset.txt-transformOutput1.txt',
           ],
           onRun: (List<String> command) {
-            final ArgResults argParseResults = (ArgParser()
-                  ..addOption('input', mandatory: true)
-                  ..addOption('output', mandatory: true))
-                .parse(command);
+            final ArgResults argParseResults =
+                (ArgParser()
+                      ..addOption('input', mandatory: true)
+                      ..addOption('output', mandatory: true))
+                    .parse(command);
 
             final File inputFile = fileSystem.file(argParseResults['input']);
             final File outputFile = fileSystem.file(argParseResults['output']);
@@ -102,15 +102,14 @@ void main() {
         ),
       ]);
 
-      final FakeAssetBundle bundle =
-          FakeAssetBundle()
-            ..entries['my-asset.txt'] = AssetBundleEntry(
-              DevFSFileContent(asset),
-              kind: AssetKind.regular,
-              transformers: const <AssetTransformerEntry>[
-                AssetTransformerEntry(package: 'increment', args: <String>[]),
-              ],
-            );
+      final bundle = FakeAssetBundle()
+        ..entries['my-asset.txt'] = AssetBundleEntry(
+          DevFSFileContent(asset),
+          kind: AssetKind.regular,
+          transformers: const <AssetTransformerEntry>[
+            AssetTransformerEntry(package: 'increment', args: <String>[]),
+          ],
+        );
 
       final Directory bundleDir = fileSystem.directory(
         getAssetBuildDirectory(Config.test(), fileSystem),
@@ -162,8 +161,8 @@ void main() {
     () async {
       final FlutterProject project = FlutterProject.fromDirectoryTest(globals.fs.currentDirectory);
       final String mainPath = globals.fs.path.join('lib', 'main.dart');
-      const String assetDirPath = 'example';
-      const String depfilePath = 'example.d';
+      const assetDirPath = 'example';
+      const depfilePath = 'example.d';
       Environment? env;
       final BuildSystem buildSystem = TestBuildSystem.all(BuildResult(success: true), (
         Target target,
@@ -220,7 +219,7 @@ void main() {
 
   testWithoutContext('--enable-experiment is removed from getDefaultCachedKernelPath hash', () {
     final FileSystem fileSystem = MemoryFileSystem.test();
-    final Config config = Config.test();
+    final config = Config.test();
 
     expect(
       getDefaultCachedKernelPath(
@@ -266,9 +265,38 @@ void main() {
       'build/95b595cca01caa5f0ca0a690339dd7f6.cache.dill.track.dill',
     );
   });
+
+  testUsingContext(
+    'Release bundle includes native assets',
+    () async {
+      final dependencies = <String>[];
+      final BuildSystem buildSystem = TestBuildSystem.all(BuildResult(success: true), (
+        Target target,
+        Environment environment,
+      ) {
+        for (final Target dep in target.dependencies) {
+          dependencies.add(dep.name);
+        }
+      });
+      await BundleBuilder().build(
+        platform: TargetPlatform.ios,
+        buildInfo: BuildInfo.release,
+        project: FlutterProject.fromDirectoryTest(globals.fs.currentDirectory),
+        mainPath: globals.fs.path.join('lib', 'main.dart'),
+        assetDirPath: 'example',
+        depfilePath: 'example.d',
+        buildSystem: buildSystem,
+      );
+      expect(dependencies, contains('install_code_assets'));
+    },
+    overrides: <Type, Generator>{
+      FileSystem: () => MemoryFileSystem.test(),
+      ProcessManager: () => FakeProcessManager.any(),
+    },
+  );
 }
 
 class FakeAssetBundle extends Fake implements AssetBundle {
   @override
-  final Map<String, AssetBundleEntry> entries = <String, AssetBundleEntry>{};
+  final entries = <String, AssetBundleEntry>{};
 }

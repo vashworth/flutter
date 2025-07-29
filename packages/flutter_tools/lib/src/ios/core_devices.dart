@@ -47,7 +47,7 @@ class IOSCoreDeviceControl {
   /// When the `--timeout` flag is used with `devicectl`, it must be at
   /// least 5 seconds. If lower than 5 seconds, `devicectl` will error and not
   /// run the command.
-  static const int _minimumTimeoutInSeconds = 5;
+  static const _minimumTimeoutInSeconds = 5;
 
   /// Executes `devicectl` command to get list of devices. The command will
   /// likely complete before [timeout] is reached. If [timeout] is reached,
@@ -61,7 +61,7 @@ class IOSCoreDeviceControl {
     }
 
     // Default to minimum timeout if needed to prevent error.
-    Duration validTimeout = timeout;
+    var validTimeout = timeout;
     if (timeout.inSeconds < _minimumTimeoutInSeconds) {
       _logger.printError(
         'Timeout of ${timeout.inSeconds} seconds is below the minimum timeout value '
@@ -74,7 +74,7 @@ class IOSCoreDeviceControl {
     final File output = tempDirectory.childFile('core_device_list.json');
     output.createSync();
 
-    final List<String> command = <String>[
+    final command = <String>[
       ..._xcode.xcrunCommand(),
       'devicectl',
       'list',
@@ -87,7 +87,7 @@ class IOSCoreDeviceControl {
 
     try {
       final RunResult result = await _processUtils.run(command, throwOnError: true);
-      bool isToolPossiblyShutdown = false;
+      var isToolPossiblyShutdown = false;
       if (_fileSystem is ErrorHandlingFileSystem) {
         final FileSystem delegate = _fileSystem.fileSystem;
         if (delegate is LocalFileSystem) {
@@ -162,7 +162,7 @@ class IOSCoreDeviceControl {
     final File output = tempDirectory.childFile('core_device_app_list.json');
     output.createSync();
 
-    final List<String> command = <String>[
+    final command = <String>[
       ..._xcode.xcrunCommand(),
       'devicectl',
       'device',
@@ -237,7 +237,7 @@ class IOSCoreDeviceControl {
     final File output = tempDirectory.childFile('install_results.json');
     output.createSync();
 
-    final List<String> command = <String>[
+    final command = <String>[
       ..._xcode.xcrunCommand(),
       'devicectl',
       'device',
@@ -286,7 +286,7 @@ class IOSCoreDeviceControl {
     final File output = tempDirectory.childFile('uninstall_results.json');
     output.createSync();
 
-    final List<String> command = <String>[
+    final command = <String>[
       ..._xcode.xcrunCommand(),
       'devicectl',
       'device',
@@ -338,7 +338,7 @@ class IOSCoreDeviceControl {
     final File output = tempDirectory.childFile('launch_results.json');
     output.createSync();
 
-    final List<String> command = <String>[
+    final command = <String>[
       ..._xcode.xcrunCommand(),
       'devicectl',
       'device',
@@ -520,7 +520,7 @@ class IOSCoreDevice {
   ///   "visibilityClass" : "default"
   /// }
   factory IOSCoreDevice.fromBetaJson(Map<String, Object?> data, {required Logger logger}) {
-    final List<_IOSCoreDeviceCapability> capabilitiesList = <_IOSCoreDeviceCapability>[
+    final capabilitiesList = <_IOSCoreDeviceCapability>[
       if (data case {'capabilities': final List<Object?> capabilitiesData})
         for (final Object? capabilityData in capabilitiesData)
           if (capabilityData != null && capabilityData is Map<String, Object?>)
@@ -671,8 +671,9 @@ class _IOSCoreDeviceConnectionProperties {
     }
     return _IOSCoreDeviceConnectionProperties._(
       authenticationType: data['authenticationType']?.toString(),
-      isMobileDeviceOnly:
-          data['isMobileDeviceOnly'] is bool? ? data['isMobileDeviceOnly'] as bool? : null,
+      isMobileDeviceOnly: data['isMobileDeviceOnly'] is bool?
+          ? data['isMobileDeviceOnly'] as bool?
+          : null,
       lastConnectionDate: data['lastConnectionDate']?.toString(),
       localHostnames: localHostnames,
       pairingState: data['pairingState']?.toString(),
@@ -731,22 +732,24 @@ class IOSCoreDeviceProperties {
   /// }
   factory IOSCoreDeviceProperties.fromBetaJson(Map<String, Object?> data) {
     return IOSCoreDeviceProperties._(
-      bootedFromSnapshot:
-          data['bootedFromSnapshot'] is bool? ? data['bootedFromSnapshot'] as bool? : null,
+      bootedFromSnapshot: data['bootedFromSnapshot'] is bool?
+          ? data['bootedFromSnapshot'] as bool?
+          : null,
       bootedSnapshotName: data['bootedSnapshotName']?.toString(),
       bootState: data['bootState']?.toString(),
-      ddiServicesAvailable:
-          data['ddiServicesAvailable'] is bool? ? data['ddiServicesAvailable'] as bool? : null,
+      ddiServicesAvailable: data['ddiServicesAvailable'] is bool?
+          ? data['ddiServicesAvailable'] as bool?
+          : null,
       developerModeStatus: data['developerModeStatus']?.toString(),
-      hasInternalOSBuild:
-          data['hasInternalOSBuild'] is bool? ? data['hasInternalOSBuild'] as bool? : null,
+      hasInternalOSBuild: data['hasInternalOSBuild'] is bool?
+          ? data['hasInternalOSBuild'] as bool?
+          : null,
       name: data['name']?.toString(),
       osBuildUpdate: data['osBuildUpdate']?.toString(),
       osVersionNumber: data['osVersionNumber']?.toString(),
-      rootFileSystemIsWritable:
-          data['rootFileSystemIsWritable'] is bool?
-              ? data['rootFileSystemIsWritable'] as bool?
-              : null,
+      rootFileSystemIsWritable: data['rootFileSystemIsWritable'] is bool?
+          ? data['rootFileSystemIsWritable'] as bool?
+          : null,
       screenViewingURL: data['screenViewingURL']?.toString(),
     );
   }
@@ -849,8 +852,9 @@ class _IOSCoreDeviceHardwareProperties {
       deviceType: data['deviceType']?.toString(),
       ecid: data['ecid'] is int? ? data['ecid'] as int? : null,
       hardwareModel: data['hardwareModel']?.toString(),
-      internalStorageCapacity:
-          data['internalStorageCapacity'] is int? ? data['internalStorageCapacity'] as int? : null,
+      internalStorageCapacity: data['internalStorageCapacity'] is int?
+          ? data['internalStorageCapacity'] as int?
+          : null,
       marketingName: data['marketingName']?.toString(),
       platform: data['platform']?.toString(),
       productType: data['productType']?.toString(),
@@ -938,8 +942,9 @@ class IOSCoreDeviceInstalledApp {
   factory IOSCoreDeviceInstalledApp.fromBetaJson(Map<String, Object?> data) {
     return IOSCoreDeviceInstalledApp._(
       appClip: data['appClip'] is bool? ? data['appClip'] as bool? : null,
-      builtByDeveloper:
-          data['builtByDeveloper'] is bool? ? data['builtByDeveloper'] as bool? : null,
+      builtByDeveloper: data['builtByDeveloper'] is bool?
+          ? data['builtByDeveloper'] as bool?
+          : null,
       bundleIdentifier: data['bundleIdentifier']?.toString(),
       bundleVersion: data['bundleVersion']?.toString(),
       defaultApp: data['defaultApp'] is bool? ? data['defaultApp'] as bool? : null,

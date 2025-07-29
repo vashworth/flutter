@@ -16,6 +16,7 @@
 #include "impeller/core/formats.h"
 #include "impeller/core/texture_descriptor.h"
 #include "impeller/renderer/backend/gles/formats_gles.h"
+#include "impeller/renderer/backend/gles/handle_gles.h"
 
 namespace impeller {
 
@@ -45,7 +46,8 @@ static bool IsDepthStencilFormat(PixelFormat format) {
 }
 
 static TextureGLES::Type GetTextureTypeFromDescriptor(
-    const TextureDescriptor& desc) {
+    const TextureDescriptor& desc,
+    const std::shared_ptr<const CapabilitiesGLES>& capabilities) {
   const auto usage = static_cast<TextureUsageMask>(desc.usage);
   const auto render_target = TextureUsage::kRenderTarget;
   const auto is_msaa = desc.sample_count == SampleCount::kCount4;
@@ -53,7 +55,9 @@ static TextureGLES::Type GetTextureTypeFromDescriptor(
     return is_msaa ? TextureGLES::Type::kRenderBufferMultisampled
                    : TextureGLES::Type::kRenderBuffer;
   }
-  return is_msaa ? TextureGLES::Type::kTextureMultisampled
+  return is_msaa ? (capabilities->SupportsImplicitResolvingMSAA()
+                        ? TextureGLES::Type::kTextureMultisampled
+                        : TextureGLES::Type::kRenderBufferMultisampled)
                  : TextureGLES::Type::kTexture;
 }
 
@@ -84,12 +88,12 @@ struct TexImage2DData {
         type = GL_UNSIGNED_BYTE;
         break;
       case PixelFormat::kR32G32B32A32Float:
-        internal_format = GL_RGBA;
+        internal_format = GL_RGBA32F;
         external_format = GL_RGBA;
         type = GL_FLOAT;
         break;
       case PixelFormat::kR16G16B16A16Float:
-        internal_format = GL_RGBA;
+        internal_format = GL_RGBA16F;
         external_format = GL_RGBA;
         type = GL_HALF_FLOAT;
         break;
@@ -145,7 +149,7 @@ std::shared_ptr<TextureGLES> TextureGLES::WrapFBO(
     TextureDescriptor desc,
     GLuint fbo) {
   auto texture = std::shared_ptr<TextureGLES>(
-      new TextureGLES(std::move(reactor), desc, fbo, std::nullopt));
+      new TextureGLES(std::move(reactor), desc, false, fbo, std::nullopt));
   if (!texture->IsValid()) {
     return nullptr;
   }
@@ -164,8 +168,8 @@ std::shared_ptr<TextureGLES> TextureGLES::WrapTexture(
     VALIDATION_LOG << "Cannot wrap a non-texture handle.";
     return nullptr;
   }
-  auto texture = std::shared_ptr<TextureGLES>(
-      new TextureGLES(std::move(reactor), desc, std::nullopt, external_handle));
+  auto texture = std::shared_ptr<TextureGLES>(new TextureGLES(
+      std::move(reactor), desc, false, std::nullopt, external_handle));
   if (!texture->IsValid()) {
     return nullptr;
   }
@@ -179,23 +183,30 @@ std::shared_ptr<TextureGLES> TextureGLES::CreatePlaceholder(
 }
 
 TextureGLES::TextureGLES(std::shared_ptr<ReactorGLES> reactor,
-                         TextureDescriptor desc)
+                         TextureDescriptor desc,
+                         bool threadsafe)
     : TextureGLES(std::move(reactor),  //
                   desc,                //
+                  threadsafe,          //
                   std::nullopt,        //
                   std::nullopt         //
       ) {}
 
 TextureGLES::TextureGLES(std::shared_ptr<ReactorGLES> reactor,
                          TextureDescriptor desc,
+                         bool threadsafe,
                          std::optional<GLuint> fbo,
                          std::optional<HandleGLES> external_handle)
     : Texture(desc),
       reactor_(std::move(reactor)),
-      type_(GetTextureTypeFromDescriptor(GetTextureDescriptor())),
+      type_(GetTextureTypeFromDescriptor(
+          GetTextureDescriptor(),
+          reactor_->GetProcTable().GetCapabilities())),
       handle_(external_handle.has_value()
                   ? external_handle.value()
-                  : reactor_->CreateUntrackedHandle(ToHandleType(type_))),
+                  : (threadsafe ? reactor_->CreateHandle(ToHandleType(type_))
+                                : reactor_->CreateUntrackedHandle(
+                                      ToHandleType(type_)))),
       is_wrapped_(fbo.has_value() || external_handle.has_value()),
       wrapped_fbo_(fbo) {
   // Ensure the texture descriptor itself is valid.
@@ -219,9 +230,13 @@ TextureGLES::TextureGLES(std::shared_ptr<ReactorGLES> reactor,
 // |Texture|
 TextureGLES::~TextureGLES() {
   reactor_->CollectHandle(handle_);
-  if (cached_fbo_ != GL_NONE) {
-    reactor_->GetProcTable().DeleteFramebuffers(1, &cached_fbo_);
+  if (!cached_fbo_.IsDead()) {
+    reactor_->CollectHandle(cached_fbo_);
   }
+}
+
+void TextureGLES::Leak() {
+  handle_ = HandleGLES::DeadHandle();
 }
 
 // |Texture|
@@ -367,7 +382,7 @@ static std::optional<GLenum> ToRenderBufferFormat(PixelFormat format) {
   switch (format) {
     case PixelFormat::kB8G8R8A8UNormInt:
     case PixelFormat::kR8G8B8A8UNormInt:
-      return GL_RGBA4;
+      return GL_RGBA8;
     case PixelFormat::kR32G32B32A32Float:
       return GL_RGBA32F;
     case PixelFormat::kR16G16B16A16Float:
@@ -457,21 +472,33 @@ void TextureGLES::InitializeContentsIfNecessary() const {
       }
       gl.BindRenderbuffer(GL_RENDERBUFFER, handle.value());
       {
-        TRACE_EVENT0("impeller", "RenderBufferStorageInitialization");
         if (type_ == Type::kRenderBufferMultisampled) {
-          gl.RenderbufferStorageMultisampleEXT(
-              GL_RENDERBUFFER,               // target
-              4,                             // samples
-              render_buffer_format.value(),  // internal format
-              size.width,                    // width
-              size.height                    // height
-          );
+          // BEWARE: these functions are not at all equivalent! the extensions
+          // are from EXT_multisampled_render_to_texture and cannot be used
+          // with regular GLES 3.0 multisampled renderbuffers/textures.
+          if (gl.GetCapabilities()->SupportsImplicitResolvingMSAA()) {
+            gl.RenderbufferStorageMultisampleEXT(
+                /*target=*/GL_RENDERBUFFER,                        //
+                /*samples=*/4,                                     //
+                /*internal_format=*/render_buffer_format.value(),  //
+                /*width=*/size.width,                              //
+                /*height=*/size.height                             //
+            );
+          } else {
+            gl.RenderbufferStorageMultisample(
+                /*target=*/GL_RENDERBUFFER,                        //
+                /*samples=*/4,                                     //
+                /*internal_format=*/render_buffer_format.value(),  //
+                /*width=*/size.width,                              //
+                /*height=*/size.height                             //
+            );
+          }
         } else {
           gl.RenderbufferStorage(
-              GL_RENDERBUFFER,               // target
-              render_buffer_format.value(),  // internal format
-              size.width,                    // width
-              size.height                    // height
+              /*target=*/GL_RENDERBUFFER,                        //
+              /*internal_format=*/render_buffer_format.value(),  //
+              /*width=*/size.width,                              //
+              /*height=*/size.height                             //
           );
         }
       }
@@ -659,11 +686,11 @@ std::optional<HandleGLES> TextureGLES::GetSyncFence() const {
   return fence_;
 }
 
-void TextureGLES::SetCachedFBO(GLuint fbo) {
+void TextureGLES::SetCachedFBO(HandleGLES fbo) {
   cached_fbo_ = fbo;
 }
 
-GLuint TextureGLES::GetCachedFBO() const {
+const HandleGLES& TextureGLES::GetCachedFBO() const {
   return cached_fbo_;
 }
 

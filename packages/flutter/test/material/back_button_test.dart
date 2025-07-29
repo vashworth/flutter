@@ -121,7 +121,9 @@ void main() {
 
   testWidgets('BackButton color', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Material(child: BackButton(color: Colors.red))),
+      const MaterialApp(
+        home: Material(child: BackButton(color: Colors.red)),
+      ),
     );
 
     final RichText iconText = tester.firstWidget(
@@ -132,9 +134,8 @@ void main() {
 
   testWidgets('BackButton color with ButtonStyle', (WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(useMaterial3: true),
-        home: const Material(
+      const MaterialApp(
+        home: Material(
           child: BackButton(
             style: ButtonStyle(iconColor: MaterialStatePropertyAll<Color>(Colors.red)),
           ),
@@ -152,9 +153,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(useMaterial3: true),
-        home: const Material(
+      const MaterialApp(
+        home: Material(
           child: BackButton(
             color: Colors.green,
             style: ButtonStyle(iconColor: MaterialStatePropertyAll<Color>(Colors.red)),
@@ -258,7 +258,9 @@ void main() {
 
   testWidgets('CloseButton color', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Material(child: CloseButton(color: Colors.red))),
+      const MaterialApp(
+        home: Material(child: CloseButton(color: Colors.red)),
+      ),
     );
 
     final RichText iconText = tester.firstWidget(
@@ -269,9 +271,8 @@ void main() {
 
   testWidgets('CloseButton color with ButtonStyle', (WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(useMaterial3: true),
-        home: const Material(
+      const MaterialApp(
+        home: Material(
           child: CloseButton(
             style: ButtonStyle(iconColor: MaterialStatePropertyAll<Color>(Colors.red)),
           ),
@@ -289,9 +290,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(useMaterial3: true),
-        home: const Material(
+      const MaterialApp(
+        home: Material(
           child: CloseButton(
             color: Colors.green,
             style: ButtonStyle(iconColor: MaterialStatePropertyAll<Color>(Colors.red)),

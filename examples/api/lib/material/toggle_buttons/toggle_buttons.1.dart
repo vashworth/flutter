@@ -14,10 +14,7 @@ class ToggleButtonsApp extends StatelessWidget {
   const ToggleButtonsApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: ThemeData(useMaterial3: true),
-      home: const Scaffold(body: ToggleButtonsExample()),
-    );
+    return const MaterialApp(home: Scaffold(body: ToggleButtonsExample()));
   }
 }
 
@@ -39,8 +36,9 @@ class ToggleButtonsExample extends StatefulWidget {
 }
 
 class _ToggleButtonsExampleState extends State<ToggleButtonsExample> {
-  final List<bool> _toggleButtonsSelection =
-      ShirtSize.values.map((ShirtSize e) => e == ShirtSize.medium).toList();
+  final List<bool> _toggleButtonsSelection = ShirtSize.values
+      .map((ShirtSize e) => e == ShirtSize.medium)
+      .toList();
   Set<ShirtSize> _segmentedButtonSelection = <ShirtSize>{ShirtSize.medium};
 
   @override
@@ -87,10 +85,9 @@ class _ToggleButtonsExampleState extends State<ToggleButtonsExample> {
             },
             // SegmentedButton uses a List<ButtonSegment<T>> to build its children
             // instead of a List<Widget> like ToggleButtons.
-            segments:
-                shirtSizeOptions.map<ButtonSegment<ShirtSize>>(((ShirtSize, String) shirt) {
-                  return ButtonSegment<ShirtSize>(value: shirt.$1, label: Text(shirt.$2));
-                }).toList(),
+            segments: shirtSizeOptions.map<ButtonSegment<ShirtSize>>(((ShirtSize, String) shirt) {
+              return ButtonSegment<ShirtSize>(value: shirt.$1, label: Text(shirt.$2));
+            }).toList(),
           ),
         ],
       ),

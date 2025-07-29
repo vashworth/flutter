@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
@@ -75,6 +76,7 @@ class CupertinoButton extends StatefulWidget {
     this.sizeStyle = CupertinoButtonSize.large,
     this.padding,
     this.color,
+    this.foregroundColor,
     this.disabledColor = CupertinoColors.quaternarySystemFill,
     @Deprecated(
       'Use minimumSize instead. '
@@ -89,6 +91,7 @@ class CupertinoButton extends StatefulWidget {
     this.focusNode,
     this.onFocusChange,
     this.autofocus = false,
+    this.mouseCursor,
     this.onLongPress,
     required this.onPressed,
   }) : assert(pressedOpacity == null || (pressedOpacity >= 0.0 && pressedOpacity <= 1.0)),
@@ -110,6 +113,7 @@ class CupertinoButton extends StatefulWidget {
     this.sizeStyle = CupertinoButtonSize.large,
     this.padding,
     this.color,
+    this.foregroundColor,
     this.disabledColor = CupertinoColors.tertiarySystemFill,
     @Deprecated(
       'Use minimumSize instead. '
@@ -124,6 +128,7 @@ class CupertinoButton extends StatefulWidget {
     this.focusNode,
     this.onFocusChange,
     this.autofocus = false,
+    this.mouseCursor,
     this.onLongPress,
     required this.onPressed,
   }) : assert(minimumSize == null || minSize == null),
@@ -140,6 +145,7 @@ class CupertinoButton extends StatefulWidget {
     this.padding,
     this.color,
     this.disabledColor = CupertinoColors.tertiarySystemFill,
+    this.foregroundColor,
     @Deprecated(
       'Use minimumSize instead. '
       'This feature was deprecated after v3.28.0-3.0.pre.',
@@ -153,6 +159,7 @@ class CupertinoButton extends StatefulWidget {
     this.focusNode,
     this.onFocusChange,
     this.autofocus = false,
+    this.mouseCursor,
     this.onLongPress,
     required this.onPressed,
   }) : assert(pressedOpacity == null || (pressedOpacity >= 0.0 && pressedOpacity <= 1.0)),
@@ -184,6 +191,12 @@ class CupertinoButton extends StatefulWidget {
   /// Defaults to [CupertinoColors.quaternarySystemFill] when [color] is
   /// specified.
   final Color disabledColor;
+
+  /// The color of the button's text and icons.
+  ///
+  /// Defaults to the [CupertinoTheme]'s `primaryColor` when the
+  /// [CupertinoButton.filled] constructor is used.
+  final Color? foregroundColor;
 
   /// The callback that is called when the button is tapped or otherwise activated.
   ///
@@ -257,11 +270,42 @@ class CupertinoButton extends StatefulWidget {
   /// {@macro flutter.widgets.Focus.autofocus}
   final bool autofocus;
 
+  /// The cursor for a mouse pointer when it enters or is hovering over the widget.
+  ///
+  /// If [mouseCursor] is a [WidgetStateMouseCursor],
+  /// [WidgetStateProperty.resolve] is used for the following [WidgetState]:
+  ///  * [WidgetState.disabled].
+  ///  * [WidgetState.pressed].
+  ///  * [WidgetState.focused].
+  ///
+  /// If null, then [MouseCursor.defer] is used when the button is disabled.
+  /// When the button is enabled, [SystemMouseCursors.click] is used on Web
+  /// and [MouseCursor.defer] is used on other platforms.
+  ///
+  /// See also:
+  ///
+  ///  * [WidgetStateMouseCursor], a [MouseCursor] that implements
+  ///    [WidgetStateProperty] which is used in APIs that need to accept
+  ///    either a [MouseCursor] or a [WidgetStateProperty].
+  final MouseCursor? mouseCursor;
+
   final _CupertinoButtonStyle _style;
 
   /// Whether the button is enabled or disabled. Buttons are disabled by default. To
   /// enable a button, set [onPressed] or [onLongPress] to a non-null value.
   bool get enabled => onPressed != null || onLongPress != null;
+
+  /// The distance a button needs to be moved after being pressed for its opacity to change.
+  ///
+  /// The opacity changes when the position moved is this distance away from the button.
+  static double tapMoveSlop() {
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.iOS ||
+      TargetPlatform.android ||
+      TargetPlatform.fuchsia => kCupertinoButtonTapMoveSlop,
+      TargetPlatform.macOS || TargetPlatform.linux || TargetPlatform.windows => 0.0,
+    };
+  }
 
   @override
   State<CupertinoButton> createState() => _CupertinoButtonState();
@@ -283,6 +327,13 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
   late Animation<double> _opacityAnimation;
 
   late bool isFocused;
+
+  static final WidgetStateProperty<MouseCursor> _defaultCursor =
+      WidgetStateProperty.resolveWith<MouseCursor>((Set<WidgetState> states) {
+        return !states.contains(WidgetState.disabled) && kIsWeb
+            ? SystemMouseCursors.click
+            : MouseCursor.defer;
+      });
 
   @override
   void initState() {
@@ -316,8 +367,12 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
   }
 
   bool _buttonHeldDown = false;
+  bool _tapInProgress = false;
 
   void _handleTapDown(TapDownDetails event) {
+    setState(() {
+      _tapInProgress = true;
+    });
     if (!_buttonHeldDown) {
       _buttonHeldDown = true;
       _animate();
@@ -325,15 +380,38 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
   }
 
   void _handleTapUp(TapUpDetails event) {
+    setState(() {
+      _tapInProgress = false;
+    });
+    if (_buttonHeldDown) {
+      _buttonHeldDown = false;
+      _animate();
+    }
+    final RenderBox renderObject = context.findRenderObject()! as RenderBox;
+    final Offset localPosition = renderObject.globalToLocal(event.globalPosition);
+    if (renderObject.paintBounds.inflate(CupertinoButton.tapMoveSlop()).contains(localPosition)) {
+      _handleTap();
+    }
+  }
+
+  void _handleTapCancel() {
+    setState(() {
+      _tapInProgress = false;
+    });
     if (_buttonHeldDown) {
       _buttonHeldDown = false;
       _animate();
     }
   }
 
-  void _handleTapCancel() {
-    if (_buttonHeldDown) {
-      _buttonHeldDown = false;
+  void _handleTapMove(TapMoveDetails event) {
+    final RenderBox renderObject = context.findRenderObject()! as RenderBox;
+    final Offset localPosition = renderObject.globalToLocal(event.globalPosition);
+    final bool buttonShouldHeldDown = renderObject.paintBounds
+        .inflate(CupertinoButton.tapMoveSlop())
+        .contains(localPosition);
+    if (_tapInProgress && buttonShouldHeldDown != _buttonHeldDown) {
+      _buttonHeldDown = buttonShouldHeldDown;
       _animate();
     }
   }
@@ -350,18 +428,17 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
       return;
     }
     final bool wasHeldDown = _buttonHeldDown;
-    final TickerFuture ticker =
-        _buttonHeldDown
-            ? _animationController.animateTo(
-              1.0,
-              duration: kFadeOutDuration,
-              curve: Curves.easeInOutCubicEmphasized,
-            )
-            : _animationController.animateTo(
-              0.0,
-              duration: kFadeInDuration,
-              curve: Curves.easeOutCubic,
-            );
+    final TickerFuture ticker = _buttonHeldDown
+        ? _animationController.animateTo(
+            1.0,
+            duration: kFadeOutDuration,
+            curve: Curves.easeInOutCubicEmphasized,
+          )
+        : _animationController.animateTo(
+            0.0,
+            duration: kFadeInDuration,
+            curve: Curves.easeOutCubic,
+          );
     ticker.then<void>((void value) {
       if (mounted && wasHeldDown != _buttonHeldDown) {
         _animate();
@@ -382,32 +459,33 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final bool enabled = widget.enabled;
-    final Size? minimumSize =
-        widget.minimumSize == null
-            ? widget.minSize == null
-                ? null
-                : Size(widget.minSize!, widget.minSize!)
-            : widget.minimumSize!;
+    final Size? minimumSize = widget.minimumSize == null
+        ? widget.minSize == null
+              ? null
+              : Size(widget.minSize!, widget.minSize!)
+        : widget.minimumSize!;
     final CupertinoThemeData themeData = CupertinoTheme.of(context);
     final Color primaryColor = themeData.primaryColor;
-    final Color? backgroundColor = (widget.color == null
-            ? widget._style != _CupertinoButtonStyle.plain
-                ? primaryColor
-                : null
-            : CupertinoDynamicColor.maybeResolve(widget.color, context))
-        ?.withOpacity(
-          widget._style == _CupertinoButtonStyle.tinted
-              ? CupertinoTheme.brightnessOf(context) == Brightness.light
-                  ? kCupertinoButtonTintedOpacityLight
-                  : kCupertinoButtonTintedOpacityDark
-              : widget.color?.opacity ?? 1.0,
-        );
-    final Color foregroundColor =
-        widget._style == _CupertinoButtonStyle.filled
-            ? themeData.primaryContrastingColor
-            : enabled
-            ? primaryColor
-            : CupertinoDynamicColor.resolve(CupertinoColors.tertiaryLabel, context);
+    final Color? backgroundColor =
+        (widget.color == null
+                ? widget._style != _CupertinoButtonStyle.plain
+                      ? primaryColor
+                      : null
+                : CupertinoDynamicColor.maybeResolve(widget.color, context))
+            ?.withOpacity(
+              widget._style == _CupertinoButtonStyle.tinted
+                  ? CupertinoTheme.brightnessOf(context) == Brightness.light
+                        ? kCupertinoButtonTintedOpacityLight
+                        : kCupertinoButtonTintedOpacityDark
+                  : widget.color?.opacity ?? 1.0,
+            );
+    final Color effectiveForegroundColor =
+        widget.foregroundColor ??
+        switch ((widget._style, enabled)) {
+          (_CupertinoButtonStyle.filled, _) => themeData.primaryContrastingColor,
+          (_, true) => primaryColor,
+          (_, false) => CupertinoDynamicColor.resolve(CupertinoColors.tertiaryLabel, context),
+        };
 
     final Color effectiveFocusOutlineColor =
         widget.focusColor ??
@@ -420,18 +498,47 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
             .withSaturation(kCupertinoFocusColorSaturation)
             .toColor();
 
-    final TextStyle textStyle = (widget.sizeStyle == CupertinoButtonSize.small
-            ? themeData.textTheme.actionSmallTextStyle
-            : themeData.textTheme.actionTextStyle)
-        .copyWith(color: foregroundColor);
+    final TextStyle textStyle =
+        (widget.sizeStyle == CupertinoButtonSize.small
+                ? themeData.textTheme.actionSmallTextStyle
+                : themeData.textTheme.actionTextStyle)
+            .copyWith(color: effectiveForegroundColor);
     final IconThemeData iconTheme = IconTheme.of(context).copyWith(
-      color: foregroundColor,
-      size:
-          textStyle.fontSize != null ? textStyle.fontSize! * 1.2 : kCupertinoButtonDefaultIconSize,
+      color: effectiveForegroundColor,
+      size: textStyle.fontSize != null
+          ? textStyle.fontSize! * 1.2
+          : kCupertinoButtonDefaultIconSize,
+    );
+
+    final DeviceGestureSettings? gestureSettings = MediaQuery.maybeGestureSettingsOf(context);
+
+    final Set<WidgetState> states = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+      if (_tapInProgress) WidgetState.pressed,
+      if (isFocused) WidgetState.focused,
+    };
+    final MouseCursor effectiveMouseCursor =
+        WidgetStateProperty.resolveAs<MouseCursor?>(widget.mouseCursor, states) ??
+        _defaultCursor.resolve(states);
+
+    final ShapeDecoration shapeDecoration = ShapeDecoration(
+      shape: RoundedSuperellipseBorder(
+        side: enabled && isFocused
+            ? BorderSide(
+                color: effectiveFocusOutlineColor,
+                width: 3.5,
+                strokeAlign: BorderSide.strokeAlignOutside,
+              )
+            : BorderSide.none,
+        borderRadius: widget.borderRadius ?? kCupertinoButtonSizeBorderRadius[widget.sizeStyle],
+      ),
+      color: backgroundColor != null && !enabled
+          ? CupertinoDynamicColor.resolve(widget.disabledColor, context)
+          : backgroundColor,
     );
 
     return MouseRegion(
-      cursor: enabled && kIsWeb ? SystemMouseCursors.click : MouseCursor.defer,
+      cursor: effectiveMouseCursor,
       child: FocusableActionDetector(
         actions: _actionMap,
         focusNode: widget.focusNode,
@@ -439,13 +546,29 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
         onFocusChange: widget.onFocusChange,
         onShowFocusHighlight: _onShowFocusHighlight,
         enabled: enabled,
-        child: GestureDetector(
+        child: RawGestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTapDown: enabled ? _handleTapDown : null,
-          onTapUp: enabled ? _handleTapUp : null,
-          onTapCancel: enabled ? _handleTapCancel : null,
-          onTap: widget.onPressed,
-          onLongPress: widget.onLongPress,
+          gestures: <Type, GestureRecognizerFactory>{
+            TapGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+              () => TapGestureRecognizer(postAcceptSlopTolerance: null),
+              (TapGestureRecognizer instance) {
+                instance.onTapDown = enabled ? _handleTapDown : null;
+                instance.onTapUp = enabled ? _handleTapUp : null;
+                instance.onTapCancel = enabled ? _handleTapCancel : null;
+                instance.onTapMove = enabled ? _handleTapMove : null;
+                instance.gestureSettings = gestureSettings;
+              },
+            ),
+            if (widget.onLongPress != null)
+              LongPressGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                    () => LongPressGestureRecognizer(),
+                    (LongPressGestureRecognizer instance) {
+                      instance.onLongPress = widget.onLongPress;
+                      instance.gestureSettings = gestureSettings;
+                    },
+                  ),
+          },
           child: Semantics(
             button: true,
             child: ConstrainedBox(
@@ -462,24 +585,7 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
               child: FadeTransition(
                 opacity: _opacityAnimation,
                 child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border:
-                        enabled && isFocused
-                            ? Border.fromBorderSide(
-                              BorderSide(
-                                color: effectiveFocusOutlineColor,
-                                width: 3.5,
-                                strokeAlign: BorderSide.strokeAlignOutside,
-                              ),
-                            )
-                            : null,
-                    borderRadius:
-                        widget.borderRadius ?? kCupertinoButtonSizeBorderRadius[widget.sizeStyle],
-                    color:
-                        backgroundColor != null && !enabled
-                            ? CupertinoDynamicColor.resolve(widget.disabledColor, context)
-                            : backgroundColor,
-                  ),
+                  decoration: shapeDecoration,
                   child: Padding(
                     padding: widget.padding ?? kCupertinoButtonPadding[widget.sizeStyle]!,
                     child: Align(

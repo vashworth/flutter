@@ -121,8 +121,9 @@ class RuntimeController : public PlatformConfigurationClient,
       const fml::closure& isolate_shutdown_callback,
       const std::shared_ptr<const fml::Mapping>& persistent_isolate_data,
       fml::WeakPtr<IOManager> io_manager,
-      fml::WeakPtr<ImageDecoder> image_decoder,
-      fml::WeakPtr<ImageGeneratorRegistry> image_generator_registry,
+      fml::TaskRunnerAffineWeakPtr<ImageDecoder> image_decoder,
+      fml::TaskRunnerAffineWeakPtr<ImageGeneratorRegistry>
+          image_generator_registry,
       fml::TaskRunnerAffineWeakPtr<SnapshotDelegate> snapshot_delegate) const;
 
   // |PlatformConfigurationClient|
@@ -156,6 +157,8 @@ class RuntimeController : public PlatformConfigurationClient,
   /// @param[in]  dart_entrypoint_args     Arguments passed as a List<String>
   ///                                      to Dart's entrypoint function.
   /// @param[in]  isolate_configuration    The isolate configuration
+  /// @param[in]  engine_id.               Engine identifier to be passed to the
+  ///                                      platform dispatcher.
   ///
   /// @return     If the isolate could be launched and guided to the
   ///             `DartIsolate::Phase::Running` phase.
@@ -167,7 +170,8 @@ class RuntimeController : public PlatformConfigurationClient,
       std::optional<std::string> dart_entrypoint_library,
       const std::vector<std::string>& dart_entrypoint_args,
       std::unique_ptr<IsolateConfiguration> isolate_configuration,
-      std::shared_ptr<NativeAssetsManager> native_assets_manager);
+      std::shared_ptr<NativeAssetsManager> native_assets_manager,
+      std::optional<int64_t> engine_id);
 
   //----------------------------------------------------------------------------
   /// @brief      Clone the runtime controller. Launching an isolate with a
@@ -441,17 +445,6 @@ class RuntimeController : public PlatformConfigurationClient,
   virtual bool NotifyIdle(fml::TimeDelta deadline);
 
   //----------------------------------------------------------------------------
-  /// @brief      Notify the Dart VM that the attached flutter view has been
-  ///             destroyed. This gives the Dart VM to perform some cleanup
-  ///             activities e.g: perform garbage collection to free up any
-  ///             unused memory.
-  ///
-  /// NotifyDestroyed is advisory. The VM may or may not perform any clean up
-  /// activities.
-  ///
-  virtual bool NotifyDestroyed();
-
-  //----------------------------------------------------------------------------
   /// @brief      Returns if the root isolate is running. The isolate must be
   ///             transitioned to the running phase manually. The isolate can
   ///             stop running if it terminates execution on its own.
@@ -487,7 +480,8 @@ class RuntimeController : public PlatformConfigurationClient,
   /// @brief      Dispatch the semantics action to the specified accessibility
   ///             node.
   ///
-  /// @param[in]  node_id The identified of the accessibility node.
+  /// @param[in]  view_id The identifier of the view.
+  /// @param[in]  node_id The identifier of the accessibility node.
   /// @param[in]  action  The semantics action to perform on the specified
   ///                     accessibility node.
   /// @param[in]  args    Optional data that applies to the specified action.
@@ -495,7 +489,8 @@ class RuntimeController : public PlatformConfigurationClient,
   /// @return     If the semantics action was dispatched. This may fail if an
   ///             isolate is not running.
   ///
-  bool DispatchSemanticsAction(int32_t node_id,
+  bool DispatchSemanticsAction(int64_t view_id,
+                               int32_t node_id,
                                SemanticsAction action,
                                fml::MallocMapping args);
 
@@ -673,6 +668,8 @@ class RuntimeController : public PlatformConfigurationClient,
     return platform_isolate_manager_;
   }
 
+  void SetRootIsolateOwnerToCurrentThread();
+
   //--------------------------------------------------------------------------
   /// @brief      Shuts down all registered platform isolates. Must be called
   ///             from the platform thread.
@@ -764,7 +761,7 @@ class RuntimeController : public PlatformConfigurationClient,
               double height) override;
 
   // |PlatformConfigurationClient|
-  void UpdateSemantics(SemanticsUpdate* update) override;
+  void UpdateSemantics(int64_t view_id, SemanticsUpdate* update) override;
 
   // |PlatformConfigurationClient|
   void HandlePlatformMessage(std::unique_ptr<PlatformMessage> message) override;

@@ -14,7 +14,7 @@ class ProgressIndicatorExampleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xff6750a4)),
+      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4)),
       home: const ProgressIndicatorExample(),
     );
   }
@@ -34,14 +34,15 @@ class _ProgressIndicatorExampleState extends State<ProgressIndicatorExample>
 
   @override
   void initState() {
-    controller = AnimationController(
-      /// [AnimationController]s can be created with `vsync: this` because of
-      /// [TickerProviderStateMixin].
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..addListener(() {
-      setState(() {});
-    });
+    controller =
+        AnimationController(
+          /// [AnimationController]s can be created with `vsync: this` because of
+          /// [TickerProviderStateMixin].
+          vsync: this,
+          duration: const Duration(seconds: 2),
+        )..addListener(() {
+          setState(() {});
+        });
     controller.repeat(reverse: true);
     super.initState();
   }

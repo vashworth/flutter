@@ -20,11 +20,7 @@ class PlatformViewApp extends StatefulWidget {
 class PlatformViewAppState extends State<PlatformViewApp> {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: ThemeData.light(),
-      title: 'Advanced Layout',
-      home: const PlatformViewLayout(),
-    );
+    return const MaterialApp(title: 'Advanced Layout', home: PlatformViewLayout());
   }
 }
 
@@ -44,10 +40,9 @@ class PlatformViewLayout extends StatelessWidget {
             child: Material(
               elevation: (index % 5 + 1).toDouble(),
               color: Colors.white,
-              child:
-                  index.isEven
-                      ? CustomPaint(painter: ExpensivePainter(), size: const Size(400, 200))
-                      : const DummyPlatformView(),
+              child: index.isEven
+                  ? CustomPaint(painter: ExpensivePainter(), size: const Size(400, 200))
+                  : const DummyPlatformView(),
             ),
           );
         },

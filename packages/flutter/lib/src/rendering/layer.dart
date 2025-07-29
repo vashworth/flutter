@@ -18,7 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:vector_math/vector_math_64.dart';
+import 'package:vector_math/vector_math_64.dart' show Vector4;
 
 import 'debug.dart';
 
@@ -1491,7 +1491,7 @@ class OffsetLayer extends ContainerLayer {
   @override
   void applyTransform(Layer? child, Matrix4 transform) {
     assert(child != null);
-    transform.translate(offset.dx, offset.dy);
+    transform.translateByDouble(offset.dx, offset.dy, 0, 1);
   }
 
   @override
@@ -1519,7 +1519,7 @@ class OffsetLayer extends ContainerLayer {
   ui.Scene _createSceneForImage(Rect bounds, {double pixelRatio = 1.0}) {
     final ui.SceneBuilder builder = ui.SceneBuilder();
     final Matrix4 transform = Matrix4.diagonal3Values(pixelRatio, pixelRatio, 1);
-    transform.translate(-(bounds.left + offset.dx), -(bounds.top + offset.dy));
+    transform.translateByDouble(-(bounds.left + offset.dx), -(bounds.top + offset.dy), 0, 1);
     builder.pushTransform(transform.storage);
     return buildScene(builder);
   }
@@ -1769,6 +1769,96 @@ class ClipRRectLayer extends ContainerLayer {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties.add(DiagnosticsProperty<RRect>('clipRRect', clipRRect));
+    properties.add(DiagnosticsProperty<Clip>('clipBehavior', clipBehavior));
+  }
+}
+
+/// A composite layer that clips its children using a rounded superellipse.
+///
+/// When debugging, setting [debugDisableClipLayers] to true will cause this
+/// layer to be skipped (directly replaced by its children). This can be helpful
+/// to track down the cause of performance problems.
+///
+/// Hit tests are performed based on the bounding box of the rounded
+/// superellipse.
+class ClipRSuperellipseLayer extends ContainerLayer {
+  /// Creates a layer with a rounded-rectangular clip.
+  ///
+  /// The [clipRSuperellipse] and [clipBehavior] properties must be non-null before the
+  /// compositing phase of the pipeline.
+  ClipRSuperellipseLayer({RSuperellipse? clipRSuperellipse, Clip clipBehavior = Clip.antiAlias})
+    : _clipRSuperellipse = clipRSuperellipse,
+      _clipBehavior = clipBehavior,
+      assert(clipBehavior != Clip.none);
+
+  /// The rounded-rect to clip in the parent's coordinate system.
+  ///
+  /// The scene must be explicitly recomposited after this property is changed
+  /// (as described at [Layer]).
+  RSuperellipse? get clipRSuperellipse => _clipRSuperellipse;
+  RSuperellipse? _clipRSuperellipse;
+  set clipRSuperellipse(RSuperellipse? value) {
+    if (value != _clipRSuperellipse) {
+      _clipRSuperellipse = value;
+      markNeedsAddToScene();
+    }
+  }
+
+  @override
+  Rect? describeClipBounds() => clipRSuperellipse?.outerRect;
+
+  /// {@macro flutter.rendering.ClipRectLayer.clipBehavior}
+  ///
+  /// Defaults to [Clip.antiAlias].
+  Clip get clipBehavior => _clipBehavior;
+  Clip _clipBehavior;
+  set clipBehavior(Clip value) {
+    assert(value != Clip.none);
+    if (value != _clipBehavior) {
+      _clipBehavior = value;
+      markNeedsAddToScene();
+    }
+  }
+
+  @override
+  bool findAnnotations<S extends Object>(
+    AnnotationResult<S> result,
+    Offset localPosition, {
+    required bool onlyFirst,
+  }) {
+    if (!clipRSuperellipse!.outerRect.contains(localPosition)) {
+      return false;
+    }
+    return super.findAnnotations<S>(result, localPosition, onlyFirst: onlyFirst);
+  }
+
+  @override
+  void addToScene(ui.SceneBuilder builder) {
+    assert(clipRSuperellipse != null);
+    bool enabled = true;
+    assert(() {
+      enabled = !debugDisableClipLayers;
+      return true;
+    }());
+    if (enabled) {
+      engineLayer = builder.pushClipRSuperellipse(
+        clipRSuperellipse!,
+        clipBehavior: clipBehavior,
+        oldLayer: _engineLayer as ui.ClipRSuperellipseEngineLayer?,
+      );
+    } else {
+      engineLayer = null;
+    }
+    addChildrenToScene(builder);
+    if (enabled) {
+      builder.pop();
+    }
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DiagnosticsProperty<RSuperellipse>('clipRSuperellipse', clipRSuperellipse));
     properties.add(DiagnosticsProperty<Clip>('clipBehavior', clipBehavior));
   }
 }
@@ -2488,7 +2578,7 @@ class LeaderLayer extends ContainerLayer {
   @override
   void applyTransform(Layer? child, Matrix4 transform) {
     if (offset != Offset.zero) {
-      transform.translate(offset.dx, offset.dy);
+      transform.translateByDouble(offset.dx, offset.dy, 0, 1);
     }
   }
 
@@ -2736,7 +2826,7 @@ class FollowerLayer extends ContainerLayer {
     // of the leader layer, to account for the leader's additional paint offset
     // and layer offset (LeaderLayer.offset).
     leader.applyTransform(null, forwardTransform);
-    forwardTransform.translate(linkedOffset!.dx, linkedOffset!.dy);
+    forwardTransform.translateByDouble(linkedOffset!.dx, linkedOffset!.dy, 0, 1);
 
     final Matrix4 inverseTransform = _collectTransformForLayerChain(inverseLayers);
 

@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:js_util' as js_util;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 import 'package:meta/meta.dart';
 import 'package:test/bootstrap/browser.dart';
@@ -83,7 +84,7 @@ void testMain() {
 
   test('_PointerEventContext generates expected events', () {
     DomPointerEvent expectCorrectType(DomEvent e) {
-      expect(domInstanceOfString(e, 'PointerEvent'), isTrue);
+      expect(e.isA<DomPointerEvent>(), isTrue);
       return e as DomPointerEvent;
     }
 
@@ -2310,7 +2311,7 @@ void testMain() {
     expect(data[1].physicalDeltaY, equals(0));
     packets.clear();
 
-    // Pointer move with coaleasced events
+    // Pointer move with coalesced events
     context
         .multiTouchMove(const <_TouchDetails>[
           _TouchDetails(
@@ -2526,7 +2527,7 @@ void testMain() {
       Listener.register(
         event: 'custom-event',
         target: eventTarget,
-        handler: (event) {
+        handler: (DomEvent event) {
           expect(event, expected);
           handled = true;
         },
@@ -2541,7 +2542,7 @@ void testMain() {
       final Listener listener = Listener.register(
         event: 'custom-event',
         target: eventTarget,
-        handler: (event) {
+        handler: (DomEvent event) {
           handled = true;
         },
       );
@@ -3068,11 +3069,11 @@ mixin _ButtonedEventMixin on _BasicEventContext {
     });
     // timeStamp can't be set in the constructor, need to override the getter.
     if (timeStamp != null) {
-      js_util.callMethod<void>(objectConstructor, 'defineProperty', <dynamic>[
+      objectConstructor.defineProperty(
         event,
         'timeStamp',
-        js_util.jsify(<String, dynamic>{'value': timeStamp, 'configurable': true}),
-      ]);
+        DomPropertyDataDescriptor(value: timeStamp, configurable: true),
+      );
     }
     return event;
   }
@@ -3252,27 +3253,20 @@ class _PointerEventContext extends _BasicEventContext
     if (coalescedEvents != null) {
       // There's no JS API for setting coalesced events, so we need to
       // monkey-patch the `getCoalescedEvents` method to return what we want.
-      final coalescedEventJs =
-          coalescedEvents
-              .map(
-                (_CoalescedTouchDetails details) => _moveWithFullDetails(
-                  pointer: details.pointer,
-                  button: button,
-                  buttons: buttons,
-                  clientX: details.clientX,
-                  clientY: details.clientY,
-                  pointerType: 'touch',
-                ),
-              )
-              .toJSAnyDeep;
+      final coalescedEventJs = coalescedEvents
+          .map(
+            (_CoalescedTouchDetails details) => _moveWithFullDetails(
+              pointer: details.pointer,
+              button: button,
+              buttons: buttons,
+              clientX: details.clientX,
+              clientY: details.clientY,
+              pointerType: 'touch',
+            ),
+          )
+          .toJSAnyDeep;
 
-      js_util.setProperty(
-        event,
-        'getCoalescedEvents',
-        js_util.allowInterop(() {
-          return coalescedEventJs;
-        }),
-      );
+      event['getCoalescedEvents'] = (() => coalescedEventJs).toJS;
     }
 
     return event;

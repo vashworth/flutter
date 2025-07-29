@@ -4,6 +4,7 @@
 
 import 'dart:ui';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -24,10 +25,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -85,10 +85,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -151,10 +150,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -210,10 +208,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -268,10 +265,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -328,10 +324,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -399,10 +394,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -458,10 +452,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -520,10 +513,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -581,10 +573,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -643,10 +634,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -757,10 +747,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -1011,14 +1000,11 @@ void main() {
     tooltipKey.currentState?.ensureTooltipVisible();
     await tester.pump(const Duration(seconds: 2)); // faded in, show timer started (and at 0.0)
 
-    final TextStyle textStyle =
-        tester
-            .widget<DefaultTextStyle>(
-              find
-                  .ancestor(of: find.text(tooltipText), matching: find.byType(DefaultTextStyle))
-                  .first,
-            )
-            .style;
+    final TextStyle textStyle = tester
+        .widget<DefaultTextStyle>(
+          find.ancestor(of: find.text(tooltipText), matching: find.byType(DefaultTextStyle)).first,
+        )
+        .style;
 
     // The default fallback text style results in a text with a
     // double underline of Color(0xffffff00).
@@ -1033,10 +1019,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -1083,10 +1068,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -1215,10 +1199,9 @@ void main() {
     );
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -1257,10 +1240,9 @@ void main() {
     );
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -1966,10 +1948,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -2022,10 +2003,9 @@ void main() {
     final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -2239,7 +2219,11 @@ void main() {
     final SemanticsTester semantics = SemanticsTester(tester);
 
     await tester.pumpWidget(
-      const MaterialApp(home: Center(child: Tooltip(message: 'Foo', child: Text('Bar')))),
+      const MaterialApp(
+        home: Center(
+          child: Tooltip(message: 'Foo', child: Text('Bar')),
+        ),
+      ),
     );
 
     expect(
@@ -2366,11 +2350,10 @@ void main() {
 
     const Tooltip(message: 'message').debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>['"message"']);
   });
@@ -2384,11 +2367,10 @@ void main() {
       ),
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>['"This is a richMessage"']);
   });
@@ -2412,11 +2394,10 @@ void main() {
       enableFeedback: true,
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[
       '"message"',
@@ -2739,7 +2720,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Tooltip(message: tooltipText, child: Text(tooltipText))),
+      const MaterialApp(
+        home: Tooltip(message: tooltipText, child: Text(tooltipText)),
+      ),
     );
     expect(find.text(tooltipText), findsOneWidget);
   });
@@ -2848,11 +2831,10 @@ void main() {
         home: Tooltip(
           richMessage: TextSpan(
             text: tooltipText,
-            recognizer:
-                recognizer
-                  ..onTap = () {
-                    isTapped = true;
-                  },
+            recognizer: recognizer
+              ..onTap = () {
+                isTapped = true;
+              },
           ),
           showDuration: const Duration(seconds: 5),
           triggerMode: TooltipTriggerMode.tap,
@@ -3311,7 +3293,10 @@ void main() {
   ) async {
     const InlineSpan richMessage = TextSpan(
       children: <InlineSpan>[
-        TextSpan(text: 'Rich ', style: TextStyle(fontWeight: FontWeight.bold)),
+        TextSpan(
+          text: 'Rich ',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         TextSpan(text: 'Tooltip'),
       ],
     );
@@ -3353,7 +3338,10 @@ void main() {
   ) async {
     const InlineSpan richMessage = TextSpan(
       children: <InlineSpan>[
-        TextSpan(text: 'Rich ', style: TextStyle(fontWeight: FontWeight.bold)),
+        TextSpan(
+          text: 'Rich ',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         TextSpan(text: 'Tooltip'),
       ],
     );
@@ -3388,6 +3376,174 @@ void main() {
     final IgnorePointer ignorePointer = tester.widget<IgnorePointer>(ignorePointerFinder.last);
     expect(ignorePointer.ignoring, isTrue);
 
+    await gesture.removePointer();
+  });
+
+  testWidgets('Tooltip should pass its default text style down to widget spans', (
+    WidgetTester tester,
+  ) async {
+    final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Tooltip(
+          key: tooltipKey,
+          richMessage: const WidgetSpan(child: Text(tooltipText)),
+          child: Container(width: 100.0, height: 100.0, color: Colors.green[500]),
+        ),
+      ),
+    );
+    tooltipKey.currentState?.ensureTooltipVisible();
+    await tester.pump(const Duration(seconds: 2));
+
+    final Finder defaultTextStyle = find.ancestor(
+      of: find.text(tooltipText),
+      matching: find.byType(DefaultTextStyle),
+    );
+    final DefaultTextStyle textStyle = tester.widget<DefaultTextStyle>(defaultTextStyle.first);
+    expect(textStyle.style.color, Colors.white);
+    expect(textStyle.style.fontFamily, 'Roboto');
+    expect(textStyle.style.decoration, TextDecoration.none);
+    expect(
+      textStyle.style.debugLabel,
+      '((englishLike bodyMedium 2021).merge((blackMountainView bodyMedium).apply)).copyWith',
+    );
+  });
+
+  testWidgets('Tooltip should apply provided text style to rich messages', (
+    WidgetTester tester,
+  ) async {
+    final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
+    const TextStyle expectedTextStyle = TextStyle(color: Colors.orange);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Tooltip(
+          key: tooltipKey,
+          richMessage: const TextSpan(text: tooltipText),
+          textStyle: expectedTextStyle,
+          child: Container(width: 100.0, height: 100.0, color: Colors.green[500]),
+        ),
+      ),
+    );
+    tooltipKey.currentState?.ensureTooltipVisible();
+    await tester.pump(const Duration(seconds: 2));
+
+    final TextStyle textStyle = tester.widget<Text>(find.text(tooltipText)).style!;
+    final Finder defaultTextStyleFinder = find.ancestor(
+      of: find.text(tooltipText),
+      matching: find.byType(DefaultTextStyle),
+    );
+    final TextStyle defaultTextStyle = tester
+        .widget<DefaultTextStyle>(defaultTextStyleFinder.first)
+        .style;
+    expect(textStyle, same(expectedTextStyle));
+    expect(defaultTextStyle, same(expectedTextStyle));
+  });
+
+  testWidgets('Tooltip respects and prefers the given constraints over theme constraints', (
+    WidgetTester tester,
+  ) async {
+    final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
+    const BoxConstraints themeConstraints = BoxConstraints.tightFor(width: 300, height: 150);
+    const BoxConstraints tooltipConstraints = BoxConstraints.tightFor(width: 500, height: 250);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(tooltipTheme: const TooltipThemeData(constraints: themeConstraints)),
+        home: Tooltip(
+          key: tooltipKey,
+          message: tooltipText,
+          constraints: tooltipConstraints,
+          padding: EdgeInsets.zero,
+          child: const ColoredBox(color: Colors.green),
+        ),
+      ),
+    );
+
+    tooltipKey.currentState?.ensureTooltipVisible();
+    await tester.pump(const Duration(seconds: 2));
+
+    final Finder textAncestors = find.ancestor(
+      of: find.text(tooltipText),
+      matching: find.byWidgetPredicate((_) => true),
+    );
+    expect(tester.element(textAncestors.first).size, equals(tooltipConstraints.biggest));
+  });
+
+  // This is a regression test for https://github.com/flutter/flutter/issues/167359.
+  testWidgets('Tooltip does not show while transitioning from another page', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            leading: const Center(
+              child: Tooltip(message: 'Hello', child: Text('World')),
+            ),
+          ),
+          body: Builder(
+            builder: (BuildContext context) {
+              return TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  CupertinoPageRoute<void>(
+                    builder: (BuildContext context) =>
+                        Scaffold(appBar: AppBar(title: const Text('Second Page'))),
+                  ),
+                ),
+                child: const Text('Go to Second Page'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Go to Second Page'));
+    await tester.pumpAndSettle();
+
+    final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await tester.tap(find.byType(BackButton));
+    await tester.pump(const Duration(milliseconds: 250));
+    await gesture.moveTo(tester.getCenter(find.text('World')));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
+  /// This is a regression test for https://github.com/flutter/flutter/issues/168545
+  testWidgets('The Tooltip on the ModalBottomSheet can still be displayed after showMenu.', (
+    WidgetTester tester,
+  ) async {
+    final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: const Scaffold(body: Placeholder()),
+      ),
+    );
+    showModalBottomSheet<void>(
+      context: navigatorKey.currentContext!,
+      builder: (_) {
+        return const Center(
+          child: Tooltip(message: 'Hello', child: Text('World')),
+        );
+      },
+    );
+    await tester.pumpAndSettle();
+    showMenu<void>(
+      context: navigatorKey.currentContext!,
+      items: <PopupMenuEntry<int>>[const PopupMenuItem<int>(value: 0, child: Text('item 1'))],
+      position: RelativeRect.fill,
+    );
+    await tester.pumpAndSettle();
+    navigatorKey.currentState!.pop();
+    await tester.pumpAndSettle();
+    final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('World')));
+    await tester.pumpAndSettle();
+    expect(find.text('Hello'), findsOne);
     await gesture.removePointer();
   });
 }

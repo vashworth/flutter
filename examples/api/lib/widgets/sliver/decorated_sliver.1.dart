@@ -16,10 +16,7 @@ class DecoratedSliverClipExampleApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'DecoratedSliver Clip Example',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple)),
       home: const DecoratedSliverClipExample(),
     );
   }
@@ -118,21 +115,17 @@ class ResizableCustomScrollView extends StatelessWidget {
           ),
           sliver: SliverList.builder(
             itemCount: 5,
-            itemBuilder:
-                (_, int index) => Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    children: <Widget>[
-                      const Icon(Icons.add_box, color: Color(0xFFA8A8A8)),
-                      Flexible(
-                        child: Text(
-                          'Item $index',
-                          style: const TextStyle(color: Color(0xFFA8A8A8)),
-                        ),
-                      ),
-                    ],
+            itemBuilder: (_, int index) => Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.add_box, color: Color(0xFFA8A8A8)),
+                  Flexible(
+                    child: Text('Item $index', style: const TextStyle(color: Color(0xFFA8A8A8))),
                   ),
-                ),
+                ],
+              ),
+            ),
           ),
         ),
       ],

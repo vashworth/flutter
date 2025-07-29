@@ -424,14 +424,13 @@ class PaginatedDataTableState extends State<PaginatedDataTable> {
 
   DataRow _getProgressIndicatorRowFor(int index) {
     bool haveProgressIndicator = false;
-    final List<DataCell> cells =
-        widget.columns.map<DataCell>((DataColumn column) {
-          if (!column.numeric) {
-            haveProgressIndicator = true;
-            return const DataCell(CircularProgressIndicator());
-          }
-          return DataCell.empty;
-        }).toList();
+    final List<DataCell> cells = widget.columns.map<DataCell>((DataColumn column) {
+      if (!column.numeric) {
+        haveProgressIndicator = true;
+        return const DataCell(CircularProgressIndicator());
+      }
+      return DataCell.empty;
+    }).toList();
     if (!haveProgressIndicator) {
       haveProgressIndicator = true;
       cells[0] = const DataCell(CircularProgressIndicator());
@@ -517,13 +516,12 @@ class PaginatedDataTableState extends State<PaginatedDataTable> {
     final TextStyle? footerTextStyle = themeData.textTheme.bodySmall;
     final List<Widget> footerWidgets = <Widget>[];
     if (widget.onRowsPerPageChanged != null) {
-      final List<Widget> availableRowsPerPage =
-          widget.availableRowsPerPage
-              .where((int value) => value <= _rowCount || value == widget.rowsPerPage)
-              .map<DropdownMenuItem<int>>((int value) {
-                return DropdownMenuItem<int>(value: value, child: Text('$value'));
-              })
-              .toList();
+      final List<Widget> availableRowsPerPage = widget.availableRowsPerPage
+          .where((int value) => value <= _rowCount || value == widget.rowsPerPage)
+          .map<DropdownMenuItem<int>>((int value) {
+            return DropdownMenuItem<int>(value: value, child: Text('$value'));
+          })
+          .toList();
       footerWidgets.addAll(<Widget>[
         // Match trailing padding, in case we overflow and end up scrolling.
         const SizedBox(width: 14.0),
@@ -557,28 +555,32 @@ class PaginatedDataTableState extends State<PaginatedDataTable> {
       const SizedBox(width: 32.0),
       if (widget.showFirstLastButtons)
         IconButton(
-          icon: Icon(Icons.skip_previous, color: widget.arrowHeadColor),
+          icon: const Icon(Icons.skip_previous),
           padding: EdgeInsets.zero,
+          color: widget.arrowHeadColor,
           tooltip: localizations.firstPageTooltip,
           onPressed: _firstRowIndex <= 0 ? null : _handleFirst,
         ),
       IconButton(
-        icon: Icon(Icons.chevron_left, color: widget.arrowHeadColor),
+        icon: const Icon(Icons.chevron_left),
         padding: EdgeInsets.zero,
+        color: widget.arrowHeadColor,
         tooltip: localizations.previousPageTooltip,
         onPressed: _firstRowIndex <= 0 ? null : _handlePrevious,
       ),
       const SizedBox(width: 24.0),
       IconButton(
-        icon: Icon(Icons.chevron_right, color: widget.arrowHeadColor),
+        icon: const Icon(Icons.chevron_right),
         padding: EdgeInsets.zero,
+        color: widget.arrowHeadColor,
         tooltip: localizations.nextPageTooltip,
         onPressed: _isNextPageUnavailable() ? null : _handleNext,
       ),
       if (widget.showFirstLastButtons)
         IconButton(
-          icon: Icon(Icons.skip_next, color: widget.arrowHeadColor),
+          icon: const Icon(Icons.skip_next),
           padding: EdgeInsets.zero,
+          color: widget.arrowHeadColor,
           tooltip: localizations.lastPageTooltip,
           onPressed: _isNextPageUnavailable() ? null : _handleLast,
         ),
@@ -600,12 +602,11 @@ class PaginatedDataTableState extends State<PaginatedDataTable> {
                     // These typographic styles aren't quite the regular ones. We pick the closest ones from the regular
                     // list and then tweak them appropriately.
                     // See https://material.io/design/components/data-tables.html#tables-within-cards
-                    style:
-                        _selectedRowCount > 0
-                            ? themeData.textTheme.titleMedium!.copyWith(
-                              color: themeData.colorScheme.secondary,
-                            )
-                            : themeData.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w400),
+                    style: _selectedRowCount > 0
+                        ? themeData.textTheme.titleMedium!.copyWith(
+                            color: themeData.colorScheme.secondary,
+                          )
+                        : themeData.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w400),
                     child: IconTheme.merge(
                       data: const IconThemeData(opacity: 0.54),
                       child: Ink(

@@ -32,11 +32,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const TextSelectionThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -49,11 +48,10 @@ void main() {
       selectionHandleColor: Color(0xaabbccdd),
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[
       'cursorColor: ${const Color(0xffeeffaa)}',
@@ -76,7 +74,10 @@ void main() {
     });
     // Test TextField's cursor & selection color.
     await tester.pumpWidget(
-      MaterialApp(theme: theme, home: const Material(child: TextField(autofocus: true))),
+      MaterialApp(
+        theme: theme,
+        home: const Material(child: TextField(autofocus: true)),
+      ),
     );
     await tester.pump();
     await tester.pumpAndSettle();
@@ -111,7 +112,7 @@ void main() {
   testWidgets('Material3 - Empty textSelectionTheme will use defaults', (
     WidgetTester tester,
   ) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     final Color defaultCursorColor = theme.colorScheme.primary;
     final Color defaultSelectionColor = theme.colorScheme.primary.withOpacity(0.40);
     final Color defaultSelectionHandleColor = theme.colorScheme.primary;
@@ -122,7 +123,10 @@ void main() {
     });
     // Test TextField's cursor & selection color.
     await tester.pumpWidget(
-      MaterialApp(theme: theme, home: const Material(child: TextField(autofocus: true))),
+      MaterialApp(
+        theme: theme,
+        home: const Material(child: TextField(autofocus: true)),
+      ),
     );
     await tester.pump();
     await tester.pumpAndSettle();
@@ -169,7 +173,10 @@ void main() {
 
     // Test TextField's cursor & selection color.
     await tester.pumpWidget(
-      MaterialApp(theme: theme, home: const Material(child: TextField(autofocus: true))),
+      MaterialApp(
+        theme: theme,
+        home: const Material(child: TextField(autofocus: true)),
+      ),
     );
     await tester.pump();
 

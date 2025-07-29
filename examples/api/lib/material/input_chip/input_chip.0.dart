@@ -14,7 +14,7 @@ class ChipApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4), useMaterial3: true),
+      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4)),
       home: const InputChipExample(),
     );
   }
@@ -43,27 +43,26 @@ class _InputChipExampleState extends State<InputChipExample> {
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 5.0,
-              children:
-                  List<Widget>.generate(inputs, (int index) {
-                    return InputChip(
-                      label: Text('Person ${index + 1}'),
-                      selected: selectedIndex == index,
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selectedIndex == index) {
-                            selectedIndex = null;
-                          } else {
-                            selectedIndex = index;
-                          }
-                        });
-                      },
-                      onDeleted: () {
-                        setState(() {
-                          inputs = inputs - 1;
-                        });
-                      },
-                    );
-                  }).toList(),
+              children: List<Widget>.generate(inputs, (int index) {
+                return InputChip(
+                  label: Text('Person ${index + 1}'),
+                  selected: selectedIndex == index,
+                  onSelected: (bool selected) {
+                    setState(() {
+                      if (selectedIndex == index) {
+                        selectedIndex = null;
+                      } else {
+                        selectedIndex = index;
+                      }
+                    });
+                  },
+                  onDeleted: () {
+                    setState(() {
+                      inputs = inputs - 1;
+                    });
+                  },
+                );
+              }).toList(),
             ),
             const SizedBox(height: 10),
             ElevatedButton(

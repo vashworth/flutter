@@ -25,9 +25,11 @@ void main() {
     const ColorScheme colorScheme = ColorScheme.light();
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData.from(colorScheme: colorScheme, useMaterial3: true),
+        theme: ThemeData.from(colorScheme: colorScheme),
         home: Scaffold(
-          body: Center(child: ElevatedButton(onPressed: () {}, child: const Text('button'))),
+          body: Center(
+            child: ElevatedButton(onPressed: () {}, child: const Text('button')),
+          ),
         ),
       ),
     );
@@ -63,7 +65,9 @@ void main() {
       MaterialApp(
         theme: ThemeData.from(colorScheme: colorScheme, useMaterial3: false),
         home: Scaffold(
-          body: Center(child: ElevatedButton(onPressed: () {}, child: const Text('button'))),
+          body: Center(
+            child: ElevatedButton(onPressed: () {}, child: const Text('button')),
+          ),
         ),
       ),
     );
@@ -154,13 +158,12 @@ void main() {
           body: Center(
             // If the ElevatedButtonTheme widget is present, it's used
             // instead of the Theme's ThemeData.ElevatedButtonTheme.
-            child:
-                themeStyle == null
-                    ? child
-                    : ElevatedButtonTheme(
-                      data: ElevatedButtonThemeData(style: themeStyle),
-                      child: child,
-                    ),
+            child: themeStyle == null
+                ? child
+                : ElevatedButtonTheme(
+                    data: ElevatedButtonThemeData(style: themeStyle),
+                    child: child,
+                  ),
           ),
         ),
       );
@@ -277,10 +280,7 @@ void main() {
 
     Widget buildFrame({Color? overallShadowColor, Color? themeShadowColor, Color? shadowColor}) {
       return MaterialApp(
-        theme: ThemeData.from(
-          useMaterial3: true,
-          colorScheme: colorScheme.copyWith(shadow: overallShadowColor),
-        ),
+        theme: ThemeData.from(colorScheme: colorScheme.copyWith(shadow: overallShadowColor)),
         home: Scaffold(
           body: Center(
             child: ElevatedButtonTheme(

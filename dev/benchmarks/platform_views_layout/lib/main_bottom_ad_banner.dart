@@ -23,10 +23,9 @@ class PlatformViewAppState extends State<PlatformViewApp> {
     // Test IDs from Admob:
     // https://developers.google.com/admob/ios/test-ads
     // https://developers.google.com/admob/android/test-ads
-    final String bannerId =
-        Platform.isAndroid
-            ? 'ca-app-pub-3940256099942544/6300978111'
-            : 'ca-app-pub-3940256099942544/2934735716';
+    final String bannerId = Platform.isAndroid
+        ? 'ca-app-pub-3940256099942544/6300978111'
+        : 'ca-app-pub-3940256099942544/2934735716';
     final BannerAd bannerAd = BannerAd(
       adUnitId: bannerId,
       request: const AdRequest(),
@@ -44,7 +43,6 @@ class PlatformViewAppState extends State<PlatformViewApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData.light(),
       title: 'Advanced Layout',
       home: Scaffold(
         appBar: AppBar(title: const Text('Platform View Bottom Ad Banner')),

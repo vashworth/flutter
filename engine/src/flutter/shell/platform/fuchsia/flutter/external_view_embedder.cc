@@ -114,17 +114,17 @@ void ExternalViewEmbedder::BeginFrame(
     const fml::RefPtr<fml::RasterThreadMerger>& raster_thread_merger) {}
 
 // |ExternalViewEmbedder|
-void ExternalViewEmbedder::PrepareFlutterView(SkISize frame_size,
+void ExternalViewEmbedder::PrepareFlutterView(flutter::DlISize frame_size,
                                               double device_pixel_ratio) {
   // Reset for new view.
   Reset();
-  frame_size_ = frame_size;
+  frame_size_ = flutter::ToSkISize(frame_size);
   frame_dpr_ = device_pixel_ratio;
 
   // Create the root layer.
   frame_layers_.emplace(std::make_pair(
       kRootLayerId,
-      EmbedderLayer(frame_size, std::nullopt, flutter::RTreeFactory())));
+      EmbedderLayer(frame_size_, std::nullopt, flutter::RTreeFactory())));
   frame_composition_order_.push_back(kRootLayerId);
 }
 
@@ -242,22 +242,24 @@ void ExternalViewEmbedder::SubmitFlutterView(
         // Compute mutators, and size for the platform view.
         const ViewMutators view_mutators =
             ParseMutatorStack(view_params.mutatorsStack());
-        const SkSize view_size = view_params.sizePoints();
+        const SkSize view_size = flutter::ToSkSize(view_params.sizePoints());
 
         // Verify that we're unpacking the mutators' transform matrix correctly.
         // Use built-in get method for SkMatrix to get values, see:
         // https://source.corp.google.com/piper///depot/google3/third_party/skia/HEAD/include/core/SkMatrix.h;l=391
+        SkMatrix view_params_transformMatrix =
+            flutter::ToSkMatrix(view_params.transformMatrix());
         for (int index = 0; index < 9; index++) {
           const SkScalar mutators_transform_value =
               view_mutators.total_transform.get(index);
           const SkScalar params_transform_value =
-              view_params.transformMatrix().get(index);
+              view_params_transformMatrix.get(index);
           if (!SkScalarNearlyEqual(mutators_transform_value,
                                    params_transform_value, 0.0005f)) {
             FML_LOG(ERROR)
                 << "Assertion failed: view_mutators.total_transform[" << index
                 << "] (" << mutators_transform_value
-                << ") != view_params.transformMatrix()[" << index << "] ("
+                << ") != view_params_transformMatrix[" << index << "] ("
                 << params_transform_value
                 << "). This likely means there is a bug with the "
                 << "logic for parsing embedded views' transform matrices.";
@@ -609,8 +611,8 @@ void ExternalViewEmbedder::Reset() {
 ExternalViewEmbedder::ViewMutators ExternalViewEmbedder::ParseMutatorStack(
     const flutter::MutatorsStack& mutators_stack) {
   ViewMutators mutators;
-  SkMatrix total_transform = SkMatrix::I();
-  SkMatrix transform_accumulator = SkMatrix::I();
+  flutter::DlMatrix total_transform;
+  flutter::DlMatrix transform_accumulator;
 
   for (auto i = mutators_stack.Begin(); i != mutators_stack.End(); ++i) {
     const auto& mutator = *i;
@@ -619,37 +621,44 @@ ExternalViewEmbedder::ViewMutators ExternalViewEmbedder::ParseMutatorStack(
         mutators.opacity *= std::clamp(mutator->GetAlphaFloat(), 0.f, 1.f);
       } break;
       case flutter::MutatorType::kTransform: {
-        total_transform.preConcat(mutator->GetMatrix());
-        transform_accumulator.preConcat(mutator->GetMatrix());
+        total_transform = total_transform * mutator->GetMatrix();
+        transform_accumulator = transform_accumulator * mutator->GetMatrix();
       } break;
       case flutter::MutatorType::kClipRect: {
         mutators.clips.emplace_back(TransformedClip{
-            .transform = transform_accumulator,
-            .rect = mutator->GetRect(),
+            .transform = flutter::ToSkMatrix(transform_accumulator),
+            .rect = flutter::ToSkRect(mutator->GetRect()),
         });
-        transform_accumulator = SkMatrix::I();
+        transform_accumulator = flutter::DlMatrix();
       } break;
       case flutter::MutatorType::kClipRRect: {
         mutators.clips.emplace_back(TransformedClip{
-            .transform = transform_accumulator,
-            .rect = mutator->GetRRect().getBounds(),
+            .transform = flutter::ToSkMatrix(transform_accumulator),
+            .rect = flutter::ToSkRect(mutator->GetRRect().GetBounds()),
         });
-        transform_accumulator = SkMatrix::I();
+        transform_accumulator = flutter::DlMatrix();
+      } break;
+      case flutter::MutatorType::kClipRSE: {
+        mutators.clips.emplace_back(TransformedClip{
+            .transform = flutter::ToSkMatrix(transform_accumulator),
+            .rect = flutter::ToSkRect(mutator->GetRSE().GetBounds()),
+        });
+        transform_accumulator = flutter::DlMatrix();
       } break;
       case flutter::MutatorType::kClipPath: {
         mutators.clips.emplace_back(TransformedClip{
-            .transform = transform_accumulator,
-            .rect = mutator->GetPath().getBounds(),
+            .transform = flutter::ToSkMatrix(transform_accumulator),
+            .rect = flutter::ToSkRect(mutator->GetPath().GetBounds()),
         });
-        transform_accumulator = SkMatrix::I();
+        transform_accumulator = flutter::DlMatrix();
       } break;
       default: {
         break;
       }
     }
   }
-  mutators.total_transform = total_transform;
-  mutators.transform = transform_accumulator;
+  mutators.total_transform = flutter::ToSkMatrix(total_transform);
+  mutators.transform = flutter::ToSkMatrix(transform_accumulator);
   mutators.opacity = std::clamp(mutators.opacity, 0.f, 1.f);
 
   return mutators;

@@ -111,7 +111,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(appBar: AppBar(centerTitle: false, title: const Placeholder(key: Key('X')))),
+        home: Scaffold(
+          appBar: AppBar(centerTitle: false, title: const Placeholder(key: Key('X'))),
+        ),
       ),
     );
 
@@ -406,7 +408,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Center(
-          child: SizedBox.shrink(child: Scaffold(appBar: AppBar(title: const Text('X')))),
+          child: SizedBox.shrink(
+            child: Scaffold(appBar: AppBar(title: const Text('X'))),
+          ),
         ),
       ),
     );
@@ -450,7 +454,10 @@ void main() {
   testWidgets('AppBar drawer icon has default size', (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(appBar: AppBar(title: const Text('Howdy!')), drawer: const Drawer()),
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Howdy!')),
+          drawer: const Drawer(),
+        ),
       ),
     );
     final double iconSize = const IconThemeData.fallback().size!;
@@ -458,14 +465,14 @@ void main() {
   });
 
   testWidgets('Material3 - AppBar drawer icon has default color', (WidgetTester tester) async {
-    final ThemeData themeData = ThemeData.from(
-      colorScheme: const ColorScheme.light(),
-      useMaterial3: true,
-    );
+    final ThemeData themeData = ThemeData.from(colorScheme: const ColorScheme.light());
     await tester.pumpWidget(
       MaterialApp(
         theme: themeData,
-        home: Scaffold(appBar: AppBar(title: const Text('Howdy!')), drawer: const Drawer()),
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Howdy!')),
+          drawer: const Drawer(),
+        ),
       ),
     );
 
@@ -492,7 +499,10 @@ void main() {
       MaterialApp(
         theme: themeData,
         home: Scaffold(
-          appBar: AppBar(title: const Text('Howdy!'), iconTheme: const IconThemeData(color: color)),
+          appBar: AppBar(
+            title: const Text('Howdy!'),
+            iconTheme: const IconThemeData(color: color),
+          ),
           drawer: const Drawer(),
         ),
       ),
@@ -504,7 +514,10 @@ void main() {
   testWidgets('AppBar endDrawer icon has default size', (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(appBar: AppBar(title: const Text('Howdy!')), endDrawer: const Drawer()),
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Howdy!')),
+          endDrawer: const Drawer(),
+        ),
       ),
     );
 
@@ -513,14 +526,14 @@ void main() {
   });
 
   testWidgets('Material3 - AppBar endDrawer icon has default color', (WidgetTester tester) async {
-    final ThemeData themeData = ThemeData.from(
-      colorScheme: const ColorScheme.light(),
-      useMaterial3: true,
-    );
+    final ThemeData themeData = ThemeData.from(colorScheme: const ColorScheme.light());
     await tester.pumpWidget(
       MaterialApp(
         theme: themeData,
-        home: Scaffold(appBar: AppBar(title: const Text('Howdy!')), endDrawer: const Drawer()),
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Howdy!')),
+          endDrawer: const Drawer(),
+        ),
       ),
     );
 
@@ -547,7 +560,10 @@ void main() {
       MaterialApp(
         theme: themeData,
         home: Scaffold(
-          appBar: AppBar(title: const Text('Howdy!'), iconTheme: const IconThemeData(color: color)),
+          appBar: AppBar(
+            title: const Text('Howdy!'),
+            iconTheme: const IconThemeData(color: color),
+          ),
           endDrawer: const Drawer(),
         ),
       ),
@@ -559,7 +575,7 @@ void main() {
   testWidgets('Material3 - leading widget extends to edge and is square', (
     WidgetTester tester,
   ) async {
-    final ThemeData themeData = ThemeData(platform: TargetPlatform.android, useMaterial3: true);
+    final ThemeData themeData = ThemeData(platform: TargetPlatform.android);
     await tester.pumpWidget(
       MaterialApp(
         theme: themeData,
@@ -581,7 +597,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: themeData,
-        home: Scaffold(appBar: AppBar(leading: Container(), title: const Text('X'))),
+        home: Scaffold(
+          appBar: AppBar(leading: Container(), title: const Text('X')),
+        ),
       ),
     );
 
@@ -609,7 +627,7 @@ void main() {
   });
 
   testWidgets('Material3 - Action is 4dp from edge and 48dp min', (WidgetTester tester) async {
-    final ThemeData theme = ThemeData(platform: TargetPlatform.android, useMaterial3: true);
+    final ThemeData theme = ThemeData(platform: TargetPlatform.android);
     await tester.pumpWidget(
       MaterialApp(
         theme: theme,
@@ -645,8 +663,9 @@ void main() {
   ) async {
     Widget buildAppBar([double? elevation]) {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
-        home: Scaffold(appBar: AppBar(title: const Text('Title'), elevation: elevation)),
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Title'), elevation: elevation),
+        ),
       );
     }
 
@@ -700,7 +719,6 @@ void main() {
   ) async {
     Widget buildAppBar({double? scrolledUnderElevation}) {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Scaffold(
           appBar: AppBar(
             title: const Text('Title'),
@@ -718,8 +736,8 @@ void main() {
                 width: 800.0,
                 child: ListView.builder(
                   itemCount: 100,
-                  itemBuilder:
-                      (BuildContext context, int index) => ListTile(title: Text('Item $index')),
+                  itemBuilder: (BuildContext context, int index) =>
+                      ListTile(title: Text('Item $index')),
                 ),
               );
             },
@@ -755,7 +773,10 @@ void main() {
         ],
         child: Directionality(
           textDirection: TextDirection.ltr,
-          child: MediaQuery(data: topPadding100, child: Scaffold(primary: false, appBar: AppBar())),
+          child: MediaQuery(
+            data: topPadding100,
+            child: Scaffold(primary: false, appBar: AppBar()),
+          ),
         ),
       ),
     );
@@ -868,7 +889,9 @@ void main() {
           textDirection: TextDirection.ltr,
           child: MediaQuery(
             data: const MediaQueryData(padding: EdgeInsets.symmetric(vertical: 100.0)),
-            child: Scaffold(body: Column(children: <Widget>[AppBar(title: const Text('title'))])),
+            child: Scaffold(
+              body: Column(children: <Widget>[AppBar(title: const Text('title'))]),
+            ),
           ),
         ),
       ),
@@ -912,7 +935,11 @@ void main() {
   testWidgets('AppBar updates when you add a drawer', (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(home: Scaffold(appBar: AppBar())));
     expect(find.byIcon(Icons.menu), findsNothing);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(drawer: const Drawer(), appBar: AppBar())));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(drawer: const Drawer(), appBar: AppBar()),
+      ),
+    );
     expect(find.byIcon(Icons.menu), findsOneWidget);
   });
 
@@ -926,6 +953,49 @@ void main() {
     );
     expect(find.byIcon(Icons.menu), findsNothing);
   });
+
+  testWidgets(
+    'AppBar does not draw menu for end drawer if automaticallyImplyActions is false and actions is null',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            endDrawer: const Drawer(),
+            appBar: AppBar(automaticallyImplyActions: false),
+          ),
+        ),
+      );
+      expect(find.byIcon(Icons.menu), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'AppBar draws menu for end drawer if automaticallyImplyActions is true (default) and actions is null',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(endDrawer: const Drawer(), appBar: AppBar()),
+        ),
+      );
+      expect(find.byIcon(Icons.menu), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'AppBar does not draw menu for end drawer if automaticallyImplyActions is true (default) but actions are explicitly provided',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            endDrawer: const Drawer(),
+            appBar: AppBar(actions: const <Widget>[Icon(Icons.settings)]),
+          ),
+        ),
+      );
+      expect(find.byIcon(Icons.menu), findsNothing);
+      expect(find.byIcon(Icons.settings), findsOneWidget);
+    },
+  );
 
   testWidgets('AppBar does not update the leading if a route is popped case 1', (
     WidgetTester tester,
@@ -1006,7 +1076,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         // Test was designed against InkSplash so need to make sure that is used.
-        theme: ThemeData(useMaterial3: true, splashFactory: InkSplash.splashFactory),
+        theme: ThemeData(splashFactory: InkSplash.splashFactory),
         home: Center(
           child: AppBar(
             title: const Text('Abc'),
@@ -1428,9 +1498,12 @@ void main() {
   testWidgets('Material3 - AppBar draws a light system bar for a dark background', (
     WidgetTester tester,
   ) async {
-    final ThemeData darkTheme = ThemeData.dark(useMaterial3: true);
+    final ThemeData darkTheme = ThemeData.dark();
     await tester.pumpWidget(
-      MaterialApp(theme: darkTheme, home: Scaffold(appBar: AppBar(title: const Text('test')))),
+      MaterialApp(
+        theme: darkTheme,
+        home: Scaffold(appBar: AppBar(title: const Text('test'))),
+      ),
     );
 
     expect(darkTheme.colorScheme.brightness, Brightness.dark);
@@ -1447,9 +1520,12 @@ void main() {
   testWidgets('Material3 - AppBar draws a dark system bar for a light background', (
     WidgetTester tester,
   ) async {
-    final ThemeData lightTheme = ThemeData(useMaterial3: true);
+    final ThemeData lightTheme = ThemeData();
     await tester.pumpWidget(
-      MaterialApp(theme: lightTheme, home: Scaffold(appBar: AppBar(title: const Text('test')))),
+      MaterialApp(
+        theme: lightTheme,
+        home: Scaffold(appBar: AppBar(title: const Text('test'))),
+      ),
     );
 
     expect(lightTheme.colorScheme.brightness, Brightness.light);
@@ -1475,15 +1551,16 @@ void main() {
 
       // Using a light theme.
       {
-        await tester.pumpWidget(buildAppBar(ThemeData(useMaterial3: true)));
+        await tester.pumpWidget(buildAppBar(ThemeData()));
         final Material appBarMaterial = tester.widget<Material>(
           find.descendant(of: find.byType(AppBar), matching: find.byType(Material)),
         );
         final Brightness appBarBrightness = ThemeData.estimateBrightnessForColor(
           appBarMaterial.color!,
         );
-        final Brightness onAppBarBrightness =
-            appBarBrightness == Brightness.light ? Brightness.dark : Brightness.light;
+        final Brightness onAppBarBrightness = appBarBrightness == Brightness.light
+            ? Brightness.dark
+            : Brightness.light;
 
         expect(
           SystemChrome.latestStyle,
@@ -1497,15 +1574,16 @@ void main() {
 
       // Using a dark theme.
       {
-        await tester.pumpWidget(buildAppBar(ThemeData.dark(useMaterial3: true)));
+        await tester.pumpWidget(buildAppBar(ThemeData.dark()));
         final Material appBarMaterial = tester.widget<Material>(
           find.descendant(of: find.byType(AppBar), matching: find.byType(Material)),
         );
         final Brightness appBarBrightness = ThemeData.estimateBrightnessForColor(
           appBarMaterial.color!,
         );
-        final Brightness onAppBarBrightness =
-            appBarBrightness == Brightness.light ? Brightness.dark : Brightness.light;
+        final Brightness onAppBarBrightness = appBarBrightness == Brightness.light
+            ? Brightness.dark
+            : Brightness.light;
 
         expect(
           SystemChrome.latestStyle,
@@ -1523,7 +1601,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         key: GlobalKey(),
-        theme: ThemeData.light().copyWith(useMaterial3: true, appBarTheme: const AppBarTheme()),
+        theme: ThemeData(appBarTheme: const AppBarThemeData()),
         home: Scaffold(appBar: AppBar(title: const Text('title'))),
       ),
     );
@@ -1744,7 +1822,9 @@ void main() {
 
   testWidgets("AppBar with EndDrawer doesn't have leading", (WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(appBar: AppBar(), endDrawer: const Drawer())),
+      MaterialApp(
+        home: Scaffold(appBar: AppBar(), endDrawer: const Drawer()),
+      ),
     );
 
     final Finder endDrawerFinder = find.byTooltip('Open navigation menu');
@@ -1760,7 +1840,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(appBar: AppBar(title: const Text('Title')))),
+      MaterialApp(
+        home: Scaffold(appBar: AppBar(title: const Text('Title'))),
+      ),
     );
 
     final NavigationToolbar navToolBar = tester.widget(find.byType(NavigationToolbar));
@@ -1781,7 +1863,10 @@ void main() {
             backgroundColor: backgroundColor,
             leading: Icon(Icons.add_circle, key: leadingIconKey),
             title: const Text('title'),
-            actions: <Widget>[Icon(Icons.ac_unit, key: actionIconKey), const Text('action')],
+            actions: <Widget>[
+              Icon(Icons.ac_unit, key: actionIconKey),
+              const Text('action'),
+            ],
           ),
         ),
       ),
@@ -1792,28 +1877,25 @@ void main() {
     );
     expect(appBarMaterial.color, backgroundColor);
 
-    final TextStyle titleTextStyle =
-        tester
-            .widget<DefaultTextStyle>(
-              find.ancestor(of: find.text('title'), matching: find.byType(DefaultTextStyle)).first,
-            )
-            .style;
+    final TextStyle titleTextStyle = tester
+        .widget<DefaultTextStyle>(
+          find.ancestor(of: find.text('title'), matching: find.byType(DefaultTextStyle)).first,
+        )
+        .style;
     expect(titleTextStyle.color, foregroundColor);
 
-    final IconThemeData leadingIconTheme =
-        tester
-            .widget<IconTheme>(
-              find.ancestor(of: find.byKey(leadingIconKey), matching: find.byType(IconTheme)).first,
-            )
-            .data;
+    final IconThemeData leadingIconTheme = tester
+        .widget<IconTheme>(
+          find.ancestor(of: find.byKey(leadingIconKey), matching: find.byType(IconTheme)).first,
+        )
+        .data;
     expect(leadingIconTheme.color, foregroundColor);
 
-    final IconThemeData actionIconTheme =
-        tester
-            .widget<IconTheme>(
-              find.ancestor(of: find.byKey(actionIconKey), matching: find.byType(IconTheme)).first,
-            )
-            .data;
+    final IconThemeData actionIconTheme = tester
+        .widget<IconTheme>(
+          find.ancestor(of: find.byKey(actionIconKey), matching: find.byType(IconTheme)).first,
+        )
+        .data;
     expect(actionIconTheme.color, foregroundColor);
 
     // Test icon color
@@ -1873,7 +1955,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData.from(colorScheme: const ColorScheme.light(), useMaterial3: true),
+          theme: ThemeData.from(colorScheme: const ColorScheme.light()),
           home: Scaffold(
             appBar: AppBar(
               iconTheme: const IconThemeData(color: iconColor),
@@ -1900,10 +1982,7 @@ void main() {
     testWidgets('Material3 - Action icons and IconButtons are colored by ActionIconTheme', (
       WidgetTester tester,
     ) async {
-      final ThemeData themeData = ThemeData.from(
-        colorScheme: const ColorScheme.light(),
-        useMaterial3: true,
-      );
+      final ThemeData themeData = ThemeData.from(colorScheme: const ColorScheme.light());
 
       const Color actionsIconColor = Color(0xff0000ff);
       final Key leadingIconKey = UniqueKey();
@@ -1938,10 +2017,7 @@ void main() {
     testWidgets('Material3 - The actionIconTheme property overrides iconTheme', (
       WidgetTester tester,
     ) async {
-      final ThemeData themeData = ThemeData.from(
-        colorScheme: const ColorScheme.light(),
-        useMaterial3: true,
-      );
+      final ThemeData themeData = ThemeData.from(colorScheme: const ColorScheme.light());
 
       const Color overallIconColor = Color(0xff00ff00);
       const Color actionsIconColor = Color(0xff0000ff);
@@ -1982,7 +2058,6 @@ void main() {
           iconButtonTheme: IconButtonThemeData(
             style: IconButton.styleFrom(foregroundColor: Colors.red, iconSize: 32.0),
           ),
-          useMaterial3: true,
         );
 
         const IconThemeData overallIconTheme = IconThemeData(color: Colors.yellow, size: 30.0);
@@ -2019,7 +2094,6 @@ void main() {
           iconButtonTheme: IconButtonThemeData(
             style: IconButton.styleFrom(foregroundColor: Colors.red, iconSize: 32.0),
           ),
-          useMaterial3: true,
         );
 
         const IconThemeData overallIconTheme = IconThemeData(color: Colors.yellow, size: 30.0);
@@ -2051,7 +2125,6 @@ void main() {
           iconButtonTheme: IconButtonThemeData(
             style: IconButton.styleFrom(foregroundColor: Colors.red, iconSize: 32.0),
           ),
-          useMaterial3: true,
         );
 
         const IconThemeData actionsIconTheme = IconThemeData(color: Colors.yellow, size: 30.0);
@@ -2089,7 +2162,6 @@ void main() {
           iconButtonTheme: IconButtonThemeData(
             style: IconButton.styleFrom(foregroundColor: Colors.red, iconSize: 32.0),
           ),
-          useMaterial3: true,
         );
 
         const IconThemeData actionsIconTheme = IconThemeData(color: Colors.yellow, size: 30.0);
@@ -2121,7 +2193,6 @@ void main() {
           iconButtonTheme: IconButtonThemeData(
             style: IconButton.styleFrom(foregroundColor: Colors.red),
           ),
-          useMaterial3: true,
         );
 
         await tester.pumpWidget(
@@ -2152,7 +2223,6 @@ void main() {
     ) async {
       final ThemeData themeData = ThemeData(
         colorScheme: const ColorScheme.dark().copyWith(onSurfaceVariant: Colors.red),
-        useMaterial3: true,
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -2180,7 +2250,6 @@ void main() {
     ) async {
       final ThemeData themeData = ThemeData(
         colorScheme: const ColorScheme.dark().copyWith(onSurfaceVariant: Colors.red),
-        useMaterial3: true,
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -2208,7 +2277,6 @@ void main() {
     ) async {
       final ThemeData themeData = ThemeData(
         colorScheme: const ColorScheme.light().copyWith(onSurfaceVariant: Colors.red),
-        useMaterial3: true,
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -2236,7 +2304,6 @@ void main() {
     ) async {
       final ThemeData themeData = ThemeData(
         colorScheme: const ColorScheme.light().copyWith(onSurfaceVariant: Colors.red),
-        useMaterial3: true,
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -2267,17 +2334,22 @@ void main() {
       required double contentHeight,
       bool reverse = false,
       bool includeFlexibleSpace = false,
+      bool animateColor = false,
+      double? scrolledUnderElevation,
     }) {
       return MaterialApp(
         home: Scaffold(
           appBar: AppBar(
             elevation: 0,
+            scrolledUnderElevation: scrolledUnderElevation,
             backgroundColor: MaterialStateColor.resolveWith((Set<MaterialState> states) {
               return states.contains(MaterialState.scrolledUnder) ? scrolledColor : defaultColor;
             }),
             title: const Text('AppBar'),
-            flexibleSpace:
-                includeFlexibleSpace ? const FlexibleSpaceBar(title: Text('FlexibleSpace')) : null,
+            flexibleSpace: includeFlexibleSpace
+                ? const FlexibleSpaceBar(title: Text('FlexibleSpace'))
+                : null,
+            animateColor: animateColor,
           ),
           body: ListView(
             reverse: reverse,
@@ -2360,6 +2432,39 @@ void main() {
 
       expect(getAppBarBackgroundColor(tester), defaultColor);
       expect(tester.getSize(findAppBarMaterial()).height, kToolbarHeight);
+    });
+
+    testWidgets('backgroundColor animation', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        buildAppBar(contentHeight: 1200.0, scrolledUnderElevation: 0, animateColor: true),
+      );
+
+      expect(getAppBarAnimatedBackgroundColor(tester), defaultColor);
+
+      TestGesture gesture = await tester.startGesture(const Offset(50.0, 400.0));
+      await gesture.moveBy(const Offset(0.0, -kToolbarHeight));
+      await gesture.up();
+      await tester.pump();
+
+      expect(getAppBarAnimatedBackgroundColor(tester), defaultColor);
+      await tester.pumpAndSettle();
+      expect(getAppBarAnimatedBackgroundColor(tester), scrolledColor);
+
+      gesture = await tester.startGesture(const Offset(50.0, 300.0));
+      await gesture.moveBy(const Offset(0.0, kToolbarHeight));
+      await gesture.up();
+      await tester.pump();
+
+      expect(getAppBarAnimatedBackgroundColor(tester), scrolledColor);
+
+      // Check intermediate color values.
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(getAppBarAnimatedBackgroundColor(tester), isSameColorAs(const Color(0xFF00C33C)));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(getAppBarAnimatedBackgroundColor(tester), isSameColorAs(const Color(0xFF0039C6)));
+
+      await tester.pumpAndSettle();
+      expect(getAppBarAnimatedBackgroundColor(tester), defaultColor);
     });
 
     testWidgets('backgroundColor with FlexibleSpace', (WidgetTester tester) async {
@@ -2733,7 +2838,11 @@ void main() {
     WidgetTester tester,
   ) async {
     final GlobalKey key = GlobalKey();
-    await tester.pumpWidget(MaterialApp(home: Scaffold(key: key, appBar: AppBar())));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(key: key, appBar: AppBar()),
+      ),
+    );
     expect(find.byType(BackButton), findsNothing);
 
     // Push one entry that doesn't imply app bar dismissal.
@@ -2756,9 +2865,7 @@ void main() {
     Widget buildFrame({double? themeToolbarHeight, double? appBarToolbarHeight}) {
       final AppBar appBar = AppBar(toolbarHeight: appBarToolbarHeight);
       return MaterialApp(
-        theme: ThemeData.light().copyWith(
-          appBarTheme: AppBarTheme(toolbarHeight: themeToolbarHeight),
-        ),
+        theme: ThemeData(appBarTheme: AppBarThemeData(toolbarHeight: themeToolbarHeight)),
         home: Builder(
           builder: (BuildContext context) {
             preferredHeight = AppBar.preferredHeightFor(context, appBar.preferredSize);
@@ -3106,8 +3213,8 @@ void main() {
                     Navigator.push(
                       context,
                       MaterialPageRoute<void>(
-                        builder:
-                            (_) => Scaffold(appBar: AppBar(title: const Text('Second Screen'))),
+                        builder: (_) =>
+                            Scaffold(appBar: AppBar(title: const Text('Second Screen'))),
                       ),
                     );
                   },
@@ -3152,8 +3259,8 @@ void main() {
                       Navigator.push(
                         context,
                         MaterialPageRoute<void>(
-                          builder:
-                              (_) => Scaffold(appBar: AppBar(title: const Text('Second Screen'))),
+                          builder: (_) =>
+                              Scaffold(appBar: AppBar(title: const Text('Second Screen'))),
                         ),
                       );
                     },
@@ -3215,7 +3322,10 @@ void main() {
     ) async {
       final ThemeData darkTheme = ThemeData.dark(useMaterial3: false);
       await tester.pumpWidget(
-        MaterialApp(theme: darkTheme, home: Scaffold(appBar: AppBar(title: const Text('test')))),
+        MaterialApp(
+          theme: darkTheme,
+          home: Scaffold(appBar: AppBar(title: const Text('test'))),
+        ),
       );
 
       expect(darkTheme.colorScheme.brightness, Brightness.dark);
@@ -3236,7 +3346,10 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: themeData,
-          home: Scaffold(appBar: AppBar(title: const Text('Howdy!')), drawer: const Drawer()),
+          home: Scaffold(
+            appBar: AppBar(title: const Text('Howdy!')),
+            drawer: const Drawer(),
+          ),
         ),
       );
 
@@ -3251,7 +3364,10 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: themeData,
-          home: Scaffold(appBar: AppBar(title: const Text('Howdy!')), endDrawer: const Drawer()),
+          home: Scaffold(
+            appBar: AppBar(title: const Text('Howdy!')),
+            endDrawer: const Drawer(),
+          ),
         ),
       );
 
@@ -3283,7 +3399,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: themeData,
-          home: Scaffold(appBar: AppBar(leading: Container(), title: const Text('X'))),
+          home: Scaffold(
+            appBar: AppBar(leading: Container(), title: const Text('X')),
+          ),
         ),
       );
 
@@ -3348,7 +3466,9 @@ void main() {
       Widget buildAppBar([double? elevation]) {
         return MaterialApp(
           theme: ThemeData(useMaterial3: false),
-          home: Scaffold(appBar: AppBar(title: const Text('Title'), elevation: elevation)),
+          home: Scaffold(
+            appBar: AppBar(title: const Text('Title'), elevation: elevation),
+          ),
         );
       }
 
@@ -3420,7 +3540,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           key: GlobalKey(),
-          theme: ThemeData.light().copyWith(useMaterial3: false, appBarTheme: const AppBarTheme()),
+          theme: ThemeData(useMaterial3: false, appBarTheme: const AppBarThemeData()),
           home: Scaffold(appBar: AppBar(title: const Text('title'))),
         ),
       );
@@ -3433,7 +3553,10 @@ void main() {
     ) async {
       final ThemeData lightTheme = ThemeData(primarySwatch: Colors.lightBlue, useMaterial3: false);
       await tester.pumpWidget(
-        MaterialApp(theme: lightTheme, home: Scaffold(appBar: AppBar(title: const Text('test')))),
+        MaterialApp(
+          theme: lightTheme,
+          home: Scaffold(appBar: AppBar(title: const Text('test'))),
+        ),
       );
 
       expect(lightTheme.colorScheme.brightness, Brightness.light);
@@ -3465,8 +3588,9 @@ void main() {
           final Brightness appBarBrightness = ThemeData.estimateBrightnessForColor(
             appBarMaterial.color!,
           );
-          final Brightness onAppBarBrightness =
-              appBarBrightness == Brightness.light ? Brightness.dark : Brightness.light;
+          final Brightness onAppBarBrightness = appBarBrightness == Brightness.light
+              ? Brightness.dark
+              : Brightness.light;
 
           expect(
             SystemChrome.latestStyle,
@@ -3486,8 +3610,9 @@ void main() {
           final Brightness appBarBrightness = ThemeData.estimateBrightnessForColor(
             appBarMaterial.color!,
           );
-          final Brightness onAppBarBrightness =
-              appBarBrightness == Brightness.light ? Brightness.dark : Brightness.light;
+          final Brightness onAppBarBrightness = appBarBrightness == Brightness.light
+              ? Brightness.dark
+              : Brightness.light;
 
           expect(
             SystemChrome.latestStyle,

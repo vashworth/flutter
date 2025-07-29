@@ -33,11 +33,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const NavigationBarThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -59,11 +58,10 @@ void main() {
       labelPadding: EdgeInsets.all(8),
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(
       description,
@@ -214,7 +212,6 @@ void main() {
               TextStyle(fontSize: 25, color: Color(0xff0000ff)),
             ),
           ),
-          useMaterial3: true,
         ),
         home: Scaffold(
           bottomNavigationBar: Center(
@@ -297,9 +294,9 @@ void main() {
         inkFeatures,
         kIsWeb
             ? (paints
-              ..rrect()
-              ..rrect()
-              ..circle(color: hoverColor))
+                ..rrect()
+                ..rrect()
+                ..circle(color: hoverColor))
             : (paints..circle(color: hoverColor)),
       );
 
@@ -311,12 +308,12 @@ void main() {
         inkFeatures,
         kIsWeb
             ? (paints
-              ..circle()
-              ..circle()
-              ..circle(color: pressedColor))
+                ..circle()
+                ..circle()
+                ..circle(color: pressedColor))
             : (paints
-              ..circle()
-              ..circle(color: pressedColor)),
+                ..circle()
+                ..circle(color: pressedColor)),
       );
 
       await gesture.up();
@@ -331,11 +328,11 @@ void main() {
         inkFeatures,
         kIsWeb
             ? (paints
-              ..circle()
-              ..circle(color: focusColor))
+                ..circle()
+                ..circle(color: focusColor))
             : (paints
-              ..circle()
-              ..circle(color: focusColor)),
+                ..circle()
+                ..circle(color: focusColor)),
       );
     },
   );

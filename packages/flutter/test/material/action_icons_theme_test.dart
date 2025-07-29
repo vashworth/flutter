@@ -61,11 +61,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const ActionIconThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -83,11 +82,10 @@ void main() {
       endDrawerButtonIconBuilder: actionButtonIconBuilder,
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     final Matcher containsBuilderCallback = contains('Closure: (BuildContext) =>');
     expect(description, <dynamic>[
@@ -115,7 +113,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData.light(useMaterial3: true).copyWith(actionIconTheme: actionIconTheme),
+        theme: ThemeData(actionIconTheme: actionIconTheme),
         home: const Material(
           child: Column(
             children: <Widget>[BackButton(), CloseButton(), DrawerButton(), EndDrawerButton()],

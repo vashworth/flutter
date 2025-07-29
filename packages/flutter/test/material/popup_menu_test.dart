@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:ui' show DisplayFeature, DisplayFeatureState, DisplayFeatureType, SemanticsFlag;
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -362,22 +361,21 @@ void main() {
           child: RepaintBoundary(
             child: PopupMenuButton<void>(
               child: const Text('Actions'),
-              itemBuilder:
-                  (BuildContext context) => <PopupMenuItem<void>>[
-                    PopupMenuItem<void>(
-                      child: const Text('First option'),
-                      onTap: () {
-                        menuItemTapCounters[0] += 1;
-                      },
-                    ),
-                    PopupMenuItem<void>(
-                      child: const Text('Second option'),
-                      onTap: () {
-                        menuItemTapCounters[1] += 1;
-                      },
-                    ),
-                    const PopupMenuItem<void>(child: Text('Option without onTap')),
-                  ],
+              itemBuilder: (BuildContext context) => <PopupMenuItem<void>>[
+                PopupMenuItem<void>(
+                  child: const Text('First option'),
+                  onTap: () {
+                    menuItemTapCounters[0] += 1;
+                  },
+                ),
+                PopupMenuItem<void>(
+                  child: const Text('Second option'),
+                  onTap: () {
+                    menuItemTapCounters[1] += 1;
+                  },
+                ),
+                const PopupMenuItem<void>(child: Text('Option without onTap')),
+              ],
             ),
           ),
         ),
@@ -427,27 +425,23 @@ void main() {
               onSelected: (String value) {
                 selected = value;
               },
-              itemBuilder:
-                  (BuildContext context) => <PopupMenuItem<String>>[
-                    PopupMenuItem<String>(
-                      value: 'first',
-                      child: const Text('First option'),
-                      onTap: () {
-                        menuItemTapCounters[0] += 1;
-                      },
-                    ),
-                    PopupMenuItem<String>(
-                      value: 'second',
-                      child: const Text('Second option'),
-                      onTap: () {
-                        menuItemTapCounters[1] += 1;
-                      },
-                    ),
-                    const PopupMenuItem<String>(
-                      value: 'third',
-                      child: Text('Option without onTap'),
-                    ),
-                  ],
+              itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
+                PopupMenuItem<String>(
+                  value: 'first',
+                  child: const Text('First option'),
+                  onTap: () {
+                    menuItemTapCounters[0] += 1;
+                  },
+                ),
+                PopupMenuItem<String>(
+                  value: 'second',
+                  child: const Text('Second option'),
+                  onTap: () {
+                    menuItemTapCounters[1] += 1;
+                  },
+                ),
+                const PopupMenuItem<String>(value: 'third', child: Text('Option without onTap')),
+              ],
             ),
           ),
         ),
@@ -628,7 +622,9 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(home: Scaffold(appBar: AppBar(actions: <Widget>[button]))),
+        MaterialApp(
+          home: Scaffold(appBar: AppBar(actions: <Widget>[button])),
+        ),
       );
 
       expect(find.byType(IconButton), findsOneWidget);
@@ -919,10 +915,9 @@ void main() {
     final Key buttonKey = UniqueKey();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -934,18 +929,16 @@ void main() {
             child: Overlay(
               initialEntries: <OverlayEntry>[
                 entry = OverlayEntry(
-                  builder:
-                      (_) => Center(
-                        child: PopupMenuButton<int>(
-                          key: buttonKey,
-                          itemBuilder:
-                              (_) => <PopupMenuItem<int>>[
-                                const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
-                                const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
-                              ],
-                          child: const Text('Show Menu'),
-                        ),
-                      ),
+                  builder: (_) => Center(
+                    child: PopupMenuButton<int>(
+                      key: buttonKey,
+                      itemBuilder: (_) => <PopupMenuItem<int>>[
+                        const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
+                        const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
+                      ],
+                      child: const Text('Show Menu'),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -981,11 +974,10 @@ void main() {
                       child: Center(
                         child: PopupMenuButton<int>(
                           key: buttonKey,
-                          itemBuilder:
-                              (_) => <PopupMenuItem<int>>[
-                                const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
-                                const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
-                              ],
+                          itemBuilder: (_) => <PopupMenuItem<int>>[
+                            const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
+                            const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
+                          ],
                           child: const Text('Show Menu'),
                         ),
                       ),
@@ -1028,11 +1020,10 @@ void main() {
                         child: PopupMenuButton<int>(
                           key: buttonKey,
                           useRootNavigator: true,
-                          itemBuilder:
-                              (_) => <PopupMenuItem<int>>[
-                                const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
-                                const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
-                              ],
+                          itemBuilder: (_) => <PopupMenuItem<int>>[
+                            const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
+                            const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
+                          ],
                           child: const Text('Show Menu'),
                         ),
                       ),
@@ -1073,11 +1064,10 @@ void main() {
           body: PopupMenuButton<int>(
             key: buttonKey,
             routeSettings: popupRoute,
-            itemBuilder:
-                (_) => <PopupMenuItem<int>>[
-                  const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
-                  const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
-                ],
+            itemBuilder: (_) => <PopupMenuItem<int>>[
+              const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
+              const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
+            ],
             child: const Text('Show Menu'),
           ),
         ),
@@ -1122,11 +1112,10 @@ void main() {
                         alignment: Alignment.topRight,
                         child: PopupMenuButton<int>(
                           key: buttonKey,
-                          itemBuilder:
-                              (_) => <PopupMenuItem<int>>[
-                                const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
-                                const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
-                              ],
+                          itemBuilder: (_) => <PopupMenuItem<int>>[
+                            const PopupMenuItem<int>(value: 1, child: Text('Item 1')),
+                            const PopupMenuItem<int>(value: 2, child: Text('Item 2')),
+                          ],
                           child: const Text('Show Menu'),
                         ),
                       ),
@@ -1209,7 +1198,11 @@ void main() {
     }
 
     // Popup a menu without any offset.
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Material(child: buildMenuButton()))));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: Material(child: buildMenuButton())),
+      ),
+    );
 
     // Popup the menu.
     await tester.tap(find.byType(IconButton));
@@ -1230,7 +1223,9 @@ void main() {
     // Popup a new menu with Offset(50.0, 50.0).
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: Material(child: buildMenuButton(offset: const Offset(50.0, 50.0)))),
+        home: Scaffold(
+          body: Material(child: buildMenuButton(offset: const Offset(50.0, 50.0))),
+        ),
       ),
     );
 
@@ -1280,6 +1275,7 @@ void main() {
                 TestSemantics(
                   children: <TestSemantics>[
                     TestSemantics(
+                      role: SemanticsRole.menu,
                       flags: <SemanticsFlag>[SemanticsFlag.scopesRoute, SemanticsFlag.namesRoute],
                       label: 'Popup menu',
                       textDirection: TextDirection.ltr,
@@ -1288,6 +1284,7 @@ void main() {
                           flags: <SemanticsFlag>[SemanticsFlag.hasImplicitScrolling],
                           children: <TestSemantics>[
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1302,6 +1299,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1316,6 +1314,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1330,6 +1329,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1344,6 +1344,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1419,6 +1420,7 @@ void main() {
                 TestSemantics(
                   children: <TestSemantics>[
                     TestSemantics(
+                      role: SemanticsRole.menu,
                       flags: <SemanticsFlag>[SemanticsFlag.scopesRoute, SemanticsFlag.namesRoute],
                       label: 'Popup menu',
                       textDirection: TextDirection.ltr,
@@ -1427,6 +1429,7 @@ void main() {
                           flags: <SemanticsFlag>[SemanticsFlag.hasImplicitScrolling],
                           children: <TestSemantics>[
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1499,6 +1502,7 @@ void main() {
                 TestSemantics(
                   children: <TestSemantics>[
                     TestSemantics(
+                      role: SemanticsRole.menu,
                       flags: <SemanticsFlag>[SemanticsFlag.scopesRoute, SemanticsFlag.namesRoute],
                       label: 'Popup menu',
                       textDirection: TextDirection.ltr,
@@ -1507,6 +1511,7 @@ void main() {
                           flags: <SemanticsFlag>[SemanticsFlag.hasImplicitScrolling],
                           children: <TestSemantics>[
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1521,6 +1526,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1530,6 +1536,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1544,6 +1551,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1558,6 +1566,7 @@ void main() {
                               textDirection: TextDirection.ltr,
                             ),
                             TestSemantics(
+                              role: SemanticsRole.menuItem,
                               flags: <SemanticsFlag>[
                                 SemanticsFlag.isButton,
                                 SemanticsFlag.hasEnabledState,
@@ -1595,6 +1604,59 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('CheckedPopupMenuItem has correct semantics', (WidgetTester tester) async {
+    final SemanticsTester semantics = SemanticsTester(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: PopupMenuButton<int>(
+            itemBuilder: (BuildContext context) {
+              return <PopupMenuEntry<int>>[
+                const CheckedPopupMenuItem<int>(
+                  value: 1,
+                  checked: true,
+                  child: Text('Checked Item'),
+                ),
+                const CheckedPopupMenuItem<int>(value: 2, child: Text('Unchecked Item')),
+              ];
+            },
+            child: const SizedBox(height: 100.0, width: 100.0, child: Text('XXX')),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('XXX'));
+    await tester.pumpAndSettle();
+
+    // Verify that CheckedPopupMenuItem uses SemanticsRole.menuItemCheckbox
+    final Iterable<SemanticsNode> allNodes = semantics.nodesWith();
+    final List<SemanticsNode> menuItemNodes = allNodes
+        .where(
+          (SemanticsNode node) => node.getSemanticsData().role == SemanticsRole.menuItemCheckbox,
+        )
+        .toList();
+    expect(menuItemNodes, hasLength(2));
+
+    // Verify that the checked item has the correct properties
+    final SemanticsNode checkedNode = menuItemNodes.firstWhere(
+      (SemanticsNode node) => node.getSemanticsData().hasFlag(SemanticsFlag.isChecked),
+    );
+    expect(checkedNode.getSemanticsData().role, SemanticsRole.menuItemCheckbox);
+    expect(checkedNode.getSemanticsData().hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(checkedNode.getSemanticsData().hasFlag(SemanticsFlag.hasCheckedState), isTrue);
+
+    // Verify that the unchecked item has the correct properties
+    final SemanticsNode uncheckedNode = menuItemNodes.firstWhere(
+      (SemanticsNode node) => !node.getSemanticsData().hasFlag(SemanticsFlag.isChecked),
+    );
+    expect(uncheckedNode.getSemanticsData().role, SemanticsRole.menuItemCheckbox);
+    expect(uncheckedNode.getSemanticsData().hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(uncheckedNode.getSemanticsData().hasFlag(SemanticsFlag.hasCheckedState), isTrue);
+    expect(uncheckedNode.getSemanticsData().hasFlag(SemanticsFlag.isChecked), isFalse);
+
+    semantics.dispose();
+  });
+
   testWidgets('PopupMenuButton PopupMenuDivider', (WidgetTester tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/27072
 
@@ -1609,12 +1671,11 @@ void main() {
               },
               initialValue: '1',
               child: const Text('Menu Button'),
-              itemBuilder:
-                  (BuildContext context) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: '1', child: Text('1')),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem<String>(value: '2', child: Text('2')),
-                  ],
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(value: '1', child: Text('1')),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(value: '2', child: Text('2')),
+              ],
             ),
           ),
         ),
@@ -1719,7 +1780,7 @@ void main() {
     final Key popupMenuButtonKey = UniqueKey();
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
+        theme: ThemeData(),
         home: Scaffold(
           body: Center(
             child: PopupMenuButton<String>(
@@ -1743,14 +1804,7 @@ void main() {
     await tester.pumpAndSettle();
 
     EdgeInsetsGeometry paddingFor(String text) {
-      return tester
-          .widget<Padding>(
-            find.ancestor(
-              of: find.widgetWithText(Align, 'Item 0'),
-              matching: find.byKey(const Key('menu item padding')),
-            ),
-          )
-          .padding;
+      return tester.widget<Padding>(find.widgetWithText(Padding, 'Item 0').first).padding;
     }
 
     expect(paddingFor('Item 0'), const EdgeInsets.symmetric(horizontal: 12.0));
@@ -1818,14 +1872,7 @@ void main() {
     await tester.pumpAndSettle();
 
     EdgeInsetsGeometry paddingFor(String text) {
-      return tester
-          .widget<Padding>(
-            find.ancestor(
-              of: find.widgetWithText(Align, 'Item 0'),
-              matching: find.byKey(const Key('menu item padding')),
-            ),
-          )
-          .padding;
+      return tester.widget<Padding>(find.widgetWithText(Padding, 'Item 0').first).padding;
     }
 
     expect(paddingFor('Item 0'), const EdgeInsets.symmetric(horizontal: 16.0));
@@ -2433,11 +2480,16 @@ void main() {
             child: Material(
               child: MouseRegion(
                 cursor: SystemMouseCursors.forbidden,
-                child: PopupMenuItem<int>(
-                  key: key,
-                  mouseCursor: SystemMouseCursors.text,
-                  value: 1,
-                  child: Container(),
+                // The [SemanticsRole.menu] is added here to make sure
+                // [PopupMenuItem]'s parent role is menu.
+                child: Semantics(
+                  role: SemanticsRole.menu,
+                  child: PopupMenuItem<int>(
+                    key: key,
+                    mouseCursor: SystemMouseCursors.text,
+                    value: 1,
+                    child: Container(),
+                  ),
                 ),
               ),
             ),
@@ -2468,7 +2520,12 @@ void main() {
             child: Material(
               child: MouseRegion(
                 cursor: SystemMouseCursors.forbidden,
-                child: PopupMenuItem<int>(key: key, value: 1, child: Container()),
+                // The [SemanticsRole.menu] is added here to make sure
+                // [PopupMenuItem]'s parent role is menu.
+                child: Semantics(
+                  role: SemanticsRole.menu,
+                  child: PopupMenuItem<int>(key: key, value: 1, child: Container()),
+                ),
               ),
             ),
           ),
@@ -2490,7 +2547,12 @@ void main() {
             child: Material(
               child: MouseRegion(
                 cursor: SystemMouseCursors.forbidden,
-                child: PopupMenuItem<int>(key: key, value: 1, enabled: false, child: Container()),
+                // The [SemanticsRole.menu] is added here to make sure
+                // [PopupMenuItem]'s parent role is menu.
+                child: Semantics(
+                  role: SemanticsRole.menu,
+                  child: PopupMenuItem<int>(key: key, value: 1, enabled: false, child: Container()),
+                ),
               ),
             ),
           ),
@@ -2517,11 +2579,16 @@ void main() {
             child: Material(
               child: MouseRegion(
                 cursor: SystemMouseCursors.forbidden,
-                child: CheckedPopupMenuItem<int>(
-                  key: key,
-                  mouseCursor: SystemMouseCursors.text,
-                  value: 1,
-                  child: Container(),
+                // The [SemanticsRole.menu] is added here to make sure
+                // [CheckedPopupMenuItem]'s parent role is menu.
+                child: Semantics(
+                  role: SemanticsRole.menu,
+                  child: CheckedPopupMenuItem<int>(
+                    key: key,
+                    mouseCursor: SystemMouseCursors.text,
+                    value: 1,
+                    child: Container(),
+                  ),
                 ),
               ),
             ),
@@ -2553,7 +2620,12 @@ void main() {
             child: Material(
               child: MouseRegion(
                 cursor: SystemMouseCursors.forbidden,
-                child: CheckedPopupMenuItem<int>(key: key, value: 1, child: Container()),
+                // The [SemanticsRole.menu] is added here to make sure
+                // [CheckedPopupMenuItem]'s parent role is menu.
+                child: Semantics(
+                  role: SemanticsRole.menu,
+                  child: CheckedPopupMenuItem<int>(key: key, value: 1, child: Container()),
+                ),
               ),
             ),
           ),
@@ -2575,11 +2647,16 @@ void main() {
             child: Material(
               child: MouseRegion(
                 cursor: SystemMouseCursors.forbidden,
-                child: CheckedPopupMenuItem<int>(
-                  key: key,
-                  value: 1,
-                  enabled: false,
-                  child: Container(),
+                // The [SemanticsRole.menu] is added here to make sure
+                // [CheckedPopupMenuItem]'s parent role is menu.
+                child: Semantics(
+                  role: SemanticsRole.menu,
+                  child: CheckedPopupMenuItem<int>(
+                    key: key,
+                    value: 1,
+                    enabled: false,
+                    child: Container(),
+                  ),
                 ),
               ),
             ),
@@ -2677,12 +2754,10 @@ void main() {
           appBar: AppBar(title: const Text('PopupMenu Test')),
           body: PopupMenuButton<int>(
             child: const Text('Show Menu'),
-            itemBuilder:
-                (BuildContext context) =>
-                    Iterable<PopupMenuItem<int>>.generate(
-                      20,
-                      (int i) => PopupMenuItem<int>(value: i, child: Text('Item $i')),
-                    ).toList(),
+            itemBuilder: (BuildContext context) => Iterable<PopupMenuItem<int>>.generate(
+              20,
+              (int i) => PopupMenuItem<int>(value: i, child: Text('Item $i')),
+            ).toList(),
           ),
         ),
       ),
@@ -2721,11 +2796,10 @@ void main() {
                   width: width,
                   child: const ColoredBox(color: Colors.pink),
                 ),
-                itemBuilder:
-                    (BuildContext context) => <PopupMenuEntry<int>>[
-                      const PopupMenuItem<int>(value: 1, child: Text('-1-')),
-                      const PopupMenuItem<int>(value: 2, child: Text('-2-')),
-                    ],
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<int>>[
+                  const PopupMenuItem<int>(value: 1, child: Text('-1-')),
+                  const PopupMenuItem<int>(value: 2, child: Text('-2-')),
+                ],
               ),
             ],
           ),
@@ -2761,7 +2835,10 @@ void main() {
       return MaterialApp(
         theme: ThemeData(useMaterial3: false),
         builder: (BuildContext context, Widget? child) {
-          return MediaQuery(data: const MediaQueryData(padding: padding), child: child!);
+          return MediaQuery(
+            data: const MediaQueryData(padding: padding),
+            child: child!,
+          );
         },
         home: Scaffold(
           appBar: AppBar(
@@ -2818,6 +2895,75 @@ void main() {
 
     // The `MediaQueryData.padding` should be removed.
     expect(mediaQueryPadding, EdgeInsets.zero);
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/163477
+  testWidgets("PopupMenu's overlay can be rebuilt even when the button is unmounted", (
+    WidgetTester tester,
+  ) async {
+    final GlobalKey buttonKey = GlobalKey();
+
+    late StateSetter setState;
+    bool showButton = true;
+
+    Widget widget({required Size viewSize}) {
+      return Center(
+        child: SizedBox(
+          width: viewSize.width,
+          height: viewSize.height,
+          child: MaterialApp(
+            home: Material(
+              child: StatefulBuilder(
+                builder: (BuildContext context, StateSetter innerSetState) {
+                  setState = innerSetState;
+                  return showButton
+                      ? PopupMenuButton<int>(
+                          key: buttonKey,
+                          popUpAnimationStyle: const AnimationStyle(
+                            reverseDuration: Duration(milliseconds: 400),
+                          ),
+                          itemBuilder: (BuildContext context) {
+                            return <PopupMenuEntry<int>>[
+                              PopupMenuItem<int>(
+                                value: 1,
+                                child: const Text('ACTION'),
+                                onTap: () {},
+                              ),
+                            ];
+                          },
+                        )
+                      : Container();
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Pump a button
+    await tester.pumpWidget(widget(viewSize: const Size(500, 500)));
+
+    // Tap the button to show the menu
+    await tester.tap(find.byKey(buttonKey));
+    await tester.pumpAndSettle();
+    expect(find.text('ACTION'), findsOne);
+    expect(find.byKey(buttonKey), findsOne);
+
+    // Hide the button. The menu still shows since it's placed on a separate route.
+    setState(() {
+      showButton = false;
+    });
+    await tester.pump();
+    expect(find.text('ACTION'), findsOne);
+    expect(find.byKey(buttonKey), findsNothing);
+
+    // Resize the view, causing the menu to rebuild. Before the fix, this
+    // rebuild would lead to a crash, because it relies on context of the button,
+    // which has been unmounted.
+    await tester.pumpWidget(widget(viewSize: const Size(300, 300)));
+
+    expect(tester.takeException(), isNull);
   });
 
   group('feedback', () {
@@ -2907,10 +3053,9 @@ void main() {
             child: PopupMenuButton<String>(
               iconColor: iconColor,
               iconSize: iconSize,
-              itemBuilder:
-                  (_) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: 'value', child: Text('child')),
-                  ],
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(value: 'value', child: Text('child')),
+              ],
             ),
           ),
         ),
@@ -2943,10 +3088,9 @@ void main() {
                 width: 10,
                 child: Navigator(
                   key: navigator,
-                  onGenerateRoute:
-                      (RouteSettings settings) => MaterialPageRoute<void>(
-                        builder: (BuildContext context) => Container(color: Colors.red),
-                      ),
+                  onGenerateRoute: (RouteSettings settings) => MaterialPageRoute<void>(
+                    builder: (BuildContext context) => Container(color: Colors.red),
+                  ),
                 ),
               ),
             ],
@@ -2978,11 +3122,10 @@ void main() {
                     width: 10.0,
                     child: const ColoredBox(color: Colors.pink),
                   ),
-                  itemBuilder:
-                      (BuildContext context) => <PopupMenuEntry<int>>[
-                        const PopupMenuItem<int>(value: 1, child: Text('-1-')),
-                        const PopupMenuItem<int>(value: 2, child: Text('-2-')),
-                      ],
+                  itemBuilder: (BuildContext context) => <PopupMenuEntry<int>>[
+                    const PopupMenuItem<int>(value: 1, child: Text('-1-')),
+                    const PopupMenuItem<int>(value: 2, child: Text('-2-')),
+                  ],
                 ),
                 const SizedBox(height: 600),
               ],
@@ -3033,10 +3176,9 @@ void main() {
             body: Center(
               child: PopupMenuButton<String>(
                 splashRadius: splashRadius,
-                itemBuilder:
-                    (_) => <PopupMenuEntry<String>>[
-                      const PopupMenuItem<String>(value: 'value', child: Text('child')),
-                    ],
+                itemBuilder: (_) => <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(value: 'value', child: Text('child')),
+                ],
               ),
             ),
           ),
@@ -3087,10 +3229,9 @@ void main() {
             child: PopupMenuButton<String>(
               key: popupMenuButtonKey,
               constraints: const BoxConstraints(minWidth: 500),
-              itemBuilder:
-                  (_) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
-                  ],
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
+              ],
             ),
           ),
         ),
@@ -3127,7 +3268,9 @@ void main() {
     // Popup menu with `MenuPosition.over (default) with default offset`.
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: Material(child: buildMenuButton(position: PopupMenuPosition.over))),
+        home: Scaffold(
+          body: Material(child: buildMenuButton(position: PopupMenuPosition.over)),
+        ),
       ),
     );
 
@@ -3149,7 +3292,9 @@ void main() {
     // Popup menu with `MenuPosition.under`(custom) with default offset`.
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: Material(child: buildMenuButton(position: PopupMenuPosition.under))),
+        home: Scaffold(
+          body: Material(child: buildMenuButton(position: PopupMenuPosition.under)),
+        ),
       ),
     );
 
@@ -3254,10 +3399,9 @@ void main() {
           body: Center(
             child: PopupMenuButton<String>(
               iconSize: iconSize,
-              itemBuilder:
-                  (_) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
-                  ],
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
+              ],
             ),
           ),
         ),
@@ -3297,10 +3441,9 @@ void main() {
                 borderRadius: BorderRadius.all(Radius.circular(radius)),
               ),
               clipBehavior: clipBehavior,
-              itemBuilder:
-                  (_) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
-                  ],
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
+              ],
             ),
           ),
         ),
@@ -3343,11 +3486,10 @@ void main() {
           body: Center(
             child: PopupMenuButton<String>(
               key: popupButtonKey,
-              itemBuilder:
-                  (_) => const <PopupMenuEntry<String>>[
-                    PopupMenuItem<String>(value: 'a', child: Text('A')),
-                    PopupMenuItem<String>(value: 'b', child: Text('B')),
-                  ],
+              itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(value: 'a', child: Text('A')),
+                PopupMenuItem<String>(value: 'b', child: Text('B')),
+              ],
             ),
           ),
         ),
@@ -3406,7 +3548,7 @@ void main() {
     );
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(scrollbarTheme: scrollbarTheme, useMaterial3: true),
+        theme: ThemeData(scrollbarTheme: scrollbarTheme),
         home: Material(
           child: Column(
             children: <Widget>[
@@ -3438,7 +3580,7 @@ void main() {
     // Test local ScrollbarTheme overrides global ScrollbarTheme.
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(scrollbarTheme: scrollbarTheme, useMaterial3: true),
+        theme: ThemeData(scrollbarTheme: scrollbarTheme),
         home: Material(
           child: Column(
             children: <Widget>[
@@ -3544,24 +3686,23 @@ void main() {
           appBar: AppBar(
             actions: <Widget>[
               PopupMenuButton<int>(
-                itemBuilder:
-                    (BuildContext context) => <PopupMenuItem<int>>[
-                      PopupMenuItem<int>(
-                        onTap: () {
-                          showModalBottomSheet<void>(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return const SizedBox(
-                                height: 200.0,
-                                child: Center(child: Text('ModalBottomSheet')),
-                              );
-                            },
+                itemBuilder: (BuildContext context) => <PopupMenuItem<int>>[
+                  PopupMenuItem<int>(
+                    onTap: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return const SizedBox(
+                            height: 200.0,
+                            child: Center(child: Text('ModalBottomSheet')),
                           );
                         },
-                        value: 10,
-                        child: const Text('ACTION'),
-                      ),
-                    ],
+                      );
+                    },
+                    value: 10,
+                    child: const Text('ACTION'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -3584,7 +3725,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final Key popupMenuButtonKey = UniqueKey();
-    ThemeData theme = ThemeData(useMaterial3: true);
+    ThemeData theme = ThemeData();
 
     Widget buildMenu() {
       return MaterialApp(
@@ -3594,11 +3735,10 @@ void main() {
             actions: <Widget>[
               PopupMenuButton<void>(
                 key: popupMenuButtonKey,
-                itemBuilder:
-                    (BuildContext context) => <PopupMenuItem<void>>[
-                      const CheckedPopupMenuItem<void>(child: Text('Item 1')),
-                      const CheckedPopupMenuItem<int>(checked: true, child: Text('Item 2')),
-                    ],
+                itemBuilder: (BuildContext context) => <PopupMenuItem<void>>[
+                  const CheckedPopupMenuItem<void>(child: Text('Item 1')),
+                  const CheckedPopupMenuItem<int>(checked: true, child: Text('Item 2')),
+                ],
               ),
             ],
           ),
@@ -3660,18 +3800,17 @@ void main() {
             actions: <Widget>[
               PopupMenuButton<void>(
                 key: popupMenuButtonKey,
-                itemBuilder:
-                    (BuildContext context) => <PopupMenuItem<void>>[
-                      CheckedPopupMenuItem<void>(
-                        labelTextStyle: labelTextStyle,
-                        child: const Text('Item 1'),
-                      ),
-                      CheckedPopupMenuItem<int>(
-                        checked: true,
-                        labelTextStyle: labelTextStyle,
-                        child: const Text('Item 2'),
-                      ),
-                    ],
+                itemBuilder: (BuildContext context) => <PopupMenuItem<void>>[
+                  CheckedPopupMenuItem<void>(
+                    labelTextStyle: labelTextStyle,
+                    child: const Text('Item 1'),
+                  ),
+                  CheckedPopupMenuItem<int>(
+                    checked: true,
+                    labelTextStyle: labelTextStyle,
+                    child: const Text('Item 2'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -3753,7 +3892,10 @@ void main() {
                     enabled: false,
                     child: ListTile(title: Text('Item 0')),
                   ),
-                  const PopupMenuItem<String>(value: '1', child: ListTile(title: Text('Item 1'))),
+                  const PopupMenuItem<String>(
+                    value: '1',
+                    child: ListTile(title: Text('Item 1')),
+                  ),
                 ];
               },
             ),
@@ -3780,7 +3922,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final Key popupMenuButtonKey = UniqueKey();
-    ThemeData theme = ThemeData(useMaterial3: true);
+    ThemeData theme = ThemeData();
 
     Widget buildMenu() {
       return MaterialApp(
@@ -3796,7 +3938,10 @@ void main() {
                   // Popup menu item with a Text widget.
                   const PopupMenuItem<String>(value: '0', child: Text('Item 0')),
                   // Popup menu item with a ListTile widget.
-                  const PopupMenuItem<String>(value: '1', child: ListTile(title: Text('Item 1'))),
+                  const PopupMenuItem<String>(
+                    value: '1',
+                    child: ListTile(title: Text('Item 1')),
+                  ),
                 ];
               },
             ),
@@ -3867,7 +4012,10 @@ void main() {
                   // Popup menu item with a Text widget.
                   const PopupMenuItem<String>(value: '0', child: Text('Item 0')),
                   // Popup menu item with a ListTile widget.
-                  const PopupMenuItem<String>(value: '1', child: ListTile(title: Text('Item 1'))),
+                  const PopupMenuItem<String>(
+                    value: '1',
+                    child: ListTile(title: Text('Item 1')),
+                  ),
                 ];
               },
             ),
@@ -4289,10 +4437,9 @@ void main() {
           body: Center(
             child: PopupMenuButton<String>(
               borderRadius: borderRadius,
-              itemBuilder:
-                  (_) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
-                  ],
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
+              ],
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[Text('Pop up menu'), Icon(Icons.arrow_drop_down)],
@@ -4327,10 +4474,9 @@ void main() {
           body: Center(
             child: PopupMenuButton<String>(
               style: ButtonStyle(tapTargetSize: tapTargetSize),
-              itemBuilder:
-                  (_) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
-                  ],
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(value: 'value', child: Text('Item 0')),
+              ],
               child: const SizedBox(height: buttonSize, width: buttonSize),
             ),
           ),
@@ -4401,10 +4547,9 @@ void main() {
           body: Center(
             child: PopupMenuButton<int>(
               key: buttonKey,
-              itemBuilder:
-                  (BuildContext context) => <PopupMenuItem<int>>[
-                    const PopupMenuItem<int>(value: 1, child: Text('Option 1')),
-                  ],
+              itemBuilder: (BuildContext context) => <PopupMenuItem<int>>[
+                const PopupMenuItem<int>(value: 1, child: Text('Option 1')),
+              ],
             ),
           ),
         ),
@@ -4433,6 +4578,185 @@ void main() {
     );
 
     await tester.binding.setSurfaceSize(null);
+  });
+
+  testWidgets('PopupMenuDivider custom thickness', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: PopupMenuButton<String>(
+              onSelected: (String result) {},
+              child: const Text('Menu Button'),
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuDivider(thickness: 5.0),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pump();
+    final Container container = tester.widget(find.byType(Container));
+    final BoxDecoration decoration = container.decoration! as BoxDecoration;
+    expect(decoration.border!.bottom.width, 5.0);
+  });
+
+  testWidgets('PopupMenuDivider custom indent', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: PopupMenuButton<String>(
+              onSelected: (String result) {},
+              child: const Text('Menu Button'),
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuDivider(indent: 5.0),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pump();
+    final Container container = tester.widget(find.byType(Container));
+    final EdgeInsetsDirectional margin = container.margin! as EdgeInsetsDirectional;
+    expect(margin.start, 5.0);
+  });
+
+  testWidgets('PopupMenuDivider custom color', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: PopupMenuButton<String>(
+              onSelected: (String result) {},
+              child: const Text('Menu Button'),
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuDivider(color: Colors.deepOrange),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pump();
+    final Container container = tester.widget(find.byType(Container));
+    final BoxDecoration decoration = container.decoration! as BoxDecoration;
+    expect(decoration.border!.bottom.color, Colors.deepOrange);
+  });
+
+  testWidgets('PopupMenuDivider custom end indent', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: PopupMenuButton<String>(
+              onSelected: (String result) {},
+              child: const Text('Menu Button'),
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuDivider(endIndent: 5.0),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pump();
+    final Container container = tester.widget(find.byType(Container));
+    final EdgeInsetsDirectional margin = container.margin! as EdgeInsetsDirectional;
+    expect(margin.end, 5.0);
+  });
+
+  testWidgets('PopupMenuDivider custom radius', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: PopupMenuButton<String>(
+              onSelected: (String result) {},
+              child: const Text('Menu Button'),
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                PopupMenuDivider(radius: BorderRadius.circular(5)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pump();
+    final Container container = tester.widget(find.byType(Container));
+    final BoxDecoration decoration = container.decoration! as BoxDecoration;
+    final BorderRadius borderRadius = decoration.borderRadius! as BorderRadius;
+    expect(borderRadius.bottomLeft, const Radius.circular(5));
+    expect(borderRadius.bottomRight, const Radius.circular(5));
+    expect(borderRadius.topLeft, const Radius.circular(5));
+    expect(borderRadius.topRight, const Radius.circular(5));
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/171422.
+  testWidgets('PopupMenuButton should not crash when being hidden immediately', (
+    WidgetTester tester,
+  ) async {
+    bool showPopupMenu = true;
+
+    Widget buildWidget() {
+      return MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            actions: <Widget>[
+              if (showPopupMenu)
+                PopupMenuButton<String>(
+                  itemBuilder: (BuildContext context) {
+                    return <PopupMenuItem<String>>[
+                      const PopupMenuItem<String>(value: 'add', child: Text('Add')),
+                      const PopupMenuItem<String>(value: 'hide', child: Text('Hide')),
+                      const PopupMenuItem<String>(value: 'delete', child: Text('Delete')),
+                    ];
+                  },
+                  onSelected: (String value) {
+                    if (value == 'hide') {
+                      showPopupMenu = false;
+                    }
+                  },
+                ),
+            ],
+          ),
+          body: Text(
+            'PopupMenuButton:${showPopupMenu ? 'PopupMenu is showing' : 'PopupMenu is hidden'}',
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildWidget());
+
+    // Find the PopupMenuButton.
+    final Finder popupMenuButtonFinder = find.byType(PopupMenuButton<String>);
+    expect(popupMenuButtonFinder, findsOneWidget);
+
+    // Tap on PopupMenuButton.
+    await tester.tap(popupMenuButtonFinder);
+    await tester.pumpAndSettle();
+
+    // Tap on "Hide" menu item.
+    await tester.tap(find.text('Hide'));
+
+    // Rebuild the widget tree with the PopupMenuButton removed to trigger the bug.
+    await tester.pumpWidget(buildWidget());
+
+    // Verify no exception is thrown at a brief moment when the PopupMenuButton is hidden.
+    expect(tester.takeException(), isNull);
   });
 }
 

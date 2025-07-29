@@ -8,6 +8,9 @@
 /// @docImport 'scaffold.dart';
 library;
 
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'color_scheme.dart';
@@ -286,34 +289,45 @@ class NavigationBar extends StatelessWidget {
           surfaceTintColor ?? navigationBarTheme.surfaceTintColor ?? defaults.surfaceTintColor,
       child: SafeArea(
         maintainBottomViewPadding: maintainBottomViewPadding,
-        child: SizedBox(
-          height: effectiveHeight,
-          child: Row(
-            children: <Widget>[
-              for (int i = 0; i < destinations.length; i++)
-                Expanded(
-                  child: _SelectableAnimatedBuilder(
-                    duration: animationDuration ?? const Duration(milliseconds: 500),
-                    isSelected: i == selectedIndex,
-                    builder: (BuildContext context, Animation<double> animation) {
-                      return _NavigationDestinationInfo(
-                        index: i,
-                        selectedIndex: selectedIndex,
-                        totalNumberOfDestinations: destinations.length,
-                        selectedAnimation: animation,
-                        labelBehavior: effectiveLabelBehavior,
-                        indicatorColor: indicatorColor,
-                        indicatorShape: indicatorShape,
-                        overlayColor: overlayColor,
-                        onTap: _handleTap(i),
-                        labelTextStyle: labelTextStyle,
-                        labelPadding: labelPadding,
-                        child: destinations[i],
-                      );
-                    },
+        child: Semantics(
+          role: SemanticsRole.tabBar,
+          explicitChildNodes: true,
+          container: true,
+          child: SizedBox(
+            height: effectiveHeight,
+            child: Row(
+              children: <Widget>[
+                for (int i = 0; i < destinations.length; i++)
+                  Expanded(
+                    child: MergeSemantics(
+                      child: Semantics(
+                        role: SemanticsRole.tab,
+                        selected: i == selectedIndex,
+                        child: _SelectableAnimatedBuilder(
+                          duration: animationDuration ?? const Duration(milliseconds: 500),
+                          isSelected: i == selectedIndex,
+                          builder: (BuildContext context, Animation<double> animation) {
+                            return _NavigationDestinationInfo(
+                              index: i,
+                              selectedIndex: selectedIndex,
+                              totalNumberOfDestinations: destinations.length,
+                              selectedAnimation: animation,
+                              labelBehavior: effectiveLabelBehavior,
+                              indicatorColor: indicatorColor,
+                              indicatorShape: indicatorShape,
+                              overlayColor: overlayColor,
+                              onTap: _handleTap(i),
+                              labelTextStyle: labelTextStyle,
+                              labelPadding: labelPadding,
+                              child: destinations[i],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -480,12 +494,11 @@ class NavigationDestination extends StatelessWidget {
         final EdgeInsetsGeometry labelPadding =
             info.labelPadding ?? navigationBarTheme.labelPadding ?? defaults.labelPadding!;
 
-        final TextStyle? textStyle =
-            enabled
-                ? animation.isForwardOrCompleted
-                    ? effectiveSelectedLabelTextStyle
-                    : effectiveUnselectedLabelTextStyle
-                : effectiveDisabledLabelTextStyle;
+        final TextStyle? textStyle = enabled
+            ? animation.isForwardOrCompleted
+                  ? effectiveSelectedLabelTextStyle
+                  : effectiveUnselectedLabelTextStyle
+            : effectiveDisabledLabelTextStyle;
 
         return Padding(
           padding: labelPadding,
@@ -580,6 +593,7 @@ class _NavigationDestinationBuilderState extends State<_NavigationDestinationBui
     final NavigationBarThemeData defaults = _defaultsFor(context);
 
     return _NavigationBarDestinationSemantics(
+      enabled: widget.enabled,
       child: _NavigationBarDestinationTooltip(
         message: widget.tooltip ?? widget.label,
         child: _IndicatorInkWell(
@@ -742,8 +756,8 @@ class _NavigationDestinationInfo extends InheritedWidget {
   /// Used by widgets that are implementing a navigation destination info to
   /// get information like the selected animation and destination number.
   static _NavigationDestinationInfo of(BuildContext context) {
-    final _NavigationDestinationInfo? result =
-        context.dependOnInheritedWidgetOfExactType<_NavigationDestinationInfo>();
+    final _NavigationDestinationInfo? result = context
+        .dependOnInheritedWidgetOfExactType<_NavigationDestinationInfo>();
     assert(
       result != null,
       'Navigation destinations need a _NavigationDestinationInfo parent, '
@@ -827,12 +841,11 @@ class NavigationIndicator extends StatelessWidget {
         // The scale should be 0 when the animation is unselected, as soon as
         // the animation starts, the scale jumps to 40%, and then animates to
         // 100% along a curve.
-        final double scale =
-            animation.isDismissed
-                ? 0.0
-                : Tween<double>(begin: .4, end: 1.0).transform(
-                  CurveTween(curve: Curves.easeInOutCubicEmphasized).transform(animation.value),
-                );
+        final double scale = animation.isDismissed
+            ? 0.0
+            : Tween<double>(begin: .4, end: 1.0).transform(
+                CurveTween(curve: Curves.easeInOutCubicEmphasized).transform(animation.value),
+              );
 
         return Transform(
           alignment: Alignment.center,
@@ -982,7 +995,10 @@ class _DestinationLayoutAnimationBuilder extends StatelessWidget {
 class _NavigationBarDestinationSemantics extends StatelessWidget {
   /// Adds the appropriate semantics for navigation bar destinations to the
   /// [child].
-  const _NavigationBarDestinationSemantics({required this.child});
+  const _NavigationBarDestinationSemantics({required this.enabled, required this.child});
+
+  /// Whether this widget is enabled.
+  final bool enabled;
 
   /// The widget that should receive the destination semantics.
   final Widget child;
@@ -996,25 +1012,22 @@ class _NavigationBarDestinationSemantics extends StatelessWidget {
     return _StatusTransitionWidgetBuilder(
       animation: destinationInfo.selectedAnimation,
       builder: (BuildContext context, Widget? child) {
-        return Semantics(
-          selected: destinationInfo.selectedAnimation.isForwardOrCompleted,
-          container: true,
-          button: true,
-          child: child,
-        );
+        return Semantics(enabled: enabled, button: true, child: child);
       },
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          child,
-          Semantics(
-            label: localizations.tabLabel(
-              tabIndex: destinationInfo.index + 1,
-              tabCount: destinationInfo.totalNumberOfDestinations,
+      child: kIsWeb
+          ? child
+          : Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                child,
+                Semantics(
+                  label: localizations.tabLabel(
+                    tabIndex: destinationInfo.index + 1,
+                    tabCount: destinationInfo.totalNumberOfDestinations,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

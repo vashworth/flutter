@@ -38,7 +38,6 @@ source_set("ui") {
     "dart_ui.h",
     "dart_wrapper.h",
     "floating_point.h",
-    "io_manager.cc",
     "io_manager.h",
     "isolate_name_server/isolate_name_server.cc",
     "isolate_name_server/isolate_name_server.h",
@@ -115,6 +114,8 @@ source_set("ui") {
     "plugins/callback_cache.h",
     "semantics/custom_accessibility_action.cc",
     "semantics/custom_accessibility_action.h",
+    "semantics/semantics_flags.cc",
+    "semantics/semantics_flags.h",
     "semantics/semantics_node.cc",
     "semantics/semantics_node.h",
     "semantics/semantics_update.cc",
@@ -169,7 +170,7 @@ source_set("ui") {
     "//flutter/shell/common:display",
     "//flutter/shell/common:platform_message_handler",
     "//flutter/skia/modules/skparagraph",
-    "//flutter/third_party/txt",
+    "//flutter/txt",
   ]
 
   deps = [
@@ -230,7 +231,7 @@ if (enable_unittests) {
       "fixtures/FontManifest.json",
       "fixtures/unmultiplied_alpha.png",
       "fixtures/WideGamutIndexed.png",
-      "//flutter/third_party/txt/third_party/fonts/Roboto-Medium.ttf",
+      "//flutter/txt/third_party/fonts/Roboto-Medium.ttf",
     ]
   }
 

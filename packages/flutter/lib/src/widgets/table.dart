@@ -7,7 +7,6 @@
 library;
 
 import 'dart:collection';
-import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -163,10 +162,9 @@ class Table extends RenderObjectWidget {
          }
          return true;
        }()),
-       _rowDecorations =
-           children.any((TableRow row) => row.decoration != null)
-               ? children.map<Decoration?>((TableRow row) => row.decoration).toList(growable: false)
-               : null {
+       _rowDecorations = children.any((TableRow row) => row.decoration != null)
+           ? children.map<Decoration?>((TableRow row) => row.decoration).toList(growable: false)
+           : null {
     assert(() {
       final List<Widget> flatChildren = children
           .expand<Widget>((TableRow row) => row.children)
@@ -346,8 +344,9 @@ class _TableElement extends RenderObjectElement {
         oldKeyedRows[row.key!] = row.children;
       }
     }
-    final Iterator<_TableElementRow> oldUnkeyedRows =
-        _children.where((_TableElementRow row) => row.key == null).iterator;
+    final Iterator<_TableElementRow> oldUnkeyedRows = _children
+        .where((_TableElementRow row) => row.key == null)
+        .iterator;
     final List<_TableElementRow> newChildren = <_TableElementRow>[];
     final Set<List<Element>> taken = <List<Element>>{};
     for (int rowIndex = 0; rowIndex < newWidget.children.length; rowIndex++) {
@@ -437,12 +436,28 @@ class _TableElement extends RenderObjectElement {
 ///
 /// To create an empty [TableCell], provide a [SizedBox.shrink]
 /// as the [child].
-class TableCell extends ParentDataWidget<TableCellParentData> {
+class TableCell extends StatelessWidget {
   /// Creates a widget that controls how a child of a [Table] is aligned.
-  TableCell({super.key, this.verticalAlignment, required Widget child})
-    : super(child: Semantics(role: SemanticsRole.cell, child: child));
+  const TableCell({super.key, this.verticalAlignment, required this.child});
 
   /// How this cell is aligned vertically.
+  final TableCellVerticalAlignment? verticalAlignment;
+
+  /// The child of this cell.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TableCell(
+      verticalAlignment: verticalAlignment,
+      child: Semantics(role: SemanticsRole.cell, child: child),
+    );
+  }
+}
+
+class _TableCell extends ParentDataWidget<TableCellParentData> {
+  const _TableCell({this.verticalAlignment, required super.child});
+
   final TableCellVerticalAlignment? verticalAlignment;
 
   @override

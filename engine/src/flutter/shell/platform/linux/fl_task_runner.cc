@@ -22,8 +22,11 @@ struct _FlTaskRunner {
 };
 
 typedef struct _FlTaskRunnerTask {
-  // absolute time of task (based on g_get_monotonic_time)
+  // absolute time of task (based on g_get_monotonic_time).
   gint64 task_time_micros;
+
+  // flutter task to execute if schedule through
+  // fl_task_runner_post_flutter_task.
   FlutterTask task;
 } FlTaskRunnerTask;
 
@@ -158,9 +161,9 @@ FlTaskRunner* fl_task_runner_new(FlEngine* engine) {
   return self;
 }
 
-void fl_task_runner_post_task(FlTaskRunner* self,
-                              FlutterTask task,
-                              uint64_t target_time_nanos) {
+void fl_task_runner_post_flutter_task(FlTaskRunner* self,
+                                      FlutterTask task,
+                                      uint64_t target_time_nanos) {
   g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&self->mutex);
   (void)locker;  // unused variable
 

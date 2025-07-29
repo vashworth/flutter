@@ -85,3 +85,19 @@ void backgroundTest() {
 void sendFooMessage() {
   PlatformDispatcher.instance.sendPlatformMessage('foo', null, (ByteData? result) {});
 }
+
+@pragma('vm:external-name', 'NotifyEngineId')
+external void notifyEngineId(int? engineId);
+
+@pragma('vm:entry-point')
+void testEngineId() {
+  notifyEngineId(PlatformDispatcher.instance.engineId);
+}
+
+@pragma('vm:entry-point')
+void testWindowController() {
+  signalNativeTest();
+}
+
+@pragma('vm:entry-point')
+void testWindowControllerRetainCycle() {}

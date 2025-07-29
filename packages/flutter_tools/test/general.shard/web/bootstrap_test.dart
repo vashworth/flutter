@@ -53,7 +53,7 @@ void main() {
     );
 
     // See: https://regexr.com/6q0ft
-    final RegExp regex = RegExp(r'(?:\.flutter-loader\s*\{)[^}]+(?:overflow\:\s*hidden;)[^}]+}');
+    final regex = RegExp(r'(?:\.flutter-loader\s*\{)[^}]+(?:overflow\:\s*hidden;)[^}]+}');
 
     expect(result, matches(regex), reason: '.flutter-loader must have overflow: hidden');
   });
@@ -62,12 +62,11 @@ void main() {
   test('generateMainModule removes timeout from requireJS', () {
     final String result = generateMainModule(
       entrypoint: 'foo/bar/main.js',
-      nullAssertions: false,
       nativeNullAssertions: false,
     );
 
     // See: https://regexr.com/6q0kp
-    final RegExp regex = RegExp(
+    final regex = RegExp(
       r'(?:require\.config\(\{)(?:.|\s(?!\}\);))*'
       r'(?:waitSeconds\:\s*0[,]?)'
       r'(?:(?!\}\);).|\s)*\}\);',
@@ -83,7 +82,6 @@ void main() {
   test('generateMainModule hides requireJS injected by DDC', () {
     final String result = generateMainModule(
       entrypoint: 'foo/bar/main.js',
-      nullAssertions: false,
       nativeNullAssertions: false,
     );
     expect(
@@ -101,7 +99,6 @@ void main() {
   test('generateMainModule embeds urls correctly', () {
     final String result = generateMainModule(
       entrypoint: 'foo/bar/main.js',
-      nullAssertions: false,
       nativeNullAssertions: false,
     );
     // bootstrap main module has correct defined module.
@@ -117,7 +114,6 @@ void main() {
   test('generateMainModule can set bootstrap name', () {
     final String result = generateMainModule(
       entrypoint: 'foo/bar/main.js',
-      nullAssertions: false,
       nativeNullAssertions: false,
       bootstrapModule: 'foo_module.bootstrap',
     );
@@ -134,30 +130,25 @@ void main() {
   test('generateMainModule includes null safety switches', () {
     final String result = generateMainModule(
       entrypoint: 'foo/bar/main.js',
-      nullAssertions: true,
       nativeNullAssertions: true,
     );
 
-    expect(result, contains('''dart_sdk.dart.nonNullAsserts(true);'''));
     expect(result, contains('''dart_sdk.dart.nativeNonNullAsserts(true);'''));
   });
 
   test('generateMainModule can disable null safety switches', () {
     final String result = generateMainModule(
       entrypoint: 'foo/bar/main.js',
-      nullAssertions: false,
       nativeNullAssertions: false,
     );
 
-    expect(result, contains('''dart_sdk.dart.nonNullAsserts(false);'''));
     expect(result, contains('''dart_sdk.dart.nativeNonNullAsserts(false);'''));
   });
 
   test('generateMainModule sets rootDirectories', () {
-    const String root = 'http://localhost:12345';
+    const root = 'http://localhost:12345';
     final String result = generateMainModule(
       entrypoint: 'foo/bar/main.js',
-      nullAssertions: false,
       nativeNullAssertions: false,
       loaderRootDirectory: root,
     );
@@ -263,7 +254,7 @@ void main() {
       );
 
       // See: https://regexr.com/6q0ft
-      final RegExp regex = RegExp(r'(?:\.flutter-loader\s*\{)[^}]+(?:overflow\:\s*hidden;)[^}]+}');
+      final regex = RegExp(r'(?:\.flutter-loader\s*\{)[^}]+(?:overflow\:\s*hidden;)[^}]+}');
 
       expect(result, matches(regex), reason: '.flutter-loader must have overflow: hidden');
     });
@@ -271,9 +262,9 @@ void main() {
     test('generateDDCLibraryBundleMainModule embeds the entrypoint correctly', () {
       final String result = generateDDCLibraryBundleMainModule(
         entrypoint: 'main.js',
-        nullAssertions: false,
         nativeNullAssertions: false,
         onLoadEndBootstrap: 'on_load_end_bootstrap.js',
+        isCi: true,
       );
       // bootstrap main module has correct defined module.
       expect(result, contains('let appName = "org-dartlang-app:/main.js";'));
@@ -283,25 +274,43 @@ void main() {
     test('generateDDCLibraryBundleMainModule includes null safety switches', () {
       final String result = generateDDCLibraryBundleMainModule(
         entrypoint: 'main.js',
-        nullAssertions: true,
         nativeNullAssertions: true,
         onLoadEndBootstrap: 'on_load_end_bootstrap.js',
+        isCi: true,
       );
 
-      expect(result, contains('nonNullAsserts: true'));
       expect(result, contains('nativeNonNullAsserts: true'));
     });
 
     test('generateDDCLibraryBundleMainModule can disable null safety switches', () {
       final String result = generateDDCLibraryBundleMainModule(
         entrypoint: 'main.js',
-        nullAssertions: false,
         nativeNullAssertions: false,
         onLoadEndBootstrap: 'on_load_end_bootstrap.js',
+        isCi: true,
       );
 
-      expect(result, contains('nonNullAsserts: false'));
       expect(result, contains('nativeNonNullAsserts: false'));
+    });
+
+    test('generateDDCLibraryBundleMainModule sets max requests when isCi only', () {
+      String result = generateDDCLibraryBundleMainModule(
+        entrypoint: 'main.js',
+        nativeNullAssertions: false,
+        onLoadEndBootstrap: 'on_load_end_bootstrap.js',
+        isCi: true,
+      );
+
+      expect(result, contains('maxRequestPoolSize ='));
+
+      result = generateDDCLibraryBundleMainModule(
+        entrypoint: 'main.js',
+        nativeNullAssertions: false,
+        onLoadEndBootstrap: 'on_load_end_bootstrap.js',
+        isCi: false,
+      );
+
+      expect(result, isNot(contains('maxRequestPoolSize =')));
     });
 
     test('generateTestBootstrapFileContents embeds urls correctly', () {

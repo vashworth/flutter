@@ -27,6 +27,7 @@ void main() {
   test('TooltipThemeData defaults', () {
     const TooltipThemeData theme = TooltipThemeData();
     expect(theme.height, null);
+    expect(theme.constraints, null);
     expect(theme.padding, null);
     expect(theme.verticalOffset, null);
     expect(theme.preferBelow, null);
@@ -45,11 +46,10 @@ void main() {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const TooltipThemeData().debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[]);
   });
@@ -77,11 +77,10 @@ void main() {
       enableFeedback: enableFeedback,
     ).debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>[
       'height: 15.0',
@@ -106,10 +105,9 @@ void main() {
       final GlobalKey<TooltipState> key = GlobalKey<TooltipState>();
       late final OverlayEntry entry;
       addTearDown(
-        () =>
-            entry
-              ..remove()
-              ..dispose(),
+        () => entry
+          ..remove()
+          ..dispose(),
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -171,10 +169,9 @@ void main() {
 
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -235,10 +232,9 @@ void main() {
       final GlobalKey<TooltipState> key = GlobalKey<TooltipState>();
       late final OverlayEntry entry;
       addTearDown(
-        () =>
-            entry
-              ..remove()
-              ..dispose(),
+        () => entry
+          ..remove()
+          ..dispose(),
       );
 
       await tester.pumpWidget(
@@ -312,10 +308,9 @@ void main() {
 
       late final OverlayEntry entry;
       addTearDown(
-        () =>
-            entry
-              ..remove()
-              ..dispose(),
+        () => entry
+          ..remove()
+          ..dispose(),
       );
 
       await tester.pumpWidget(
@@ -388,10 +383,9 @@ void main() {
       final GlobalKey<TooltipState> key = GlobalKey<TooltipState>();
       late final OverlayEntry entry;
       addTearDown(
-        () =>
-            entry
-              ..remove()
-              ..dispose(),
+        () => entry
+          ..remove()
+          ..dispose(),
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -452,10 +446,9 @@ void main() {
 
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -514,10 +507,9 @@ void main() {
 
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -582,10 +574,9 @@ void main() {
     final GlobalKey<TooltipState> key = GlobalKey<TooltipState>();
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -736,10 +727,9 @@ void main() {
     );
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -779,10 +769,9 @@ void main() {
     );
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -818,10 +807,9 @@ void main() {
 
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -861,10 +849,9 @@ void main() {
 
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -901,10 +888,9 @@ void main() {
 
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -932,8 +918,9 @@ void main() {
     final RenderBox tip = tester.renderObject(
       find.ancestor(
         of: find.text(tooltipText),
-        matching:
-            find.byType(Padding).first, // select [Tooltip.padding] instead of [Tooltip.margin]
+        matching: find
+            .byType(Padding)
+            .first, // select [Tooltip.padding] instead of [Tooltip.margin]
       ),
     );
     final RenderBox content = tester.renderObject(
@@ -951,10 +938,9 @@ void main() {
     const double customPaddingValue = 20.0;
     late final OverlayEntry entry;
     addTearDown(
-      () =>
-          entry
-            ..remove()
-            ..dispose(),
+      () => entry
+        ..remove()
+        ..dispose(),
     );
 
     await tester.pumpWidget(
@@ -982,8 +968,9 @@ void main() {
     final RenderBox tip = tester.renderObject(
       find.ancestor(
         of: find.text(tooltipText),
-        matching:
-            find.byType(Padding).first, // select [Tooltip.padding] instead of [Tooltip.margin]
+        matching: find
+            .byType(Padding)
+            .first, // select [Tooltip.padding] instead of [Tooltip.margin]
       ),
     );
     final RenderBox content = tester.renderObject(
@@ -1245,7 +1232,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(),
-        home: const Center(child: Tooltip(message: 'Foo', child: Text('Bar'))),
+        home: const Center(
+          child: Tooltip(message: 'Foo', child: Text('Bar')),
+        ),
       ),
     );
 
@@ -1290,7 +1279,9 @@ void main() {
       const MaterialApp(
         home: TooltipTheme(
           data: TooltipThemeData(),
-          child: Center(child: Tooltip(message: 'Foo', child: Text('Bar'))),
+          child: Center(
+            child: Tooltip(message: 'Foo', child: Text('Bar')),
+          ),
         ),
       ),
     );
@@ -1335,7 +1326,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(tooltipTheme: const TooltipThemeData(excludeFromSemantics: true)),
-        home: const Center(child: Tooltip(message: 'Foo', child: Text('Bar'))),
+        home: const Center(
+          child: Tooltip(message: 'Foo', child: Text('Bar')),
+        ),
       ),
     );
 
@@ -1376,7 +1369,9 @@ void main() {
       const MaterialApp(
         home: TooltipTheme(
           data: TooltipThemeData(excludeFromSemantics: true),
-          child: Center(child: Tooltip(message: 'Foo', child: Text('Bar'))),
+          child: Center(
+            child: Tooltip(message: 'Foo', child: Text('Bar')),
+          ),
         ),
       ),
     );
@@ -1512,13 +1507,37 @@ void main() {
 
     const Tooltip(message: 'message').debugFillProperties(builder);
 
-    final List<String> description =
-        builder.properties
-            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-            .map((DiagnosticsNode node) => node.toString())
-            .toList();
+    final List<String> description = builder.properties
+        .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+        .map((DiagnosticsNode node) => node.toString())
+        .toList();
 
     expect(description, <String>['"message"']);
+  });
+
+  testWidgets('Tooltip respects constraints from the ambient theme', (WidgetTester tester) async {
+    final GlobalKey<TooltipState> tooltipKey = GlobalKey<TooltipState>();
+    const BoxConstraints themeConstraints = BoxConstraints.tightFor(width: 300, height: 150);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(tooltipTheme: const TooltipThemeData(constraints: themeConstraints)),
+        home: Tooltip(
+          key: tooltipKey,
+          message: tooltipText,
+          padding: EdgeInsets.zero,
+          child: const ColoredBox(color: Colors.green),
+        ),
+      ),
+    );
+
+    tooltipKey.currentState?.ensureTooltipVisible();
+    await tester.pump(const Duration(seconds: 2));
+
+    final Finder textAncestors = find.ancestor(
+      of: find.text(tooltipText),
+      matching: find.byWidgetPredicate((_) => true),
+    );
+    expect(tester.element(textAncestors.first).size, equals(themeConstraints.biggest));
   });
 }
 

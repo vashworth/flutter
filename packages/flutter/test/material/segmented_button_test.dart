@@ -24,7 +24,10 @@ void main() {
   }
 
   Widget boilerplate({required Widget child}) {
-    return Directionality(textDirection: TextDirection.ltr, child: Center(child: child));
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Center(child: child),
+    );
   }
 
   TextStyle iconStyle(WidgetTester tester, IconData icon) {
@@ -62,11 +65,14 @@ void main() {
   testWidgets('SegmentedButton releases state controllers for deleted segments', (
     WidgetTester tester,
   ) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     final Key key = UniqueKey();
 
     Widget buildApp(Widget button) {
-      return MaterialApp(theme: theme, home: Scaffold(body: Center(child: button)));
+      return MaterialApp(
+        theme: theme,
+        home: Scaffold(body: Center(child: button)),
+      );
     }
 
     await tester.pumpWidget(
@@ -104,7 +110,7 @@ void main() {
   testWidgets('SegmentedButton is built with Material of type MaterialType.transparency', (
     WidgetTester tester,
   ) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     await tester.pumpWidget(
       MaterialApp(
         theme: theme,
@@ -558,7 +564,7 @@ void main() {
   testWidgets('SegmentedButton default overlayColor and foregroundColor resolve pressed state', (
     WidgetTester tester,
   ) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -607,7 +613,7 @@ void main() {
   });
 
   testWidgets('SegmentedButton has no tooltips by default', (WidgetTester tester) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     await tester.pumpWidget(
       MaterialApp(
         theme: theme,
@@ -631,7 +637,7 @@ void main() {
   });
 
   testWidgets('SegmentedButton has correct tooltips', (WidgetTester tester) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     await tester.pumpWidget(
       MaterialApp(
         theme: theme,
@@ -1216,6 +1222,7 @@ void main() {
 
     // Test disabled button.
     await tester.pumpWidget(buildButton(enabled: false));
+    await tester.pumpAndSettle();
     expect(iconStyle(tester, Icons.add).color, disabledIconColor);
   });
 }

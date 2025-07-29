@@ -16,7 +16,7 @@ class AnimatedIconApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4), useMaterial3: true),
+      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4)),
       home: const Scaffold(body: AnimatedIconExample()),
     );
   }
@@ -37,10 +37,9 @@ class _AnimatedIconExampleState extends State<AnimatedIconExample>
   @override
   void initState() {
     super.initState();
-    controller =
-        AnimationController(vsync: this, duration: const Duration(seconds: 2))
-          ..forward()
-          ..repeat(reverse: true);
+    controller = AnimationController(vsync: this, duration: const Duration(seconds: 2))
+      ..forward()
+      ..repeat(reverse: true);
     animation = Tween<double>(begin: 0.0, end: 1.0).animate(controller);
   }
 

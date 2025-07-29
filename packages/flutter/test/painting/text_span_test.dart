@@ -110,7 +110,10 @@ void main() {
   test('TextSpan toPlainText', () {
     const TextSpan textSpan = TextSpan(
       text: 'a',
-      children: <TextSpan>[TextSpan(text: 'b'), TextSpan(text: 'c')],
+      children: <TextSpan>[
+        TextSpan(text: 'b'),
+        TextSpan(text: 'c'),
+      ],
     );
     expect(textSpan.toPlainText(), 'abc');
   });
@@ -130,7 +133,10 @@ void main() {
   test('TextSpan toPlainText with semanticsLabel', () {
     const TextSpan textSpan = TextSpan(
       text: 'a',
-      children: <TextSpan>[TextSpan(text: 'b', semanticsLabel: 'foo'), TextSpan(text: 'c')],
+      children: <TextSpan>[
+        TextSpan(text: 'b', semanticsLabel: 'foo'),
+        TextSpan(text: 'c'),
+      ],
     );
     expect(textSpan.toPlainText(), 'afooc');
     expect(textSpan.toPlainText(includeSemanticsLabels: false), 'abc');
@@ -250,7 +256,10 @@ void main() {
     const TextSpan textSpan = TextSpan(
       text: '',
       children: <InlineSpan>[
-        TextSpan(text: '', children: <InlineSpan>[TextSpan(text: 'a')]),
+        TextSpan(
+          text: '',
+          children: <InlineSpan>[TextSpan(text: 'a')],
+        ),
         TextSpan(text: 'b'),
         TextSpan(text: 'c'),
       ],
@@ -289,9 +298,14 @@ void main() {
 
   test('TextSpan computeSemanticsInformation', () {
     final List<InlineSpanSemanticsInformation> collector = <InlineSpanSemanticsInformation>[];
-    const TextSpan(text: 'aaa', semanticsLabel: 'bbb').computeSemanticsInformation(collector);
+    const TextSpan(
+      text: 'aaa',
+      semanticsLabel: 'bbb',
+      semanticsIdentifier: 'ccc',
+    ).computeSemanticsInformation(collector);
     expect(collector[0].text, 'aaa');
     expect(collector[0].semanticsLabel, 'bbb');
+    expect(collector[0].semanticsIdentifier, 'ccc');
   });
 
   test('TextSpan visitDirectChildren', () {
@@ -433,7 +447,10 @@ void main() {
         TextSpan(
           text: 'xxxxx',
           spellOut: false,
-          children: <InlineSpan>[TextSpan(text: 'zzzzz'), TextSpan(text: 'bbbbb', spellOut: true)],
+          children: <InlineSpan>[
+            TextSpan(text: 'zzzzz'),
+            TextSpan(text: 'bbbbb', spellOut: true),
+          ],
         ),
       ],
     );

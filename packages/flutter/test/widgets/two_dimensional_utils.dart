@@ -17,10 +17,9 @@ final TwoDimensionalChildBuilderDelegate builderDelegate = TwoDimensionalChildBu
   builder: (BuildContext context, ChildVicinity vicinity) {
     return Container(
       key: ValueKey<ChildVicinity>(vicinity),
-      color:
-          vicinity.xIndex.isEven && vicinity.yIndex.isEven
-              ? Colors.amber[100]
-              : (vicinity.xIndex.isOdd && vicinity.yIndex.isOdd ? Colors.blueAccent[100] : null),
+      color: vicinity.xIndex.isEven && vicinity.yIndex.isEven
+          ? Colors.amber[100]
+          : (vicinity.xIndex.isOdd && vicinity.yIndex.isOdd ? Colors.blueAccent[100] : null),
       height: 200,
       width: 200,
       child: Center(child: Text('R${vicinity.xIndex}:C${vicinity.yIndex}')),
@@ -268,10 +267,9 @@ class RenderSimpleBuilderTableViewport extends RenderTwoDimensionalViewport {
 final List<List<Widget>> children = List<List<Widget>>.generate(100, (int xIndex) {
   return List<Widget>.generate(100, (int yIndex) {
     return Container(
-      color:
-          xIndex.isEven && yIndex.isEven
-              ? Colors.amber[100]
-              : (xIndex.isOdd && yIndex.isOdd ? Colors.blueAccent[100] : null),
+      color: xIndex.isEven && yIndex.isEven
+          ? Colors.amber[100]
+          : (xIndex.isOdd && yIndex.isOdd ? Colors.blueAccent[100] : null),
       height: 200,
       width: 200,
       child: Center(child: Text('R$xIndex:C$yIndex')),
@@ -291,7 +289,6 @@ Widget simpleListTest({
   Clip? clipBehavior,
 }) {
   return MaterialApp(
-    theme: ThemeData(useMaterial3: true),
     home: Scaffold(
       body: SimpleListTableView(
         mainAxis: mainAxis,

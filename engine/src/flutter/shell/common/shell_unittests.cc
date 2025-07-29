@@ -143,7 +143,10 @@ class MockPlatformViewDelegate : public PlatformView::Delegate {
 
   MOCK_METHOD(void,
               OnPlatformViewDispatchSemanticsAction,
-              (int32_t id, SemanticsAction action, fml::MallocMapping args),
+              (int64_t view_id,
+               int32_t id,
+               SemanticsAction action,
+               fml::MallocMapping args),
               (override));
 
   MOCK_METHOD(void,
@@ -235,6 +238,7 @@ class TestPlatformView : public PlatformView {
   TestPlatformView(Shell& shell, const TaskRunners& task_runners)
       : PlatformView(shell, task_runners) {}
   MOCK_METHOD(std::unique_ptr<Surface>, CreateRenderingSurface, (), (override));
+  MOCK_METHOD(void, ReleaseResourceContext, (), (const, override));
 };
 
 class MockPlatformMessageHandler : public PlatformMessageHandler {
@@ -1016,7 +1020,7 @@ TEST_F(ShellTest, PushBackdropFilterToVisitedPlatformViews) {
   // Make sure the filterRect is in global coordinates (contains the (1,1)
   // translation).
   ASSERT_EQ(mutator->GetFilterMutation().GetFilterRect(),
-            SkRect::MakeLTRB(1, 1, 31, 31));
+            DlRect::MakeLTRB(1, 1, 31, 31));
 
   DestroyShell(std::move(shell));
 #endif  // OS_FUCHSIA
@@ -2604,8 +2608,8 @@ TEST_F(ShellTest, OnServiceProtocolEstimateRasterCacheMemoryWorks) {
 TEST_F(ShellTest, DISABLED_DiscardLayerTreeOnResize) {
   auto settings = CreateSettingsForFixture();
 
-  SkISize wrong_size = SkISize::Make(400, 100);
-  SkISize expected_size = SkISize::Make(400, 200);
+  DlISize wrong_size = DlISize(400, 100);
+  DlISize expected_size = DlISize(400, 200);
 
   fml::AutoResetWaitableEvent end_frame_latch;
   auto end_frame_callback =
@@ -2630,8 +2634,8 @@ TEST_F(ShellTest, DISABLED_DiscardLayerTreeOnResize) {
       [&shell, &expected_size]() {
         shell->GetPlatformView()->SetViewportMetrics(
             kImplicitViewId,
-            {1.0, static_cast<double>(expected_size.width()),
-             static_cast<double>(expected_size.height()), 22, 0});
+            {1.0, static_cast<double>(expected_size.width),
+             static_cast<double>(expected_size.height), 22, 0});
       });
 
   auto configuration = RunConfiguration::InferFromSettings(settings);
@@ -2639,16 +2643,16 @@ TEST_F(ShellTest, DISABLED_DiscardLayerTreeOnResize) {
 
   RunEngine(shell.get(), std::move(configuration));
 
-  PumpOneFrame(shell.get(), ViewContent::DummyView(
-                                static_cast<double>(wrong_size.width()),
-                                static_cast<double>(wrong_size.height())));
+  PumpOneFrame(shell.get(),
+               ViewContent::DummyView(static_cast<double>(wrong_size.width),
+                                      static_cast<double>(wrong_size.height)));
   end_frame_latch.Wait();
   // Wrong size, no frames are submitted.
   ASSERT_EQ(0, external_view_embedder->GetSubmittedFrameCount());
 
   PumpOneFrame(shell.get(), ViewContent::DummyView(
-                                static_cast<double>(expected_size.width()),
-                                static_cast<double>(expected_size.height())));
+                                static_cast<double>(expected_size.width),
+                                static_cast<double>(expected_size.height)));
   end_frame_latch.Wait();
   // Expected size, 1 frame submitted.
   ASSERT_EQ(1, external_view_embedder->GetSubmittedFrameCount());
@@ -2665,8 +2669,8 @@ TEST_F(ShellTest, DISABLED_DiscardLayerTreeOnResize) {
 TEST_F(ShellTest, DISABLED_DiscardResubmittedLayerTreeOnResize) {
   auto settings = CreateSettingsForFixture();
 
-  SkISize origin_size = SkISize::Make(400, 100);
-  SkISize new_size = SkISize::Make(400, 200);
+  DlISize origin_size = DlISize(400, 100);
+  DlISize new_size = DlISize(400, 200);
 
   fml::AutoResetWaitableEvent end_frame_latch;
 
@@ -2709,9 +2713,8 @@ TEST_F(ShellTest, DISABLED_DiscardResubmittedLayerTreeOnResize) {
       shell->GetTaskRunners().GetPlatformTaskRunner(),
       [&shell, &origin_size]() {
         shell->GetPlatformView()->SetViewportMetrics(
-            kImplicitViewId,
-            {1.0, static_cast<double>(origin_size.width()),
-             static_cast<double>(origin_size.height()), 22, 0});
+            kImplicitViewId, {1.0, static_cast<double>(origin_size.width),
+                              static_cast<double>(origin_size.height), 22, 0});
       });
 
   auto configuration = RunConfiguration::InferFromSettings(settings);
@@ -2719,9 +2722,9 @@ TEST_F(ShellTest, DISABLED_DiscardResubmittedLayerTreeOnResize) {
 
   RunEngine(shell.get(), std::move(configuration));
 
-  PumpOneFrame(shell.get(), ViewContent::DummyView(
-                                static_cast<double>(origin_size.width()),
-                                static_cast<double>(origin_size.height())));
+  PumpOneFrame(shell.get(),
+               ViewContent::DummyView(static_cast<double>(origin_size.width),
+                                      static_cast<double>(origin_size.height)));
 
   end_frame_latch.Wait();
   ASSERT_EQ(0, external_view_embedder->GetSubmittedFrameCount());
@@ -2730,8 +2733,8 @@ TEST_F(ShellTest, DISABLED_DiscardResubmittedLayerTreeOnResize) {
       shell->GetTaskRunners().GetPlatformTaskRunner(),
       [&shell, &new_size, &resize_latch]() {
         shell->GetPlatformView()->SetViewportMetrics(
-            kImplicitViewId, {1.0, static_cast<double>(new_size.width()),
-                              static_cast<double>(new_size.height()), 22, 0});
+            kImplicitViewId, {1.0, static_cast<double>(new_size.width),
+                              static_cast<double>(new_size.height), 22, 0});
         resize_latch.Signal();
       });
 
@@ -2743,8 +2746,8 @@ TEST_F(ShellTest, DISABLED_DiscardResubmittedLayerTreeOnResize) {
 
   // Threads will be merged at the end of this frame.
   PumpOneFrame(shell.get(),
-               ViewContent::DummyView(static_cast<double>(new_size.width()),
-                                      static_cast<double>(new_size.height())));
+               ViewContent::DummyView(static_cast<double>(new_size.width),
+                                      static_cast<double>(new_size.height)));
 
   end_frame_latch.Wait();
   ASSERT_TRUE(raster_thread_merger_ref->IsMerged());
@@ -4208,40 +4211,6 @@ TEST_F(ShellTest, NotifyIdleNotCalledInLatencyMode) {
   ASSERT_FALSE(DartVMRef::IsInstanceRunning());
 }
 
-TEST_F(ShellTest, NotifyDestroyed) {
-  ASSERT_FALSE(DartVMRef::IsInstanceRunning());
-  Settings settings = CreateSettingsForFixture();
-  ThreadHost thread_host("io.flutter.test." + GetCurrentTestName() + ".",
-                         ThreadHost::Type::kPlatform | ThreadHost::kUi |
-                             ThreadHost::kIo | ThreadHost::kRaster);
-  auto platform_task_runner = thread_host.platform_thread->GetTaskRunner();
-  TaskRunners task_runners("test", thread_host.platform_thread->GetTaskRunner(),
-                           thread_host.raster_thread->GetTaskRunner(),
-                           thread_host.ui_thread->GetTaskRunner(),
-                           thread_host.io_thread->GetTaskRunner());
-  auto shell = CreateShell(settings, task_runners);
-  ASSERT_TRUE(DartVMRef::IsInstanceRunning());
-  ASSERT_TRUE(ValidateShell(shell.get()));
-
-  fml::CountDownLatch latch(1);
-  AddNativeCallback("NotifyDestroyed", CREATE_NATIVE_ENTRY([&](auto args) {
-                      auto runtime_controller = const_cast<RuntimeController*>(
-                          shell->GetEngine()->GetRuntimeController());
-                      bool success = runtime_controller->NotifyDestroyed();
-                      EXPECT_TRUE(success);
-                      latch.CountDown();
-                    }));
-
-  auto configuration = RunConfiguration::InferFromSettings(settings);
-  configuration.SetEntrypoint("callNotifyDestroyed");
-  RunEngine(shell.get(), std::move(configuration));
-
-  latch.Wait();
-
-  DestroyShell(std::move(shell), task_runners);
-  ASSERT_FALSE(DartVMRef::IsInstanceRunning());
-}
-
 TEST_F(ShellTest, PrintsErrorWhenPlatformMessageSentFromWrongThread) {
 #if FLUTTER_RUNTIME_MODE != FLUTTER_RUNTIME_MODE_DEBUG || OS_FUCHSIA
   GTEST_SKIP() << "Test is for debug mode only on non-fuchsia targets.";
@@ -4341,7 +4310,7 @@ TEST_F(ShellTest, SemanticsActionsFlushMessageLoop) {
       CREATE_NATIVE_ENTRY([&](auto args) { latch.CountDown(); }));
 
   task_runners.GetPlatformTaskRunner()->PostTask([&] {
-    SendSemanticsAction(shell.get(), 0, SemanticsAction::kTap,
+    SendSemanticsAction(shell.get(), 456, 0, SemanticsAction::kTap,
                         fml::MallocMapping(nullptr, 0));
   });
   latch.Wait();
@@ -4382,7 +4351,7 @@ TEST_F(ShellTest, PointerPacketFlushMessageLoop) {
 }
 
 // Verifies a pointer event will flush the dart event loop.
-TEST_F(ShellTest, PointerPacketsAreDispatchedWithTask) {
+TEST_F(ShellTest, DISABLED_PointerPacketsAreDispatchedWithTask) {
   Settings settings = CreateSettingsForFixture();
   ThreadHost thread_host("io.flutter.test." + GetCurrentTestName() + ".",
                          ThreadHost::Type::kPlatform);
@@ -4847,94 +4816,6 @@ TEST_F(ShellTest, IgnoresBadAddViewsBeforeLaunchingIsolate) {
   DestroyShell(std::move(shell), task_runners);
 }
 
-TEST_F(ShellTest, RuntimeStageBackendDefaultsToSkSLWithoutImpeller) {
-  ASSERT_FALSE(DartVMRef::IsInstanceRunning());
-  Settings settings = CreateSettingsForFixture();
-  settings.enable_impeller = false;
-  ThreadHost thread_host(ThreadHost::ThreadHostConfig(
-      "io.flutter.test." + GetCurrentTestName() + ".",
-      ThreadHost::Type::kPlatform | ThreadHost::Type::kRaster |
-          ThreadHost::Type::kIo | ThreadHost::Type::kUi));
-  TaskRunners task_runners("test", thread_host.platform_thread->GetTaskRunner(),
-                           thread_host.raster_thread->GetTaskRunner(),
-                           thread_host.ui_thread->GetTaskRunner(),
-                           thread_host.io_thread->GetTaskRunner());
-  std::unique_ptr<Shell> shell = CreateShell(settings, task_runners);
-  ASSERT_TRUE(shell);
-
-  fml::AutoResetWaitableEvent latch;
-  AddNativeCallback("NotifyNative", CREATE_NATIVE_ENTRY([&latch](auto args) {
-                      auto backend =
-                          UIDartState::Current()->GetRuntimeStageBackend();
-                      EXPECT_EQ(backend, impeller::RuntimeStageBackend::kSkSL);
-                      latch.Signal();
-                    }));
-
-  auto configuration = RunConfiguration::InferFromSettings(settings);
-  configuration.SetEntrypoint("mainNotifyNative");
-  RunEngine(shell.get(), std::move(configuration));
-
-  latch.Wait();
-
-  DestroyShell(std::move(shell), task_runners);
-}
-
-#if IMPELLER_SUPPORTS_RENDERING
-TEST_F(ShellTest, RuntimeStageBackendWithImpeller) {
-  ASSERT_FALSE(DartVMRef::IsInstanceRunning());
-  Settings settings = CreateSettingsForFixture();
-  settings.enable_impeller = true;
-  ThreadHost thread_host(ThreadHost::ThreadHostConfig(
-      "io.flutter.test." + GetCurrentTestName() + ".",
-      ThreadHost::Type::kPlatform | ThreadHost::Type::kRaster |
-          ThreadHost::Type::kIo | ThreadHost::Type::kUi));
-  TaskRunners task_runners("test", thread_host.platform_thread->GetTaskRunner(),
-                           thread_host.raster_thread->GetTaskRunner(),
-                           thread_host.ui_thread->GetTaskRunner(),
-                           thread_host.io_thread->GetTaskRunner());
-  std::unique_ptr<Shell> shell = CreateShell(settings, task_runners);
-  ASSERT_TRUE(shell);
-
-  fml::AutoResetWaitableEvent latch;
-
-  impeller::Context::BackendType impeller_backend;
-  fml::TaskRunner::RunNowOrPostTask(
-      shell->GetTaskRunners().GetPlatformTaskRunner(),
-      [platform_view = shell->GetPlatformView(), &latch, &impeller_backend]() {
-        auto impeller_context = platform_view->GetImpellerContext();
-        EXPECT_TRUE(impeller_context);
-        impeller_backend = impeller_context->GetBackendType();
-        latch.Signal();
-      });
-  latch.Wait();
-
-  AddNativeCallback(
-      "NotifyNative", CREATE_NATIVE_ENTRY([&](auto args) {
-        auto backend = UIDartState::Current()->GetRuntimeStageBackend();
-        switch (impeller_backend) {
-          case impeller::Context::BackendType::kMetal:
-            EXPECT_EQ(backend, impeller::RuntimeStageBackend::kMetal);
-            break;
-          case impeller::Context::BackendType::kOpenGLES:
-            EXPECT_EQ(backend, impeller::RuntimeStageBackend::kOpenGLES3);
-            break;
-          case impeller::Context::BackendType::kVulkan:
-            EXPECT_EQ(backend, impeller::RuntimeStageBackend::kVulkan);
-            break;
-        }
-        latch.Signal();
-      }));
-
-  auto configuration = RunConfiguration::InferFromSettings(settings);
-  configuration.SetEntrypoint("mainNotifyNative");
-  RunEngine(shell.get(), std::move(configuration));
-
-  latch.Wait();
-
-  DestroyShell(std::move(shell), task_runners);
-}
-#endif  // IMPELLER_SUPPORTS_RENDERING
-
 TEST_F(ShellTest, WillLogWarningWhenImpellerIsOptedOut) {
 #if !IMPELLER_SUPPORTS_RENDERING
   GTEST_SKIP() << "This platform doesn't support Impeller.";
@@ -5003,8 +4884,150 @@ TEST_F(ShellTest, SendViewFocusEvent) {
   latch.Wait();
   ASSERT_EQ(last_event,
             "2 ViewFocusState.unfocused ViewFocusDirection.backward");
+  DestroyShell(std::move(shell), task_runners);
+}
+
+TEST_F(ShellTest, ProvidesEngineId) {
+  Settings settings = CreateSettingsForFixture();
+  TaskRunners task_runners = GetTaskRunnersForFixture();
+  fml::AutoResetWaitableEvent latch;
+
+  std::optional<int> reported_handle = std::nullopt;
+
+  AddNativeCallback(
+      "ReportEngineId", CREATE_NATIVE_ENTRY([&](Dart_NativeArguments args) {
+        Dart_Handle arg = Dart_GetNativeArgument(args, 0);
+        if (Dart_IsNull(arg)) {
+          reported_handle = std::nullopt;
+        } else {
+          reported_handle = tonic::DartConverter<int64_t>::FromDart(arg);
+        }
+        latch.Signal();
+      }));
+  fml::AutoResetWaitableEvent check_latch;
+
+  std::unique_ptr<Shell> shell = CreateShell(settings, task_runners);
+  ASSERT_TRUE(shell->IsSetup());
+
+  auto configuration = RunConfiguration::InferFromSettings(settings);
+  configuration.SetEngineId(99);
+  configuration.SetEntrypoint("providesEngineId");
+  RunEngine(shell.get(), std::move(configuration));
+
+  latch.Wait();
+  ASSERT_EQ(reported_handle, 99);
+  DestroyShell(std::move(shell), task_runners);
+}
+
+TEST_F(ShellTest, ProvidesNullEngineId) {
+  Settings settings = CreateSettingsForFixture();
+  TaskRunners task_runners = GetTaskRunnersForFixture();
+  fml::AutoResetWaitableEvent latch;
+
+  std::optional<int> reported_handle = std::nullopt;
+
+  AddNativeCallback(
+      "ReportEngineId", CREATE_NATIVE_ENTRY([&](Dart_NativeArguments args) {
+        Dart_Handle arg = Dart_GetNativeArgument(args, 0);
+        if (Dart_IsNull(arg)) {
+          reported_handle = std::nullopt;
+        } else {
+          reported_handle = tonic::DartConverter<int64_t>::FromDart(arg);
+        }
+        latch.Signal();
+      }));
+  fml::AutoResetWaitableEvent check_latch;
+
+  std::unique_ptr<Shell> shell = CreateShell(settings, task_runners);
+  ASSERT_TRUE(shell->IsSetup());
+
+  auto configuration = RunConfiguration::InferFromSettings(settings);
+  configuration.SetEntrypoint("providesEngineId");
+  RunEngine(shell.get(), std::move(configuration));
+
+  latch.Wait();
+  ASSERT_EQ(reported_handle, std::nullopt);
+  DestroyShell(std::move(shell), task_runners);
+}
+
+TEST_F(ShellTest, MergeUIAndPlatformThreadsAfterLaunch) {
+  Settings settings = CreateSettingsForFixture();
+  settings.merged_platform_ui_thread =
+      Settings::MergedPlatformUIThread::kMergeAfterLaunch;
+  ThreadHost thread_host(ThreadHost::ThreadHostConfig(
+      "io.flutter.test." + GetCurrentTestName() + ".",
+      ThreadHost::Type::kPlatform | ThreadHost::Type::kRaster |
+          ThreadHost::Type::kIo | ThreadHost::Type::kUi));
+  TaskRunners task_runners("test", thread_host.platform_thread->GetTaskRunner(),
+                           thread_host.raster_thread->GetTaskRunner(),
+                           thread_host.ui_thread->GetTaskRunner(),
+                           thread_host.io_thread->GetTaskRunner());
+
+  std::unique_ptr<Shell> shell = CreateShell(settings, task_runners);
+  ASSERT_TRUE(shell);
+
+  ASSERT_FALSE(fml::TaskRunnerChecker::RunsOnTheSameThread(
+      task_runners.GetUITaskRunner()->GetTaskQueueId(),
+      task_runners.GetPlatformTaskRunner()->GetTaskQueueId()));
+
+  fml::AutoResetWaitableEvent latch;
+  AddNativeCallback(
+      "NotifyNative", CREATE_NATIVE_ENTRY([&](auto args) {
+        ASSERT_TRUE(
+            task_runners.GetPlatformTaskRunner()->RunsTasksOnCurrentThread());
+        latch.Signal();
+      }));
+
+  auto configuration = RunConfiguration::InferFromSettings(settings);
+  configuration.SetEntrypoint("mainNotifyNative");
+  RunEngine(shell.get(), std::move(configuration));
+
+  latch.Wait();
+
+  ASSERT_TRUE(fml::TaskRunnerChecker::RunsOnTheSameThread(
+      task_runners.GetUITaskRunner()->GetTaskQueueId(),
+      task_runners.GetPlatformTaskRunner()->GetTaskQueueId()));
 
   DestroyShell(std::move(shell), task_runners);
+}
+
+TEST_F(ShellTest, ReleaseResourceContextWhenIOManagerIsDeleted) {
+  TaskRunners task_runners = GetTaskRunnersForFixture();
+  auto settings = CreateSettingsForFixture();
+  bool called_release_resource_context = false;
+  Shell::CreateCallback<PlatformView> platform_view_create_callback =
+      [task_runners, &called_release_resource_context](flutter::Shell& shell) {
+        auto result = std::make_unique<::testing::NiceMock<TestPlatformView>>(
+            shell, task_runners);
+        ON_CALL(*result, ReleaseResourceContext())
+            .WillByDefault(
+                ::testing::Assign(&called_release_resource_context, true));
+        return result;
+      };
+
+  auto parent_shell = CreateShell({
+      .settings = settings,
+      .task_runners = task_runners,
+      .platform_view_create_callback = platform_view_create_callback,
+  });
+
+  std::unique_ptr<Shell> child_shell;
+  PostSync(
+      parent_shell->GetTaskRunners().GetPlatformTaskRunner(),
+      [&parent_shell, &settings, &child_shell, platform_view_create_callback] {
+        auto configuration = RunConfiguration::InferFromSettings(settings);
+        configuration.SetEntrypoint("emptyMain");
+        auto child = parent_shell->Spawn(
+            std::move(configuration), "", platform_view_create_callback,
+            [](Shell& shell) { return std::make_unique<Rasterizer>(shell); });
+        child_shell = std::move(child);
+      });
+
+  DestroyShell(std::move(parent_shell), task_runners);
+  ASSERT_FALSE(called_release_resource_context);
+
+  DestroyShell(std::move(child_shell), task_runners);
+  ASSERT_TRUE(called_release_resource_context);
 }
 
 }  // namespace testing

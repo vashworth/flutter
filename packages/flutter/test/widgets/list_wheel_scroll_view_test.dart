@@ -27,8 +27,9 @@ void main() {
     );
 
     // 1st, check that the render object has received the default clip behavior.
-    final RenderListWheelViewport renderObject =
-        tester.allRenderObjects.whereType<RenderListWheelViewport>().first;
+    final RenderListWheelViewport renderObject = tester.allRenderObjects
+        .whereType<RenderListWheelViewport>()
+        .first;
     expect(renderObject.clipBehavior, equals(Clip.hardEdge));
 
     // 2nd, check that the painting context has received the default clip behavior.
@@ -115,6 +116,79 @@ void main() {
 
       expect(attach, 1);
       expect(detach, 1);
+    });
+
+    // Regression test for https://github.com/flutter/flutter/issues/162972
+    testWidgets('FixedExtentScrollController keepScrollOffset', (WidgetTester tester) async {
+      final PageStorageBucket bucket = PageStorageBucket();
+
+      Widget buildFrame(ScrollController controller) {
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: PageStorage(
+            bucket: bucket,
+            child: KeyedSubtree(
+              key: const PageStorageKey<String>('ListWheelScrollView'),
+              child: ListWheelScrollView(
+                key: UniqueKey(),
+                itemExtent: 100.0,
+                controller: controller,
+                children: List<Widget>.generate(100, (int index) {
+                  return SizedBox(height: 100.0, width: 400.0, child: Text('Item $index'));
+                }).toList(),
+              ),
+            ),
+          ),
+        );
+      }
+
+      FixedExtentScrollController controller = FixedExtentScrollController(initialItem: 2);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(buildFrame(controller));
+      expect(controller.selectedItem, 2);
+      expect(controller.offset, 200.0);
+      expect(
+        tester.getTopLeft(find.widgetWithText(SizedBox, 'Item 2')),
+        offsetMoreOrLessEquals(const Offset(200.0, 250.0)),
+      );
+
+      controller.jumpToItem(20);
+      await tester.pump();
+      expect(controller.selectedItem, 20);
+      expect(controller.offset, 2000.0);
+      expect(
+        tester.getTopLeft(find.widgetWithText(SizedBox, 'Item 20')),
+        offsetMoreOrLessEquals(const Offset(200.0, 250.0)),
+      );
+
+      controller = FixedExtentScrollController(initialItem: 25);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(buildFrame(controller));
+      expect(controller.selectedItem, 20);
+      expect(controller.offset, 2000.0);
+      expect(
+        tester.getTopLeft(find.widgetWithText(SizedBox, 'Item 20')),
+        offsetMoreOrLessEquals(const Offset(200.0, 250.0)),
+      );
+
+      controller = FixedExtentScrollController(keepScrollOffset: false, initialItem: 10);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(buildFrame(controller));
+      expect(controller.selectedItem, 10);
+      expect(controller.offset, 1000.0);
+      expect(
+        tester.getTopLeft(find.widgetWithText(SizedBox, 'Item 10')),
+        offsetMoreOrLessEquals(const Offset(200.0, 250.0)),
+      );
+    });
+
+    // Regression test for https://github.com/flutter/flutter/issues/162972
+    test('FixedExtentScrollController debugLabel', () {
+      final FixedExtentScrollController controller = FixedExtentScrollController(
+        debugLabel: 'MyCustomWidget',
+      );
+      expect(controller.debugLabel, 'MyCustomWidget');
+      expect(controller.toString(), contains('MyCustomWidget'));
     });
 
     testWidgets('ListWheelScrollView needs positive magnification', (WidgetTester tester) async {
@@ -606,7 +680,12 @@ void main() {
             textDirection: TextDirection.ltr,
             child: ListWheelScrollView(
               itemExtent: 100.0,
-              children: <Widget>[SizedBox(width: width, child: const Center(child: Text('blah')))],
+              children: <Widget>[
+                SizedBox(
+                  width: width,
+                  child: const Center(child: Text('blah')),
+                ),
+              ],
             ),
           ),
         );
@@ -1153,6 +1232,52 @@ void main() {
       expect(selectedItems, <int>[1, 2, 1]);
     });
 
+    testWidgets('onSelectedItemChanged with new change reporting behavior', (
+      WidgetTester tester,
+    ) async {
+      final List<int> selectedItems = <int>[];
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ListWheelScrollView(
+            itemExtent: 100.0,
+            onSelectedItemChanged: (int index) {
+              selectedItems.add(index);
+            },
+            changeReportingBehavior: ChangeReportingBehavior.onScrollEnd,
+            children: List<Widget>.generate(10, (int index) {
+              return const Placeholder();
+            }),
+          ),
+        ),
+      );
+
+      final TestGesture scrollGesture = await tester.startGesture(const Offset(10.0, 10.0));
+      // Item 0 is still closest to the center. No updates.
+      await scrollGesture.moveBy(const Offset(0.0, -49.0));
+      expect(selectedItems.isEmpty, true);
+
+      // Now item 1 is closest to the center.
+      await scrollGesture.moveBy(const Offset(0.0, -1.0));
+      expect(selectedItems, <int>[]);
+
+      // Now item 1 is still closest to the center for another full itemExtent (100px).
+      await scrollGesture.moveBy(const Offset(0.0, -99.0));
+      expect(selectedItems, <int>[]);
+
+      await scrollGesture.moveBy(const Offset(0.0, -1.0));
+      await scrollGesture.up();
+      expect(selectedItems, <int>[2]);
+
+      await scrollGesture.down(const Offset(10.0, 10.0));
+      await scrollGesture.moveBy(const Offset(0.0, 100.0));
+      expect(selectedItems, <int>[2]);
+
+      await scrollGesture.up();
+      expect(selectedItems, <int>[2, 1]);
+    });
+
     testWidgets('onSelectedItemChanged reports only in valid range', (WidgetTester tester) async {
       final List<int> selectedItems = <int>[];
 
@@ -1596,25 +1721,24 @@ void main() {
             child: ListWheelScrollView(
               controller: controller,
               itemExtent: 100.0,
-              children:
-                  outerChildren = List<Widget>.generate(10, (int i) {
-                    return Center(
-                      child:
-                          innerChildren[i] = SizedBox(
-                            height: 50.0,
-                            width: 50.0,
-                            child: Text('Item $i'),
-                          ),
-                    );
-                  }),
+              children: outerChildren = List<Widget>.generate(10, (int i) {
+                return Center(
+                  child: innerChildren[i] = SizedBox(
+                    height: 50.0,
+                    width: 50.0,
+                    child: Text('Item $i'),
+                  ),
+                );
+              }),
             ),
           ),
         ),
       ),
     );
 
-    final RenderListWheelViewport viewport =
-        tester.allRenderObjects.whereType<RenderListWheelViewport>().first;
+    final RenderListWheelViewport viewport = tester.allRenderObjects
+        .whereType<RenderListWheelViewport>()
+        .first;
 
     // direct child of viewport
     RenderObject target = tester.renderObject(find.byWidget(outerChildren[5]));
@@ -1692,8 +1816,9 @@ void main() {
       ),
     );
 
-    final RenderListWheelViewport viewport =
-        tester.allRenderObjects.whereType<RenderListWheelViewport>().first;
+    final RenderListWheelViewport viewport = tester.allRenderObjects
+        .whereType<RenderListWheelViewport>()
+        .first;
     final RenderObject target = tester.renderObject(find.text('Item 5'));
     viewport.getOffsetToReveal(target, 0.0, axis: Axis.horizontal);
   });
@@ -1714,17 +1839,15 @@ void main() {
             child: ListWheelScrollView(
               controller: controller,
               itemExtent: 100.0,
-              children:
-                  outerChildren = List<Widget>.generate(10, (int i) {
-                    return Center(
-                      child:
-                          innerChildren[i] = SizedBox(
-                            height: 50.0,
-                            width: 50.0,
-                            child: Text('Item $i'),
-                          ),
-                    );
-                  }),
+              children: outerChildren = List<Widget>.generate(10, (int i) {
+                return Center(
+                  child: innerChildren[i] = SizedBox(
+                    height: 50.0,
+                    width: 50.0,
+                    child: Text('Item $i'),
+                  ),
+                );
+              }),
             ),
           ),
         ),
@@ -1771,28 +1894,27 @@ void main() {
           child: ListWheelScrollView(
             controller: controller,
             itemExtent: 100,
-            children:
-                children
-                    .map(
-                      (int index) => GestureDetector(
-                        key: ValueKey<int>(index),
-                        onTap: () {
-                          tappedChildren.add(index);
-                        },
-                        child: SizedBox(
-                          width: 100,
-                          height: 100,
-                          child: CustomPaint(
-                            painter: TestCallbackPainter(
-                              onPaint: () {
-                                paintedChildren.add(index);
-                              },
-                            ),
-                          ),
+            children: children
+                .map(
+                  (int index) => GestureDetector(
+                    key: ValueKey<int>(index),
+                    onTap: () {
+                      tappedChildren.add(index);
+                    },
+                    child: SizedBox(
+                      width: 100,
+                      height: 100,
+                      child: CustomPaint(
+                        painter: TestCallbackPainter(
+                          onPaint: () {
+                            paintedChildren.add(index);
+                          },
                         ),
                       ),
-                    )
-                    .toList(),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ),
       );
@@ -1820,11 +1942,10 @@ void main() {
             children: <Widget>[
               PageView(
                 controller: pageController,
-                children:
-                    List<int>.generate(
-                      100,
-                      (int index) => index,
-                    ).map((int index) => Text(index.toString())).toList(),
+                children: List<int>.generate(
+                  100,
+                  (int index) => index,
+                ).map((int index) => Text(index.toString())).toList(),
               ),
             ],
           ),
@@ -1862,28 +1983,27 @@ void main() {
                   itemExtent: 55,
                   squeeze: 1.45,
                   childDelegate: ListWheelChildListDelegate(
-                    children:
-                        children
-                            .map(
-                              (int index) => GestureDetector(
-                                key: ValueKey<int>(index),
-                                onTap: () {
-                                  tappedChildren.add(index);
-                                },
-                                child: SizedBox(
-                                  width: 55,
-                                  height: 55,
-                                  child: CustomPaint(
-                                    painter: TestCallbackPainter(
-                                      onPaint: () {
-                                        paintedChildren.add(index);
-                                      },
-                                    ),
-                                  ),
+                    children: children
+                        .map(
+                          (int index) => GestureDetector(
+                            key: ValueKey<int>(index),
+                            onTap: () {
+                              tappedChildren.add(index);
+                            },
+                            child: SizedBox(
+                              width: 55,
+                              height: 55,
+                              child: CustomPaint(
+                                painter: TestCallbackPainter(
+                                  onPaint: () {
+                                    paintedChildren.add(index);
+                                  },
                                 ),
                               ),
-                            )
-                            .toList(),
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
                 ),
               ),
