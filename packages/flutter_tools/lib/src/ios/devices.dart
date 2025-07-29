@@ -915,6 +915,8 @@ class IOSDevice extends Device {
       return launchSuccess;
     } else {
       final Version? xcodeVersion = globals.xcode?.currentVersion;
+
+      // Xcode 16 introduced a way to start and attach to a debugserver through LLDB.
       if (xcodeVersion != null && xcodeVersion.major >= 16) {
         // Install app to device
         final bool installSuccess = await _coreDeviceControl.installApp(
@@ -935,13 +937,14 @@ class IOSDevice extends Device {
 
         return launchSuccess;
       } else {
+        // Launching the app through Xcode is required for Xcode 15 and Core Devices.
         _logger.printStatus(
           'You may be prompted to give access to control Xcode. Flutter uses Xcode '
           'to run your app. If access is not allowed, you can change this through '
           'your Settings > Privacy & Security > Automation.',
         );
-        final int launchTimeout = isWirelesslyConnected ? 45 : 30;
-        final Timer timer = Timer(discoveryTimeout ?? Duration(seconds: launchTimeout), () {
+        final launchTimeout = isWirelesslyConnected ? 45 : 30;
+        final timer = Timer(discoveryTimeout ?? Duration(seconds: launchTimeout), () {
           _logger.printError(
             'Xcode is taking longer than expected to start debugging the app. '
             'Ensure the project is opened in Xcode.',
@@ -961,9 +964,7 @@ class IOSDevice extends Device {
           // Before installing/launching/debugging with Xcode, update the build
           // settings to use a custom configuration build directory so Xcode
           // knows where to find the app bundle to launch.
-          final Directory bundle = _fileSystem.directory(
-            package.deviceBundlePath,
-          );
+          final Directory bundle = _fileSystem.directory(package.deviceBundlePath);
           await updateGeneratedXcodeProperties(
             project: flutterProject,
             buildInfo: debuggingOptions.buildInfo,
@@ -986,7 +987,9 @@ class IOSDevice extends Device {
             projectInfo.reportFlavorNotFoundAndExit();
           }
 
-          _xcodeDebug.ensureXcodeDebuggerLaunchAction(project.xcodeProjectSchemeFile(scheme: scheme));
+          _xcodeDebug.ensureXcodeDebuggerLaunchAction(
+            project.xcodeProjectSchemeFile(scheme: scheme),
+          );
 
           debugProject = XcodeDebugProject(
             scheme: scheme,
@@ -1006,7 +1009,7 @@ class IOSDevice extends Device {
         final bool debugSuccess = await _xcodeDebug.debugApp(
           project: debugProject,
           deviceId: id,
-          launchArguments:launchArguments,
+          launchArguments: launchArguments,
         );
         timer.cancel();
 

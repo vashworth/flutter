@@ -11,12 +11,19 @@ import '../base/process.dart';
 import '../convert.dart';
 import '../globals.dart';
 
+///
+/// xcrun devicectl device process launch --help
+/// Once the application has launched, you can attach to it using LLDB. For example, if you have an iPhone named 'iPhone' connected to
+/// your Mac, and your application running on the iPhone has the process identifier of 10684, you can debug your application using the
+/// following steps:
+
+/// $ xcrun lldb
+/// (lldb) device select iPhone
+/// (lldb) device process attach -p 10684
 class LLDB {
-  LLDB({
-    required Logger logger,
-    required ProcessUtils processUtils,
-  })  : _logger = logger,
-        _processUtils = processUtils;
+  LLDB({required Logger logger, required ProcessUtils processUtils})
+    : _logger = logger,
+      _processUtils = processUtils;
 
   final Logger _logger;
   final ProcessUtils _processUtils;
@@ -98,24 +105,28 @@ return False
           .transform<String>(utf8.decoder)
           .transform<String>(const LineSplitter())
           .listen((String line) {
-          print(line);
-          _logWaiter?.checkForMatch(line);
-      });
+            print(line);
+            _logWaiter?.checkForMatch(line);
+          });
 
       final StreamSubscription<String> stderrSubscription = _lldbProcess!.stderr
           .transform<String>(utf8.decoder)
           .transform<String>(const LineSplitter())
           .listen((String line) {
-        _logger.printTrace('[stderr] $line');
-      });
+            _logger.printTrace('[stderr] $line');
+          });
 
-      unawaited(_lldbProcess!.exitCode.then((int status) async {
-        _logger.printTrace('lldb exited with code $exitCode');
-        await stdoutSubscription.cancel();
-        await stderrSubscription.cancel();
-      }).whenComplete(() async {
-        _lldbProcess = null;
-      }));
+      unawaited(
+        _lldbProcess!.exitCode
+            .then((int status) async {
+              _logger.printTrace('lldb exited with code $exitCode');
+              await stdoutSubscription.cancel();
+              await stderrSubscription.cancel();
+            })
+            .whenComplete(() async {
+              _lldbProcess = null;
+            }),
+      );
     } on ProcessException catch (exception) {
       _logger.printError('Process exception running lldb:\n$exception');
       return false;
@@ -127,11 +138,13 @@ return False
   }
 
   Future<void> detach() async {
-    return _lldbProcess?.stdinWriteln('process detach',
-        onError: (Object error, _) {
-      // Best effort, try to detach, but maybe the app already exited or already detached.
-      _logger.printTrace('Could not detach from debugger: $error');
-    });
+    return _lldbProcess?.stdinWriteln(
+      'process detach',
+      onError: (Object error, _) {
+        // Best effort, try to detach, but maybe the app already exited or already detached.
+        _logger.printTrace('Could not detach from debugger: $error');
+      },
+    );
   }
 
   bool exit() {
@@ -194,12 +207,9 @@ class _LLDBLogWaiter {
 }
 
 class _LLDBProcess {
-  _LLDBProcess({
-    required Process process,
-    required this.processId,
-    required Logger logger,
-  })  : _lldbProcess = process,
-        _logger = logger;
+  _LLDBProcess({required Process process, required this.processId, required Logger logger})
+    : _lldbProcess = process,
+      _logger = logger;
 
   final Process _lldbProcess;
   final int processId;
@@ -218,15 +228,13 @@ class _LLDBProcess {
     return _lldbProcess.kill();
   }
 
-  Future<void> stdinWriteln(
-    String line, {
-    void Function(Object, StackTrace)? onError,
-  }) async {
+  Future<void> stdinWriteln(String line, {void Function(Object, StackTrace)? onError}) async {
     Future<void> writeln() {
       return ProcessUtils.writelnToStdinGuarded(
         stdin: _lldbProcess.stdin,
         line: line,
-        onError: onError ??
+        onError:
+            onError ??
             (Object error, _) {
               _logger.printTrace('Could not write "$line" to stdin: $error');
             },
