@@ -22,6 +22,7 @@ import 'package:flutter_tools/src/ios/application_package.dart';
 import 'package:flutter_tools/src/ios/core_devices.dart';
 import 'package:flutter_tools/src/ios/devices.dart';
 import 'package:flutter_tools/src/ios/ios_deploy.dart';
+import 'package:flutter_tools/src/ios/ios_device_log_reader.dart';
 import 'package:flutter_tools/src/ios/ios_workflow.dart';
 import 'package:flutter_tools/src/ios/iproxy.dart';
 import 'package:flutter_tools/src/ios/mac.dart';
@@ -517,7 +518,11 @@ void main() {
 
       IOSDeviceLogReader createLogReader(IOSDevice device, IOSApp appPackage, Process process) {
         final logReader = IOSDeviceLogReader.create(
-          device: device,
+          majorSdkVersion: device.majorSdkVersion,
+          deviceId: device.id,
+          deviceName: device.displayName,
+          isWirelesslyConnected: device.isWirelesslyConnected,
+          isCoreDevice: device.isCoreDevice,
           app: appPackage,
           iMobileDevice: IMobileDevice.test(processManager: FakeProcessManager.any()),
         );
