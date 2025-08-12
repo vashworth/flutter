@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
 import 'package:meta/meta.dart';
 import 'package:process/process.dart';
 
@@ -134,72 +136,94 @@ class IOSCoreDeviceLauncher {
     required IOSApp package,
     required List<String> launchArguments,
     required TemplateRenderer templateRenderer,
+    required Duration launchTimeout,
+    required ShutdownHooks shutdownHooks,
     String? mainPath,
-    @visibleForTesting Duration? discoveryTimeout,
   }) async {
     XcodeDebugProject? debugProject;
 
-    if (package is PrebuiltIOSApp) {
-      debugProject = await _xcodeDebug.createXcodeProjectWithCustomBundle(
-        package.deviceBundlePath,
-        templateRenderer: templateRenderer,
-        verboseLogging: _logger.isVerbose,
+    // If LLDB is not available or fails, fallback to using Xcode.
+    _logger.printStatus(
+      'You may be prompted to give access to control Xcode. Flutter uses Xcode '
+      'to run your app. If access is not allowed, you can change this through '
+      'your Settings > Privacy & Security > Automation.',
+    );
+    final timer = Timer(launchTimeout, () {
+      _logger.printError(
+        'Xcode is taking longer than expected to start debugging the app. '
+        'If the issue persists, try closing Xcode and re-running your Flutter command.',
       );
-    } else if (package is BuildableIOSApp) {
-      final IosProject project = package.project;
-      final Directory bundle = _fileSystem.directory(package.deviceBundlePath);
-      final Directory? xcodeWorkspace = project.xcodeWorkspace;
-      if (xcodeWorkspace == null) {
-        _logger.printTrace('Unable to get Xcode workspace.');
+    });
+    try {
+      // Kill Xcode on shutdown when running from CI
+      if (debuggingOptions.usingCISystem) {
+        shutdownHooks.addShutdownHook(() => _xcodeDebug.exit(force: true));
+      }
+
+      if (package is PrebuiltIOSApp) {
+        debugProject = await _xcodeDebug.createXcodeProjectWithCustomBundle(
+          package.deviceBundlePath,
+          templateRenderer: templateRenderer,
+          verboseLogging: _logger.isVerbose,
+        );
+      } else if (package is BuildableIOSApp) {
+        final IosProject project = package.project;
+        final Directory bundle = _fileSystem.directory(package.deviceBundlePath);
+        final Directory? xcodeWorkspace = project.xcodeWorkspace;
+        if (xcodeWorkspace == null) {
+          _logger.printTrace('Unable to get Xcode workspace.');
+          return false;
+        }
+        final String? scheme = await project.schemeForBuildInfo(
+          debuggingOptions.buildInfo,
+          logger: _logger,
+        );
+        if (scheme == null) {
+          return false;
+        }
+        _xcodeDebug.ensureXcodeDebuggerLaunchAction(project.xcodeProjectSchemeFile(scheme: scheme));
+
+        // Before installing/launching/debugging with Xcode, update the build
+        // settings to use a custom configuration build directory so Xcode
+        // knows where to find the app bundle to launch.
+        await _xcodeDebug.updateConfigurationBuildDir(
+          project: project.parent,
+          buildInfo: debuggingOptions.buildInfo,
+          configurationBuildDir: bundle.parent.absolute.path,
+        );
+
+        debugProject = XcodeDebugProject(
+          scheme: scheme,
+          xcodeProject: project.xcodeProject,
+          xcodeWorkspace: xcodeWorkspace,
+          hostAppProjectName: project.hostAppProjectName,
+          expectedConfigurationBuildDir: bundle.parent.absolute.path,
+          verboseLogging: _logger.isVerbose,
+        );
+      } else {
+        // This should not happen. Currently, only PrebuiltIOSApp and
+        // BuildableIOSApp extend from IOSApp.
+        _logger.printTrace('IOSApp type ${package.runtimeType} is not recognized.');
         return false;
       }
-      final String? scheme = await project.schemeForBuildInfo(
-        debuggingOptions.buildInfo,
-        logger: _logger,
-      );
-      if (scheme == null) {
-        return false;
-      }
-      _xcodeDebug.ensureXcodeDebuggerLaunchAction(project.xcodeProjectSchemeFile(scheme: scheme));
 
-      // Before installing/launching/debugging with Xcode, update the build
-      // settings to use a custom configuration build directory so Xcode
-      // knows where to find the app bundle to launch.
-      await _xcodeDebug.updateConfigurationBuildDir(
-        project: project.parent,
-        buildInfo: debuggingOptions.buildInfo,
-        configurationBuildDir: bundle.parent.absolute.path,
+      // Core Devices (iOS 17 devices) are debugged through Xcode so don't
+      // include these flags, which are used to check if the app was launched
+      // via Flutter CLI and `ios-deploy`.
+      launchArguments.removeWhere(
+        (String arg) => arg == '--enable-checked-mode' || arg == '--verify-entry-points',
       );
 
-      debugProject = XcodeDebugProject(
-        scheme: scheme,
-        xcodeProject: project.xcodeProject,
-        xcodeWorkspace: xcodeWorkspace,
-        hostAppProjectName: project.hostAppProjectName,
-        expectedConfigurationBuildDir: bundle.parent.absolute.path,
-        verboseLogging: _logger.isVerbose,
+      final bool debugSuccess = await _xcodeDebug.debugApp(
+        project: debugProject,
+        deviceId: deviceId,
+        launchArguments: launchArguments,
       );
-    } else {
-      // This should not happen. Currently, only PrebuiltIOSApp and
-      // BuildableIOSApp extend from IOSApp.
-      _logger.printTrace('IOSApp type ${package.runtimeType} is not recognized.');
-      return false;
+
+      return debugSuccess;
+    } finally {
+      timer.cancel();
     }
-
-    // Core Devices (iOS 17 devices) are debugged through Xcode so don't
-    // include these flags, which are used to check if the app was launched
-    // via Flutter CLI and `ios-deploy`.
-    launchArguments.removeWhere(
-      (String arg) => arg == '--enable-checked-mode' || arg == '--verify-entry-points',
-    );
-
-    final bool debugSuccess = await _xcodeDebug.debugApp(
-      project: debugProject,
-      deviceId: deviceId,
-      launchArguments: launchArguments,
-    );
-
-    return debugSuccess;
   }
 
   /// Stop the app depending on how it was launched.
