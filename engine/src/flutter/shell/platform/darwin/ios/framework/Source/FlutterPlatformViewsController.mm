@@ -664,9 +664,24 @@ static CGRect GetCGRectFromDlRect(const DlRect& clipDlRect) {
 - (BOOL)submitFrame:(std::unique_ptr<flutter::SurfaceFrame>)background_frame
      withIosContext:(const std::shared_ptr<flutter::IOSContext>&)iosContext {
   TRACE_EVENT0("flutter", "PlatformViewsController::SubmitFrame");
+  // FML_LOG(ERROR) << "RESIZE RENDER STEP 8: \n  FlutterPlatformViewsController::submitFrame";
 
-  // No platform views to render; we're done.
   if (self.flutterView == nil || (self.compositionOrder.empty() && !self.hadPlatformViews)) {
+    // No platform views to render but there is a Flutter view and therefore may have a resize
+    if (self.flutterView != nil) {
+      // If the raster thread isn't merged, resize the view on the platform thread and block until
+      // complete.
+      auto latch = std::make_shared<fml::CountDownLatch>(1u);
+      fml::TaskRunner::RunNowOrPostTask(self.platformTaskRunner,
+                                        [self, frameSize = self.frameSize, latch]() mutable {
+                                          [self performResize:frameSize];
+                                          latch->CountDown();
+                                        });
+      if (![[NSThread currentThread] isMainThread]) {
+        latch->Wait();
+      }
+    }
+    // No platform views to render; we're done.
     self.hadPlatformViews = NO;
     return background_frame->Submit();
   }
@@ -796,6 +811,17 @@ static CGRect GetCGRectFromDlRect(const DlRect& clipDlRect) {
       });
   if (![[NSThread currentThread] isMainThread]) {
     latch->Wait();
+  }
+}
+
+- (void)performResize:(const flutter::DlISize&)frameSize {
+  TRACE_EVENT0("flutter", "PlatformViewsController::PerformResize");
+  FML_DCHECK([[NSThread currentThread] isMainThread]);
+  if (self.flutterView != nil) {
+    FML_LOG(ERROR) << "RESIZE RENDER STEP 9: \n  setIntrinsicContentSize " << frameSize.width << "x"
+                   << frameSize.height;
+    [(FlutterView*)self.flutterView
+        setIntrinsicContentSize:CGSizeMake(frameSize.width, frameSize.height)];
   }
 }
 
