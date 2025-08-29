@@ -148,10 +148,10 @@ class AttachCommand extends FlutterCommand {
   final FileSystem _fileSystem;
 
   @override
-  final String name = 'attach';
+  final name = 'attach';
 
   @override
-  final String description = r'''
+  final description = r'''
 Attach to a running app.
 
 For attaching to Android or iOS devices, simply using `flutter attach` is
@@ -284,7 +284,7 @@ known, it can be explicitly provided to attach via the command-line, e.g.
     final bool usesIpv6 = ipv6!;
     final String ipv6Loopback = InternetAddress.loopbackIPv6.address;
     final String ipv4Loopback = InternetAddress.loopbackIPv4.address;
-    final String hostname = usesIpv6 ? ipv6Loopback : ipv4Loopback;
+    final hostname = usesIpv6 ? ipv6Loopback : ipv4Loopback;
     final bool isWirelessIOSDevice = (device is IOSDevice) && device.isWirelesslyConnected;
 
     if ((debugPort == null && debugUri == null) || isWirelessIOSDevice) {
@@ -370,7 +370,6 @@ known, it can be explicitly provided to attach via the command-line, e.g.
               return runner.attach(
                 connectionInfoCompleter: connectionInfoCompleter,
                 appStartedCompleter: appStartedCompleter,
-                allowExistingDdsInstance: true,
               );
             },
             device,
@@ -378,7 +377,7 @@ known, it can be explicitly provided to attach via the command-line, e.g.
             true,
             _fileSystem.currentDirectory,
             LaunchMode.attach,
-            _logger as AppRunLogger,
+            _logger as MachineOutputLogger,
           );
         } on Exception catch (error) {
           throwToolExit(error.toString());
@@ -393,7 +392,7 @@ known, it can be explicitly provided to attach via the command-line, e.g.
           flutterProject: flutterProject,
           usesIpv6: usesIpv6,
         );
-        final Completer<void> onAppStart = Completer<void>.sync();
+        final onAppStart = Completer<void>.sync();
         TerminalHandler? terminalHandler;
         unawaited(
           onAppStart.future.whenComplete(() {
@@ -411,10 +410,7 @@ known, it can be explicitly provided to attach via the command-line, e.g.
                   ..setupTerminal();
           }),
         );
-        result = await runner.attach(
-          appStartedCompleter: onAppStart,
-          allowExistingDdsInstance: true,
-        );
+        result = await runner.attach(appStartedCompleter: onAppStart);
         if (result != 0) {
           throwToolExit(null, exitCode: result);
         }
@@ -463,8 +459,8 @@ known, it can be explicitly provided to attach via the command-line, e.g.
       platform: _platform,
     );
     flutterDevice.vmServiceUris = vmServiceUris;
-    final List<FlutterDevice> flutterDevices = <FlutterDevice>[flutterDevice];
-    final DebuggingOptions debuggingOptions = DebuggingOptions.enabled(
+    final flutterDevices = <FlutterDevice>[flutterDevice];
+    final debuggingOptions = DebuggingOptions.enabled(
       buildInfo,
       enableDds: enableDds,
       ddsPort: ddsPort,

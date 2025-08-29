@@ -384,7 +384,7 @@ void main() {
       MaterialApp(
         home: Center(
           child: Material(
-            child: SearchBar(elevation: MaterialStateProperty.resolveWith<double>(getElevation)),
+            child: SearchBar(elevation: WidgetStateProperty.resolveWith<double>(getElevation)),
           ),
         ),
       ),
@@ -424,7 +424,7 @@ void main() {
       MaterialApp(
         home: Center(
           child: Material(
-            child: SearchBar(backgroundColor: MaterialStateProperty.resolveWith<Color>(_getColor)),
+            child: SearchBar(backgroundColor: WidgetStateProperty.resolveWith<Color>(_getColor)),
           ),
         ),
       ),
@@ -464,7 +464,7 @@ void main() {
       MaterialApp(
         home: Center(
           child: Material(
-            child: SearchBar(shadowColor: MaterialStateProperty.resolveWith<Color>(_getColor)),
+            child: SearchBar(shadowColor: WidgetStateProperty.resolveWith<Color>(_getColor)),
           ),
         ),
       ),
@@ -504,7 +504,7 @@ void main() {
       MaterialApp(
         home: Center(
           child: Material(
-            child: SearchBar(surfaceTintColor: MaterialStateProperty.resolveWith<Color>(_getColor)),
+            child: SearchBar(surfaceTintColor: WidgetStateProperty.resolveWith<Color>(_getColor)),
           ),
         ),
       ),
@@ -549,7 +549,7 @@ void main() {
           child: Material(
             child: SearchBar(
               focusNode: focusNode,
-              overlayColor: MaterialStateProperty.resolveWith<Color>(_getColor),
+              overlayColor: WidgetStateProperty.resolveWith<Color>(_getColor),
             ),
           ),
         ),
@@ -638,8 +638,8 @@ void main() {
         home: Center(
           child: Material(
             child: SearchBar(
-              side: MaterialStateProperty.resolveWith<BorderSide>(getSide),
-              shape: MaterialStateProperty.resolveWith<OutlinedBorder>(getShape),
+              side: WidgetStateProperty.resolveWith<BorderSide>(getSide),
+              shape: WidgetStateProperty.resolveWith<OutlinedBorder>(getShape),
             ),
           ),
         ),
@@ -708,7 +708,7 @@ void main() {
           child: Material(
             child: SearchBar(
               hintText: 'hint text',
-              hintStyle: MaterialStateProperty.resolveWith<TextStyle?>(_getTextStyle),
+              hintStyle: WidgetStateProperty.resolveWith<TextStyle?>(_getTextStyle),
             ),
           ),
         ),
@@ -747,7 +747,7 @@ void main() {
           child: Material(
             child: SearchBar(
               controller: controller,
-              textStyle: MaterialStateProperty.resolveWith<TextStyle?>(_getTextStyle),
+              textStyle: WidgetStateProperty.resolveWith<TextStyle?>(_getTextStyle),
             ),
           ),
         ),
@@ -1007,7 +1007,7 @@ void main() {
           child: Material(
             child: SearchBar(
               hintText: 'hint text',
-              hintStyle: MaterialStateProperty.resolveWith<TextStyle?>(_getTextStyle),
+              hintStyle: WidgetStateProperty.resolveWith<TextStyle?>(_getTextStyle),
               textStyle: const MaterialStatePropertyAll<TextStyle>(TextStyle(color: Colors.pink)),
             ),
           ),
@@ -4157,6 +4157,90 @@ void main() {
           tester.getSize(find.byType(MaterialApp)).height - fakeKeyboardHeight;
       expect(lastItemBottom, lessThanOrEqualTo(fakeKeyboardTop));
     },
+  );
+
+  testWidgets(
+    'readOnly disallows SystemContextMenu',
+    (WidgetTester tester) async {
+      // Regression test for https://github.com/flutter/flutter/issues/170521.
+      tester.platformDispatcher.supportsShowingSystemContextMenu = true;
+      final TextEditingController controller = TextEditingController(text: 'abcdefghijklmnopqr');
+      addTearDown(() {
+        tester.platformDispatcher.resetSupportsShowingSystemContextMenu();
+        tester.view.reset();
+        controller.dispose();
+      });
+
+      bool readOnly = true;
+      late StateSetter setState;
+
+      await tester.pumpWidget(
+        // Don't wrap with the global View so that the change to
+        // platformDispatcher is read.
+        wrapWithView: false,
+        View(
+          view: tester.view,
+          child: MaterialApp(
+            home: Material(
+              child: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setter) {
+                  setState = setter;
+                  return SearchBar(controller: controller, readOnly: readOnly);
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final Duration waitDuration = SelectionOverlay.fadeDuration > kDoubleTapTimeout
+          ? SelectionOverlay.fadeDuration
+          : kDoubleTapTimeout;
+
+      // Double tap to select the text.
+      await tester.tapAt(textOffsetToPosition(tester, 5));
+      await tester.pump(kDoubleTapTimeout ~/ 2);
+      await tester.tapAt(textOffsetToPosition(tester, 5));
+      await tester.pump(waitDuration);
+
+      // No error as in https://github.com/flutter/flutter/issues/170521.
+
+      // The Flutter-drawn context menu is shown. The SystemContextMenu is not
+      // shown because readOnly is true.
+      expect(find.byType(AdaptiveTextSelectionToolbar), findsOneWidget);
+      expect(find.byType(SystemContextMenu), findsNothing);
+
+      // Turn off readOnly and hide the context menu.
+      setState(() {
+        readOnly = false;
+      });
+      await tester.tap(find.text('Copy'));
+      await tester.pump(waitDuration);
+
+      expect(find.byType(AdaptiveTextSelectionToolbar), findsNothing);
+      expect(find.byType(SystemContextMenu), findsNothing);
+
+      // Double tap to show the context menu again.
+      await tester.tapAt(textOffsetToPosition(tester, 5));
+      await tester.pump(kDoubleTapTimeout ~/ 2);
+      await tester.tapAt(textOffsetToPosition(tester, 5));
+      await tester.pump(waitDuration);
+
+      // Now iOS is showing the SystemContextMenu while others continue to show
+      // the Flutter-drawn context menu.
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.iOS:
+          expect(find.byType(SystemContextMenu), findsOneWidget);
+        case TargetPlatform.macOS:
+        case TargetPlatform.android:
+        case TargetPlatform.fuchsia:
+        case TargetPlatform.linux:
+        case TargetPlatform.windows:
+          expect(find.byType(AdaptiveTextSelectionToolbar), findsOneWidget);
+      }
+    },
+    variant: TargetPlatformVariant.all(),
+    skip: kIsWeb, // [intended] on web the browser handles the context menu.
   );
 }
 
