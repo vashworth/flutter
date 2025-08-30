@@ -4,13 +4,13 @@
 
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterSceneDelegate.h"
 
+#import "flutter/shell/platform/darwin/common/InternalFlutterSwiftCommon/InternalFlutterSwiftCommon.h"
 #import "flutter/shell/platform/darwin/common/framework/Headers/FlutterMacros.h"
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterPluginAppLifeCycleDelegate.h"
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterViewController.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterAppDelegate_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterEngine_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
-#import "flutter/shell/platform/darwin/common/InternalFlutterSwiftCommon/InternalFlutterSwiftCommon.h"
 
 #import <UserNotifications/UserNotifications.h>
 #import <os/log.h>
@@ -299,7 +299,6 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 }
 
 @end
-
 
 @implementation FlutterEnginePluginSceneLifeCycleDelegate {
   // Weak references to registered plugins.

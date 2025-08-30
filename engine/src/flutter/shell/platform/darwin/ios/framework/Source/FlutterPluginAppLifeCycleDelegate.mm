@@ -436,4 +436,3 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
   return NO;
 }
 @end
-

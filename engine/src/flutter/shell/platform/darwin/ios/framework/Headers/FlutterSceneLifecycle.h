@@ -5,7 +5,6 @@
 #ifndef FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERSCENELIFECYCLE_H_
 #define FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERSCENELIFECYCLE_H_
 
-
 NS_ASSUME_NONNULL_BEGIN
 
 @class FlutterViewController;
@@ -15,8 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
  */
 FLUTTER_DARWIN_EXPORT
 
-// This is the class that holds all the engines associated with the scene. It is held by the FlutterSceneDelegate.
-// The FlutterSceneDelegate forwards events to it and then it forwards the events FlutterEnginePluginSceneLifeCycleDelegate.
+// This is the class that holds all the engines associated with the scene. It is held by the
+// FlutterSceneDelegate. The FlutterSceneDelegate forwards events to it and then it forwards the
+// events FlutterEnginePluginSceneLifeCycleDelegate.
 @interface FlutterPluginSceneLifeCycleDelegate : NSObject
 - (void)addFlutterViewController:(FlutterViewController*)controller;
 
@@ -62,9 +62,8 @@ FLUTTER_DARWIN_EXPORT
     restoreInteractionStateWithUserActivity:(NSUserActivity*)stateRestorationActivity;
 @end
 
-
-
-// This is the protocol the SceneDelegate conforms to allow add to app use flutter plugin scene forwarding without subclassing the FlutterSceneDelegate.
+// This is the protocol the SceneDelegate conforms to allow add to app use flutter plugin scene
+// forwarding without subclassing the FlutterSceneDelegate.
 @protocol FlutterSceneLifeCycleProvider
 
 @property(nonatomic, strong) FlutterPluginSceneLifeCycleDelegate* sceneLifeCycleDelegate;
@@ -113,7 +112,8 @@ FLUTTER_DARWIN_EXPORT
 @end
 
 // This is the class that holds all the plugins. It is held by the FlutterEngine.
-// The FlutterPluginSceneLifeCycleDelegate forwards events to it and then it forwards the events to the plugins.
+// The FlutterPluginSceneLifeCycleDelegate forwards events to it and then it forwards the events to
+// the plugins.
 @interface FlutterEnginePluginSceneLifeCycleDelegate : NSObject
 
 - (void)addDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
@@ -159,4 +159,3 @@ FLUTTER_DARWIN_EXPORT
 NS_ASSUME_NONNULL_END
 
 #endif  // FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERSCENELIFECYCLE_H_
-
