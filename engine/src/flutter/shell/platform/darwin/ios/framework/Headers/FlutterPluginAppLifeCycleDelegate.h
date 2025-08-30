@@ -144,55 +144,6 @@ FLUTTER_DARWIN_EXPORT
       restorationHandler:(void (^)(NSArray*))restorationHandler;
 @end
 
-// This
-@interface FlutterPluginSceneLifeCycleDelegate : NSObject
-
-- (void)addDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
-
-- (void)flutterViewController:(FlutterViewController*)controller
-            didConnectToScene:(UIScene*)scene
-                      options:(UISceneConnectionOptions*)connectionOptions;
-
-- (void)sceneDidDisconnect:(UIScene*)scene;
-
-- (void)sceneWillEnterForeground:(UIScene*)scene;
-
-- (void)sceneDidBecomeActive:(UIScene*)scene;
-
-- (void)sceneWillResignActive:(UIScene*)scene;
-
-- (void)sceneDidEnterBackground:(UIScene*)scene;
-
-- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts;
-
-- (void)scene:(UIScene*)scene willContinueUserActivityWithType:(NSString*)userActivityType;
-
-- (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity;
-
-- (void)scene:(UIScene*)scene
-    didFailToContinueUserActivityWithType:(NSString*)userActivityType
-                                    error:(NSError*)error;
-
-- (void)scene:(UIScene*)scene didUpdateUserActivity:(NSUserActivity*)userActivity;
-
-// - (void)windowScene:(UIWindowScene*)windowScene
-//     didUpdateEffectiveGeometry:(UIWindowSceneGeometry*)previousEffectiveGeometry;
-
-- (void)windowScene:(UIWindowScene*)windowScene
-    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
-               completionHandler:(void (^)(BOOL succeeded))completionHandler;
-
-- (void)windowScene:(UIWindowScene*)windowScene
-    userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata*)cloudKitShareMetadata;
-
-@end
-
-// This is the protocol the SceneDelegate conforms to
-@protocol FlutterSceneLifeCycleProvider
-
-- (void)addFlutterViewController:(FlutterViewController*)controller;
-@end
-
 NS_ASSUME_NONNULL_END
 
 #endif  // FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERPLUGINAPPLIFECYCLEDELEGATE_H_

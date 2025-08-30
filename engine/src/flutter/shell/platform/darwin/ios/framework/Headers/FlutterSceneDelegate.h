@@ -7,7 +7,7 @@
 
 #import <UIKit/UIKit.h>
 #import "FlutterMacros.h"
-#import "FlutterPluginAppLifeCycleDelegate.h"
+#import "FlutterSceneLifecycle.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

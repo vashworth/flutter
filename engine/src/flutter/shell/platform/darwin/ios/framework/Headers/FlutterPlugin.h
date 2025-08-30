@@ -19,48 +19,6 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FlutterPluginRegistry;
 @class FlutterViewController;
 
-// This is the protocol that Flutter plugins should conform to
-@protocol FlutterSceneLifeCycleDelegate
-
-@optional
-- (void)flutterViewController:(FlutterViewController*)controller
-            didConnectToScene:(UIScene*)scene
-                      options:(UISceneConnectionOptions*)connectionOptions;
-
-- (void)sceneDidDisconnect:(UIScene*)scene;
-
-- (void)sceneWillEnterForeground:(UIScene*)scene;
-
-- (void)sceneDidBecomeActive:(UIScene*)scene;
-
-- (void)sceneWillResignActive:(UIScene*)scene;
-
-- (void)sceneDidEnterBackground:(UIScene*)scene;
-
-- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts;
-
-- (void)scene:(UIScene*)scene willContinueUserActivityWithType:(NSString*)userActivityType;
-
-- (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity;
-
-- (void)scene:(UIScene*)scene
-    didFailToContinueUserActivityWithType:(NSString*)userActivityType
-                                    error:(NSError*)error;
-
-- (void)scene:(UIScene*)scene didUpdateUserActivity:(NSUserActivity*)userActivity;
-
-// - (void)windowScene:(UIWindowScene*)windowScene
-//     didUpdateEffectiveGeometry:(UIWindowSceneGeometry*)previousEffectiveGeometry;
-
-- (void)windowScene:(UIWindowScene*)windowScene
-    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
-               completionHandler:(void (^)(BOOL succeeded))completionHandler;
-
-- (void)windowScene:(UIWindowScene*)windowScene
-    userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata*)cloudKitShareMetadata;
-
-@end
-
 #pragma mark -
 /**
  * Protocol for listener of events from the UIApplication, typically a FlutterPlugin.

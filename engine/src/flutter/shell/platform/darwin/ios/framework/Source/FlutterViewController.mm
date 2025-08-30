@@ -17,6 +17,7 @@
 #include "flutter/shell/common/thread_host.h"
 #import "flutter/shell/platform/darwin/common/InternalFlutterSwiftCommon/InternalFlutterSwiftCommon.h"
 #import "flutter/shell/platform/darwin/common/framework/Source/FlutterBinaryMessengerRelay.h"
+#import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterSceneLifecycle.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterAppDelegate_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterChannelKeyResponder.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterEmbedderKeyResponder.h"
@@ -810,20 +811,16 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 - (void)viewIsAppearing:(BOOL)animated {
   FML_LOG(ERROR) << "viewIsAppearing";
-  [self connectFlutterViewControllerWithScene];
-  [super viewIsAppearing:animated];
-}
 
-- (void)connectFlutterViewControllerWithScene {
   // The scene is not available until viewIsAppearing
   UIWindowScene* scene = self.view.window.windowScene;
-
-  // self.view.window.windowScene
   if ([scene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
     id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
         (id<FlutterSceneLifeCycleProvider>)scene.delegate;
-    [lifeCycleProvider addFlutterViewController:self];
+    [lifeCycleProvider.sceneLifeCycleDelegate addFlutterViewController:self];
   }
+
+  [super viewIsAppearing:animated];
 }
 
 - (void)viewDidLoad {
