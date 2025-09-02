@@ -1651,7 +1651,6 @@ static void SetEntryPoint(flutter::Settings* settings, NSString* entrypoint, NSS
 
 @end
 
-
 @implementation FlutterEngineApplicationRegistrar {
 }
 
