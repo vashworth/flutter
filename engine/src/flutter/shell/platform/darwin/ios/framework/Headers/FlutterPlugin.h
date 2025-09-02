@@ -277,16 +277,7 @@ typedef enum {
 } FlutterPlatformViewGestureRecognizersBlockingPolicy;
 
 #pragma mark -
-/**
- * Registration context for a single `FlutterPlugin`, providing a one stop shop
- * for the plugin to access contextual information and register callbacks for
- * various application events.
- *
- * Registrars are obtained from a `FlutterPluginRegistry` which keeps track of
- * the identity of registered plugins and provides basic support for cross-plugin
- * coordination.
- */
-@protocol FlutterPluginRegistrar <NSObject>
+@protocol FlutterBaseRegistrar <NSObject>
 /**
  * Returns a `FlutterBinaryMessenger` for creating Dart/iOS communication
  * channels to be used by the plugin.
@@ -331,6 +322,20 @@ typedef enum {
                               withId:(NSString*)factoryId
     gestureRecognizersBlockingPolicy:
         (FlutterPlatformViewGestureRecognizersBlockingPolicy)gestureRecognizersBlockingPolicy;
+@end
+
+@protocol FlutterApplicationRegistrar <FlutterBaseRegistrar>
+@end
+/**
+ * Registration context for a single `FlutterPlugin`, providing a one stop shop
+ * for the plugin to access contextual information and register callbacks for
+ * various application events.
+ *
+ * Registrars are obtained from a `FlutterPluginRegistry` which keeps track of
+ * the identity of registered plugins and provides basic support for cross-plugin
+ * coordination.
+ */
+@protocol FlutterPluginRegistrar <FlutterBaseRegistrar>
 
 /**
  * Publishes a value for external use of the plugin.

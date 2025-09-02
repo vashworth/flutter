@@ -89,6 +89,9 @@ NS_ASSUME_NONNULL_BEGIN
             userData:(nullable void*)userData;
 
 @property(nonatomic, readonly) FlutterDartProject* project;
+@property(nonatomic, strong) FlutterEngineInterface* engineInterface;
+
+- (NSObject<FlutterApplicationRegistrar>*)registrarForApplication:(NSString*)key;
 
 /**
  * Returns the engine handle. Used in FlutterEngineTest.

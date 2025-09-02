@@ -449,6 +449,18 @@ FLUTTER_DARWIN_EXPORT
 
 @end
 
+@interface FlutterEngineInterface : NSObject
+
+- (instancetype)initWithEngine:(FlutterEngine*)engine;
+
+@property(nonatomic, strong) NSObject<FlutterPluginRegistry>* pluginRegistry;
+@property(nonatomic, strong) NSObject<FlutterApplicationRegistrar>* applicationRegistrar;
+@end
+
+@protocol FlutterEngineProvider
+- (void)connectWithEngineInterface:(FlutterEngineInterface*)engineInterface;
+@end
+
 NS_ASSUME_NONNULL_END
 
 #endif  // FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_HEADERS_FLUTTERENGINE_H_
