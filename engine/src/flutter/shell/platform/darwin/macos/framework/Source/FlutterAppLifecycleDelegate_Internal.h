@@ -7,12 +7,18 @@
 
 #import "flutter/shell/platform/darwin/macos/framework/Headers/FlutterAppLifecycleDelegate.h"
 
+#if FLUTTER_TARGET_OS_IOS
+@class FlutterNSPointerArray;
+#else
+#define FlutterNSPointerArray NSPointerArray
+#endif
+
 @interface FlutterAppLifecycleRegistrar ()
 /**
  * Registered delegates. Exposed to allow FlutterAppDelegate to share the delegate list for
  * handling non-notification delegation.
  */
-@property(nonatomic, strong) NSPointerArray* delegates;
+@property(nonatomic, strong) FlutterNSPointerArray* delegates;
 @end
 
 #endif  // FLUTTER_SHELL_PLATFORM_DARWIN_MACOS_FRAMEWORK_SOURCE_FLUTTERAPPLIFECYCLEDELEGATE_INTERNAL_H_

@@ -4,6 +4,7 @@
 
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterEngineGroup.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterEngine_Internal.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterNSPointerArray.h"
 
 FLUTTER_ASSERT_ARC
 
@@ -12,7 +13,7 @@ FLUTTER_ASSERT_ARC
 
 @interface FlutterEngineGroup ()
 @property(nonatomic, copy) NSString* name;
-@property(nonatomic, strong) NSPointerArray* engines;
+@property(nonatomic, strong) FlutterNSPointerArray* engines;
 @property(nonatomic, copy) FlutterDartProject* project;
 @property(nonatomic, assign) NSUInteger enginesCreatedCount;
 @end
@@ -23,7 +24,7 @@ FLUTTER_ASSERT_ARC
   self = [super init];
   if (self) {
     _name = [name copy];
-    _engines = [NSPointerArray weakObjectsPointerArray];
+    _engines = [FlutterNSPointerArray weakObjectsPointerArray];
     _project = project;
   }
   return self;
@@ -51,11 +52,6 @@ FLUTTER_ASSERT_ARC
   NSArray<NSString*>* entrypointArgs = options.entrypointArgs;
 
   FlutterEngine* engine;
-  // NSPointerArray is clever and assumes that unless a mutation operation has occurred on it that
-  // has set one of its values to nil, nothing could have changed and it can skip compaction.
-  // That's reasonable behaviour on a regular NSPointerArray but not for a weakObjectPointerArray.
-  // As a workaround, we mutate it first. See: http://www.openradar.me/15396578
-  [self.engines addPointer:nil];
   [self.engines compact];
   if (self.engines.count <= 0) {
     engine = [self makeEngine];

@@ -25,6 +25,11 @@
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterDisplayLink.h"
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterMenuPlugin.h"
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterMouseCursorPlugin.h"
+#if FLUTTER_TARGET_OS_IOS
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterNSPointerArray.h"
+#else
+#define FlutterNSPointerArray NSPointerArray
+#endif
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterPlatformViewController.h"
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterRenderer.h"
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterTimeConverter.h"
@@ -107,7 +112,7 @@ constexpr char kTextPlainFormat[] = "text/plain";
 /**
  * All delegates added via plugin calls to addApplicationDelegate.
  */
-@property(nonatomic, strong) NSPointerArray* pluginAppDelegates;
+@property(nonatomic, strong) FlutterNSPointerArray* pluginAppDelegates;
 
 /**
  * All registrars returned from registrarForPlugin:
@@ -531,7 +536,7 @@ static void SetThreadPriority(FlutterThreadPriority priority) {
   _visible = NO;
   _project = project ?: [[FlutterDartProject alloc] init];
   _messengerHandlers = [[NSMutableDictionary alloc] init];
-  _pluginAppDelegates = [NSPointerArray weakObjectsPointerArray];
+  _pluginAppDelegates = [FlutterNSPointerArray weakObjectsPointerArray];
   _pluginRegistrars = [[NSMutableDictionary alloc] init];
   _currentMessengerConnection = 1;
   _allowHeadlessExecution = allowHeadlessExecution;

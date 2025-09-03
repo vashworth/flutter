@@ -8,6 +8,7 @@
 #include "flutter/lib/ui/plugins/callback_cache.h"
 #import "flutter/shell/platform/darwin/common/InternalFlutterSwiftCommon/InternalFlutterSwiftCommon.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterCallbackCache_Internal.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterNSPointerArray.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
 
 FLUTTER_ASSERT_ARC
@@ -35,7 +36,7 @@ static const SEL kSelectorsHandledByPlugins[] = {
   UIBackgroundTaskIdentifier _debugBackgroundTask;
 
   // Weak references to registered plugins.
-  NSPointerArray* _delegates;
+  FlutterNSPointerArray* _delegates;
 }
 
 - (void)addObserverFor:(NSString*)name selector:(SEL)selector {
@@ -58,7 +59,7 @@ static const SEL kSelectorsHandledByPlugins[] = {
       [self addObserverFor:UIApplicationWillTerminateNotification
                   selector:@selector(handleWillTerminate:)];
     }
-    _delegates = [NSPointerArray weakObjectsPointerArray];
+    _delegates = [FlutterNSPointerArray weakObjectsPointerArray];
     _debugBackgroundTask = UIBackgroundTaskInvalid;
   }
   return self;

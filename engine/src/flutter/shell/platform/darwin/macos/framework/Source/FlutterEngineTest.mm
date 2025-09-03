@@ -20,6 +20,11 @@
 #import "flutter/shell/platform/darwin/common/test_utils_swift/test_utils_swift.h"
 #import "flutter/shell/platform/darwin/macos/InternalFlutterSwift/InternalFlutterSwift.h"
 #import "flutter/shell/platform/darwin/macos/framework/Headers/FlutterAppDelegate.h"
+#if FLUTTER_TARGET_OS_IOS
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterNSPointerArray.h"
+#else
+#define FlutterNSPointerArray NSPointerArray
+#endif
 #import "flutter/shell/platform/darwin/macos/framework/Headers/FlutterAppLifecycleDelegate.h"
 #import "flutter/shell/platform/darwin/macos/framework/Headers/FlutterPluginMacOS.h"
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterCompositor.h"
@@ -70,7 +75,7 @@
 
 @interface FakeLifecycleProvider : NSObject <FlutterAppLifecycleProvider, NSApplicationDelegate>
 
-@property(nonatomic, strong, readonly) NSPointerArray* registeredDelegates;
+@property(nonatomic, strong, readonly) FlutterNSPointerArray* registeredDelegates;
 
 // True if the given delegate is currently registered.
 - (BOOL)hasDelegate:(nonnull NSObject<FlutterAppLifecycleDelegate>*)delegate;

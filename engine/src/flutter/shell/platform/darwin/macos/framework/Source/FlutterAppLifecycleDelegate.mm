@@ -5,6 +5,12 @@
 #import "flutter/shell/platform/darwin/macos/framework/Headers/FlutterAppLifecycleDelegate.h"
 #import "flutter/shell/platform/darwin/macos/framework/Source/FlutterAppLifecycleDelegate_Internal.h"
 
+#if FLUTTER_TARGET_OS_IOS
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterNSPointerArray.h"
+#else
+#define FlutterNSPointerArray NSPointerArray
+#endif
+
 #include <AppKit/AppKit.h>
 #include <AppKit/NSApplication.h>
 #include <Foundation/Foundation.h>
@@ -46,7 +52,7 @@
 
 #undef OBSERVE_NOTIFICATION
 
-    _delegates = [NSPointerArray weakObjectsPointerArray];
+    _delegates = [FlutterNSPointerArray weakObjectsPointerArray];
   }
   return self;
 }
