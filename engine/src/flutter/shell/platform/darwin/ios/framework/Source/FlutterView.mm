@@ -5,6 +5,7 @@
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterView.h"
 
 #include "flutter/fml/platform/darwin/cf_utils.h"
+#import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterSceneLifecycle.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/SemanticsObject.h"
 
@@ -12,6 +13,7 @@ FLUTTER_ASSERT_ARC
 
 @interface FlutterView ()
 @property(nonatomic, weak) id<FlutterViewEngineDelegate> delegate;
+@property(nonatomic, weak) UIScene* previousScene;
 @end
 
 @implementation FlutterView {
@@ -76,6 +78,7 @@ FLUTTER_ASSERT_ARC
   if (self) {
     _delegate = delegate;
     _isWideGamutEnabled = isWideGamutEnabled;
+    _previousScene = nil;
     self.layer.opaque = opaque;
   }
 
@@ -213,6 +216,28 @@ static void PrintWideGamutWarningOnce() {
   // https://github.com/flutter/flutter/issues/76808.
   [self.delegate flutterViewAccessibilityDidCall];
   return NO;
+}
+
+- (void)willMoveToWindow:(UIWindow*)newWindow {
+  FML_LOG(ERROR) << "willMoveToWindow";
+  UIWindowScene* scene = newWindow.windowScene;
+  if (scene) {
+    if ([scene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+      id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
+          (id<FlutterSceneLifeCycleProvider>)scene.delegate;
+      [lifeCycleProvider.sceneLifeCycleDelegate addFlutterEngine:(FlutterEngine*)self.delegate];
+    }
+    _previousScene = scene;
+  } else if (_previousScene) {
+    // The window/windowScene property may be nil if the receiver does not currently reside in any
+    // window. This occurs when the receiver has just been removed from its superview or when the
+    // receiver has just been added to a superview that is not attached to a window.
+    if ([_previousScene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+      id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
+          (id<FlutterSceneLifeCycleProvider>)_previousScene.delegate;
+      [lifeCycleProvider.sceneLifeCycleDelegate removeFlutterEngine:(FlutterEngine*)self.delegate];
+    }
+  }
 }
 
 // Enables keyboard-based navigation when the user turns on

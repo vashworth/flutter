@@ -28,8 +28,9 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 
 static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 
-@interface FlutterPluginSceneLifeCycleDelegate () {
-}
+@interface FlutterPluginSceneLifeCycleDelegate ()
+
+// The engines may not always be accurate at any given time.
 @property(nonatomic, strong) NSPointerArray* engines;
 @property(nonatomic, strong) UISceneConnectionOptions* sceneConnectionOptions;
 @end
@@ -43,7 +44,7 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   return self;
 }
 
-- (void)addFlutterViewController:(FlutterViewController*)controller {
+- (void)addFlutterEngine:(FlutterEngine*)engine {
   // NSPointerArray is clever and assumes that unless a mutation operation has occurred on it that
   // has set one of its values to nil, nothing could have changed and it can skip compaction.
   // That's reasonable behaviour on a regular NSPointerArray but not for a weakObjectPointerArray.
@@ -52,27 +53,78 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   [self.engines compact];
 
   // Check if the engine is already in the array to avoid duplicates.
-  if ([self.engines.allObjects containsObject:controller.engine]) {
+  if ([self.engines.allObjects containsObject:engine]) {
+    NSLog(@"Engine already in scene");
     return;
   }
 
   NSLog(@"Engine added to scene");
-  [self.engines addPointer:(__bridge void*)controller.engine];
+  [self.engines addPointer:(__bridge void*)engine];
 
-  [controller.engine.sceneLifeCycleDelegate flutterViewController:controller
-                                                didConnectToScene:(UIScene*)self
-                                                          options:self.sceneConnectionOptions];
+  // [controller.engine.sceneLifeCycleDelegate flutterViewDidConnectToScene:(UIScene*)self
+  //                                                         options:self.sceneConnectionOptions];
+}
+
+- (void)removeFlutterEngine:(FlutterEngine*)engine {
+  NSUInteger index = [self.engines.allObjects indexOfObject:engine];
+  if (index != NSNotFound) {
+    NSLog(@"Removing engine from scene");
+    [self.engines removePointerAtIndex:index];
+  }
+}
+
+// Removes engines that are no longer in the scene.
+- (void)updateEnginesInScene:(UIScene*)scene {
+  for (NSUInteger i = 0; i < self.engines.count; i++) {
+    FlutterEngine* engine = (FlutterEngine*)[self.engines pointerAtIndex:i];
+
+    // The engine may be nil if it has been deallocated.
+    if (engine == nil) {
+      FML_LOG(ERROR) << "Engine is nil";
+      [self.engines removePointerAtIndex:i];
+      i--;
+      continue;
+    }
+
+    // The scene may be different if the view was moved to a different scene.
+    // This can happen when a UIWindow that contains a FlutterView is moved to a different scene.
+    UIWindowScene* engineScene = engine.viewController.view.window.windowScene;
+    if (engineScene != nil && engineScene != scene) {
+      FML_LOG(ERROR) << "Engine is not in scene anymore: "
+                     << engineScene.session.persistentIdentifier.UTF8String
+                     << " != " << scene.session.persistentIdentifier.UTF8String;
+      [self.engines removePointerAtIndex:i];
+      i--;
+
+      // There aren't any events that inform us when a UIWindow changes scenes.
+      // If a developer moves an entire UIWindow to a different scene and that window has a
+      // FlutterView inside of it, its engine will still be in its original
+      // FlutterPluginSceneLifeCycleDelegate. The best we can do is move the engine to the correct
+      // scene here. Due to this, when moving a UIWindow from one scene to another, its first scene
+      // event may be lost. Since Flutter does not fully support multi-scene and this is an edge
+      // case, this is a loss we can deal with. To workaround this, the developer can move the
+      // UIView instead of the UIWindow.
+      if ([engineScene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+        id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
+            (id<FlutterSceneLifeCycleProvider>)engineScene.delegate;
+        [lifeCycleProvider.sceneLifeCycleDelegate addFlutterEngine:engine];
+      }
+      continue;
+    }
+  }
 }
 
 - (void)scene:(UIScene*)scene
     willConnectToSession:(UISceneSession*)session
                  options:(UISceneConnectionOptions*)connectionOptions {
-  // NSLog(@"Scene willConnectToSession");
+  NSLog(@"Scene willConnectToSession: %@", scene.session.persistentIdentifier);
+
   self.sceneConnectionOptions = connectionOptions;
 }
 
 - (void)sceneDidDisconnect:(UIScene*)scene {
-  // FML_LOG(ERROR) << "sceneDidDisconnect";
+  FML_LOG(ERROR) << "sceneDidDisconnect: " << scene.session.persistentIdentifier.UTF8String;
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
     if (!engine) {
       continue;
@@ -82,71 +134,60 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 }
 
 - (void)sceneWillEnterForeground:(UIScene*)scene {
-  // FML_LOG(ERROR) << "sceneWillEnterForeground";
+  FML_LOG(ERROR) << "sceneWillEnterForeground: " << scene.session.persistentIdentifier.UTF8String;
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
+    FML_LOG(ERROR) << "send";
     [engine.sceneLifeCycleDelegate sceneWillEnterForeground:scene];
   }
 }
 
 - (void)sceneDidBecomeActive:(UIScene*)scene {
-  FML_LOG(ERROR) << "sceneDidBecomeActive";
+  FML_LOG(ERROR) << "sceneDidBecomeActive: " << scene.session.persistentIdentifier.UTF8String;
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
+    FML_LOG(ERROR) << "send";
     [engine.sceneLifeCycleDelegate sceneDidBecomeActive:scene];
   }
 }
 
 - (void)sceneWillResignActive:(UIScene*)scene {
-  // FML_LOG(ERROR) << "sceneWillResignActive";
+  FML_LOG(ERROR) << "sceneWillResignActive: " << scene.session.persistentIdentifier.UTF8String;
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
+    FML_LOG(ERROR) << "send";
     [engine.sceneLifeCycleDelegate sceneWillResignActive:scene];
   }
 }
 
 - (void)sceneDidEnterBackground:(UIScene*)scene {
-  // FML_LOG(ERROR) << "sceneDidEnterBackground";
+  FML_LOG(ERROR) << "sceneDidEnterBackground: " << scene.session.persistentIdentifier.UTF8String;
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate sceneDidEnterBackground:scene];
   }
 }
 
 - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
-  // FML_LOG(ERROR) << "scene:openURLContexts";
+  FML_LOG(ERROR) << "scene:openURLContexts";
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate scene:scene openURLContexts:URLContexts];
   }
 }
 
 - (void)scene:(UIScene*)scene willContinueUserActivityWithType:(NSString*)userActivityType {
-  // FML_LOG(ERROR) << "scene:willContinueUserActivityWithType";
+  FML_LOG(ERROR) << "scene:willContinueUserActivityWithType";
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate scene:scene willContinueUserActivityWithType:userActivityType];
   }
 }
 
 - (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity {
-  // FML_LOG(ERROR) << "scene:continueUserActivity";
+  FML_LOG(ERROR) << "scene:continueUserActivity";
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate scene:scene continueUserActivity:userActivity];
   }
 }
@@ -154,11 +195,9 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 - (void)scene:(UIScene*)scene
     didFailToContinueUserActivityWithType:(NSString*)userActivityType
                                     error:(NSError*)error {
-  // FML_LOG(ERROR) << "scene:didFailToContinueUserActivityWithType";
+  FML_LOG(ERROR) << "scene:didFailToContinueUserActivityWithType";
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate scene:scene
         didFailToContinueUserActivityWithType:userActivityType
                                         error:error];
@@ -166,11 +205,9 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 }
 
 - (void)scene:(UIScene*)scene didUpdateUserActivity:(NSUserActivity*)userActivity {
-  // FML_LOG(ERROR) << "scene:didUpdateUserActivity";
+  FML_LOG(ERROR) << "scene:didUpdateUserActivity";
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate scene:scene didUpdateUserActivity:userActivity];
   }
 }
@@ -190,11 +227,9 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 - (void)windowScene:(UIWindowScene*)windowScene
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
                completionHandler:(void (^)(BOOL succeeded))completionHandler {
-  // FML_LOG(ERROR) << "windowScene:performActionForShortcutItem";
+  FML_LOG(ERROR) << "windowScene:performActionForShortcutItem";
+  [self updateEnginesInScene:windowScene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate windowScene:windowScene
                   performActionForShortcutItem:shortcutItem
                              completionHandler:completionHandler];
@@ -204,10 +239,8 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 - (void)windowScene:(UIWindowScene*)windowScene
     userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata*)cloudKitShareMetadata {
   // FML_LOG(ERROR) << "windowScene:userDidAcceptCloudKitShareWithMetadata";
+  [self updateEnginesInScene:windowScene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     [engine.sceneLifeCycleDelegate windowScene:windowScene
         userDidAcceptCloudKitShareWithMetadata:cloudKitShareMetadata];
   }
@@ -238,10 +271,8 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
     activity = [[NSUserActivity alloc] initWithActivityType:scene.session.configuration.name];
   }
 
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     UIViewController* vc = (UIViewController*)engine.viewController;
     NSString* restorationId = vc.restorationIdentifier;
     if (restorationId && restorationId.length > 0) {
@@ -263,11 +294,10 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 
 - (void)scene:(UIScene*)scene
     restoreInteractionStateWithUserActivity:(NSUserActivity*)stateRestorationActivity {
+  FML_LOG(ERROR) << "scene:restoreInteractionStateWithUserActivity";
   NSDictionary<NSString*, id>* userInfo = stateRestorationActivity.userInfo;
+  [self updateEnginesInScene:scene];
   for (FlutterEngine* engine in [_engines allObjects]) {
-    if (!engine) {
-      continue;
-    }
     UIViewController* vc = (UIViewController*)engine.viewController;
     NSString* restorationId = vc.restorationIdentifier;
     if (restorationId && restorationId.length > 0) {
@@ -319,15 +349,14 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   }
 }
 
-- (void)flutterViewController:(FlutterViewController*)controller
-            didConnectToScene:(UIScene*)scene
-                      options:(UISceneConnectionOptions*)connectionOptions {
+- (void)flutterViewDidConnectToScene:(UIScene*)scene
+                             options:(UISceneConnectionOptions*)connectionOptions {
   for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in [_delegates allObjects]) {
     if (!delegate) {
       continue;
     }
     if ([delegate respondsToSelector:_cmd]) {
-      [delegate flutterViewController:controller didConnectToScene:scene options:connectionOptions];
+      [delegate flutterViewDidConnectToScene:scene options:connectionOptions];
     }
   }
 }

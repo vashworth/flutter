@@ -52,7 +52,7 @@ FLUTTER_ASSERT_ARC
   }
   if ([self.window.rootViewController isKindOfClass:[FlutterViewController class]]) {
     [self.sceneLifeCycleDelegate
-        addFlutterViewController:(FlutterViewController*)self.window.rootViewController];
+        addFlutterEngine:((FlutterViewController*)self.window.rootViewController).engine];
   }
 
   [self.sceneLifeCycleDelegate scene:scene willConnectToSession:session options:connectionOptions];

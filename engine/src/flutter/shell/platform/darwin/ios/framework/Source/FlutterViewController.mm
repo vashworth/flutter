@@ -809,20 +809,6 @@ static void SendFakeTouchEvent(UIScreen* screen,
 
 #pragma mark - UIViewController lifecycle notifications
 
-- (void)viewIsAppearing:(BOOL)animated {
-  FML_LOG(ERROR) << "viewIsAppearing";
-
-  // The scene is not available until viewIsAppearing
-  UIWindowScene* scene = self.view.window.windowScene;
-  if ([scene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
-    id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
-        (id<FlutterSceneLifeCycleProvider>)scene.delegate;
-    [lifeCycleProvider.sceneLifeCycleDelegate addFlutterViewController:self];
-  }
-
-  [super viewIsAppearing:animated];
-}
-
 - (void)viewDidLoad {
   TRACE_EVENT0("flutter", "viewDidLoad");
 

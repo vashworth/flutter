@@ -7,6 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class FlutterEngine;
 @class FlutterViewController;
 
 /**
@@ -18,7 +19,10 @@ FLUTTER_DARWIN_EXPORT
 // FlutterSceneDelegate. The FlutterSceneDelegate forwards events to it and then it forwards the
 // events FlutterEnginePluginSceneLifeCycleDelegate.
 @interface FlutterPluginSceneLifeCycleDelegate : NSObject
-- (void)addFlutterViewController:(FlutterViewController*)controller;
+
+- (void)addFlutterEngine:(FlutterEngine*)engine;
+
+- (void)removeFlutterEngine:(FlutterEngine*)engine;
 
 - (void)scene:(UIScene*)scene
     willConnectToSession:(UISceneSession*)session
@@ -73,9 +77,8 @@ FLUTTER_DARWIN_EXPORT
 @protocol FlutterSceneLifeCycleDelegate
 
 @optional
-- (void)flutterViewController:(FlutterViewController*)controller
-            didConnectToScene:(UIScene*)scene
-                      options:(UISceneConnectionOptions*)connectionOptions;
+- (void)flutterViewDidConnectToScene:(UIScene*)scene
+                             options:(UISceneConnectionOptions*)connectionOptions;
 
 - (void)sceneDidDisconnect:(UIScene*)scene;
 
@@ -118,9 +121,8 @@ FLUTTER_DARWIN_EXPORT
 
 - (void)addDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
 
-- (void)flutterViewController:(FlutterViewController*)controller
-            didConnectToScene:(UIScene*)scene
-                      options:(UISceneConnectionOptions*)connectionOptions;
+- (void)flutterViewDidConnectToScene:(UIScene*)scene
+                             options:(UISceneConnectionOptions*)connectionOptions;
 
 - (void)sceneDidDisconnect:(UIScene*)scene;
 

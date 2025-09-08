@@ -42,7 +42,6 @@ mixin SemanticsBinding on BindingBase {
     addSemanticsEnabledListener(_handleFrameworkSemanticsEnabledChanged);
     // Ensure the initial value is set.
     if (semanticsEnabled) {
-      print("Initial _handleFrameworkSemanticsEnabledChanged");
       _handleFrameworkSemanticsEnabledChanged();
     }
   }
@@ -145,7 +144,6 @@ mixin SemanticsBinding on BindingBase {
   SemanticsHandle? _semanticsHandle;
 
   void _handleSemanticsEnabledChanged() {
-    print("_handleSemanticsEnabledChanged");
     if (platformDispatcher.semanticsEnabled) {
       _semanticsHandle ??= ensureSemantics();
     } else {
@@ -172,7 +170,6 @@ mixin SemanticsBinding on BindingBase {
   }
 
   void _handleFrameworkSemanticsEnabledChanged() {
-    print("_handleFrameworkSemanticsEnabledChanged");
     platformDispatcher.setSemanticsTreeEnabled(semanticsEnabled);
   }
 
