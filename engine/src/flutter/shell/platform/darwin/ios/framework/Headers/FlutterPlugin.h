@@ -12,8 +12,8 @@
 #import "FlutterChannels.h"
 #import "FlutterCodecs.h"
 #import "FlutterPlatformViews.h"
-#import "FlutterTexture.h"
 #import "FlutterSceneLifeCycle.h"
+#import "FlutterTexture.h"
 
 NS_ASSUME_NONNULL_BEGIN
 @protocol FlutterPluginRegistrar;

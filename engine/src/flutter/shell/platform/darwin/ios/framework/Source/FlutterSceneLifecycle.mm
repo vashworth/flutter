@@ -121,16 +121,21 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
                  options:(UISceneConnectionOptions*)connectionOptions {
   self.connectionOptions = connectionOptions;
 
-//  If your app has opted into Scenes, and your app is not running, the system delivers the universal link to the scene(_:willConnectTo:options:) delegate method after launch, and to scene(_:continue:) when the universal link is tapped while your app is running or suspended in memory.
-  for( NSUserActivity * userActivity in connectionOptions.userActivities) {
+  //  If your app has opted into Scenes, and your app is not running, the system delivers the
+  //  universal link to the scene(_:willConnectTo:options:) delegate method after launch, and to
+  //  scene(_:continue:) when the universal link is tapped while your app is running or suspended in
+  //  memory.
+  for (NSUserActivity* userActivity in connectionOptions.userActivities) {
     NSLog(@"%@", userActivity.webpageURL);
     if (userActivity.webpageURL != nil) {
-     [self handleOpenURL:userActivity.webpageURL relayToSystemIfUnhandled:YES];
+      [self handleOpenURL:userActivity.webpageURL relayToSystemIfUnhandled:YES];
     }
   }
 
-//  If your app has opted into Scenes, and your app isn’t running, the system delivers the URL to the scene:willConnectToSession:options: delegate method after launch, and to scene:openURLContexts: when your app opens a URL while running or suspended in memory.
-  for (UIOpenURLContext * urlContext in connectionOptions.URLContexts) {
+  //  If your app has opted into Scenes, and your app isn’t running, the system delivers the URL to
+  //  the scene:willConnectToSession:options: delegate method after launch, and to
+  //  scene:openURLContexts: when your app opens a URL while running or suspended in memory.
+  for (UIOpenURLContext* urlContext in connectionOptions.URLContexts) {
     if (urlContext.URL != nil) {
       [self handleOpenURL:urlContext.URL relayToSystemIfUnhandled:YES];
     }
@@ -204,7 +209,7 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
     return YES;
   }
 
-  for (UIOpenURLContext * urlContext in URLContexts) {
+  for (UIOpenURLContext* urlContext in URLContexts) {
     [self handleOpenURL:urlContext.URL relayToSystemIfUnhandled:NO];
   }
 
@@ -248,7 +253,9 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
                   completionHandler:^(BOOL success) {
                     if (!success && throwBack) {
                       // throw it back to iOS
-                       [FlutterSharedApplication.application openURL:url options:@{} completionHandler:nil];
+                      [FlutterSharedApplication.application openURL:url
+                                                            options:@{}
+                                                  completionHandler:nil];
                     }
                   }];
   }
@@ -257,7 +264,7 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 
 #pragma mark - Saving the state of the scene
 
-- (NSUserActivity *) stateRestorationActivityForScene:(UIScene *) scene {
+- (NSUserActivity*)stateRestorationActivityForScene:(UIScene*)scene {
   // Saves activity to the state
   NSUserActivity* activity = scene.userActivity;
   if (!activity) {
@@ -283,8 +290,8 @@ static NSString* const kRestorationStateAppModificationKey = @"mod-date";
   return activity;
 }
 
-- (void) scene:(UIScene *) scene
-restoreInteractionStateWithUserActivity:(NSUserActivity *) stateRestorationActivity {
+- (void)scene:(UIScene*)scene
+    restoreInteractionStateWithUserActivity:(NSUserActivity*)stateRestorationActivity {
   // Restores activity to the state
   NSDictionary<NSString*, id>* userInfo = stateRestorationActivity.userInfo;
   [self updateEnginesInScene:scene];
