@@ -194,12 +194,14 @@ FLUTTER_ASSERT_ARC
       .andReturn(@YES);
   NSUserActivity* userActivity = [[NSUserActivity alloc] initWithActivityType:@"com.example.test"];
   userActivity.webpageURL = [NSURL URLWithString:@"http://myApp/custom/route?query=nonexist"];
-  OCMStub([self.viewController sendDeepLinkToFramework:[OCMArg any] completionHandler:[OCMArg any]])
-      .andDo(^(NSInvocation* invocation) {
-        void (^handler)(BOOL success);
-        [invocation getArgument:&handler atIndex:3];
-        handler(NO);
-      });
+  // TODO
+  // OCMStub([self.viewController sendDeepLinkToFramework:[OCMArg any] completionHandler:[OCMArg
+  // any]])
+  .andDo(^(NSInvocation* invocation) {
+    void (^handler)(BOOL success);
+    [invocation getArgument:&handler atIndex:3];
+    handler(NO);
+  });
   id mockApplication = OCMClassMock([UIApplication class]);
   OCMStub([mockApplication sharedApplication]).andReturn(mockApplication);
   BOOL result = [self.appDelegate

@@ -275,6 +275,9 @@ class AssembleCommand extends FlutterCommand {
   Map<String, String> _parseDefines(List<String> values) {
     final results = <String, String>{};
     for (final chunk in values) {
+      if (chunk.isEmpty) {
+        continue;
+      }
       final int indexEquals = chunk.indexOf('=');
       if (indexEquals == -1) {
         throwToolExit('Improperly formatted define flag: $chunk');

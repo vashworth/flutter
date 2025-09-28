@@ -2,10 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSceneLifecycle.h"
 #import "flutter/shell/platform/darwin/common/framework/Headers/FlutterMacros.h"
+#import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterPluginAppLifeCycleDelegate.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterAppDelegate_Internal.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterEngine_Internal.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterPluginAppLifeCycleDelegate_internal.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSceneLifeCycle_Internal.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
 
 FLUTTER_ASSERT_ARC
+
+static NSString* const kRestorationStateAppModificationKey = @"mod-date";
 
 @interface FlutterPluginSceneLifeCycleDelegate ()
 
@@ -16,6 +23,8 @@ FLUTTER_ASSERT_ARC
  * is up-to-date.
  */
 @property(nonatomic, strong) NSPointerArray* engines;
+
+@property(nonatomic, strong) UISceneConnectionOptions* connectionOptions;
 @end
 
 @implementation FlutterPluginSceneLifeCycleDelegate
@@ -26,7 +35,7 @@ FLUTTER_ASSERT_ARC
   return self;
 }
 
-- (void)addFlutterEngine:(FlutterEngine*)engine {
+- (void)addFlutterEngine:(FlutterEngine*)engine scene:(UIScene*)scene {
   // Check if the engine is already in the array to avoid duplicates.
   if ([self.engines.allObjects containsObject:engine]) {
     return;
@@ -40,6 +49,8 @@ FLUTTER_ASSERT_ARC
   // As a workaround, we mutate it first. See: http://www.openradar.me/15396578
   [self.engines addPointer:nil];
   [self.engines compact];
+
+  [engine.sceneLifeCycleDelegate flutterViewDidConnectTo:scene options:self.connectionOptions];
 }
 
 - (void)removeFlutterEngine:(FlutterEngine*)engine {
@@ -72,18 +83,394 @@ FLUTTER_ASSERT_ARC
     // case, this is a loss we can deal with. To workaround this, the developer can move the
     // UIView instead of the UIWindow, which will use willMoveToWindow to add/remove the engine from
     // the scene.
-    UIWindowScene* engineScene = engine.viewController.view.window.windowScene;
-    if (engineScene != nil && engineScene != scene) {
+    UIWindowScene* actualScene = engine.viewController.view.window.windowScene;
+    if (actualScene != nil && actualScene != scene) {
       [self.engines removePointerAtIndex:i];
       i--;
 
-      if ([engineScene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
+      if ([actualScene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
         id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
-            (id<FlutterSceneLifeCycleProvider>)engineScene.delegate;
-        [lifeCycleProvider.sceneLifeCycleDelegate addFlutterEngine:engine];
+            (id<FlutterSceneLifeCycleProvider>)actualScene.delegate;
+        [lifeCycleProvider.sceneLifeCycleDelegate addFlutterEngine:engine scene:actualScene];
       }
       continue;
     }
   }
+}
+
+/**
+ * Makes a best effort to get the FlutterPluginAppLifeCycleDelegate from the AppDelegate if
+ * available. It may not be available if embedded in an iOS app extension or the AppDelegate doesn't
+ * subclass FlutterAppDelegate.
+ */
+- (FlutterPluginAppLifeCycleDelegate*)applicationLifeCycleDelegate {
+  id appDelegate = FlutterSharedApplication.application.delegate;
+  if ([appDelegate respondsToSelector:@selector(lifeCycleDelegate)]) {
+    id lifecycleDelegate = [appDelegate lifeCycleDelegate];
+    if ([lifecycleDelegate isKindOfClass:[FlutterPluginAppLifeCycleDelegate class]]) {
+      return lifecycleDelegate;
+    }
+  }
+  return nil;
+}
+
+#pragma mark - Connecting and disconnecting the scene
+
+- (void)scene:(UIScene*)scene
+    willConnectToSession:(UISceneSession*)session
+                 options:(UISceneConnectionOptions*)connectionOptions {
+  self.connectionOptions = connectionOptions;
+
+//  If your app has opted into Scenes, and your app is not running, the system delivers the universal link to the scene(_:willConnectTo:options:) delegate method after launch, and to scene(_:continue:) when the universal link is tapped while your app is running or suspended in memory.
+  for( NSUserActivity * userActivity in connectionOptions.userActivities) {
+    NSLog(@"%@", userActivity.webpageURL);
+    if (userActivity.webpageURL != nil) {
+     [self handleOpenURL:userActivity.webpageURL relayToSystemIfUnhandled:YES];
+    }
+  }
+
+//  If your app has opted into Scenes, and your app isn’t running, the system delivers the URL to the scene:willConnectToSession:options: delegate method after launch, and to scene:openURLContexts: when your app opens a URL while running or suspended in memory.
+  for (UIOpenURLContext * urlContext in connectionOptions.URLContexts) {
+    if (urlContext.URL != nil) {
+      [self handleOpenURL:urlContext.URL relayToSystemIfUnhandled:YES];
+    }
+  }
+}
+
+- (void)sceneDidDisconnect:(UIScene*)scene {
+  [self updateEnginesInScene:scene];
+  for (FlutterEngine* engine in _engines.allObjects) {
+    [engine.sceneLifeCycleDelegate sceneDidDisconnect:scene];
+  }
+  // There is no application equivalent for this event and therefore no fallback.
+}
+
+#pragma mark - Transitioning to the foreground
+
+- (void)sceneWillEnterForeground:(UIScene*)scene {
+  [self updateEnginesInScene:scene];
+  for (FlutterEngine* engine in _engines.allObjects) {
+    [engine.sceneLifeCycleDelegate sceneWillEnterForeground:scene];
+  }
+  [[self applicationLifeCycleDelegate] sceneWillEnterForegroundFallback];
+}
+
+- (void)sceneDidBecomeActive:(UIScene*)scene {
+  [self updateEnginesInScene:scene];
+  for (FlutterEngine* engine in _engines.allObjects) {
+    [engine.sceneLifeCycleDelegate sceneDidBecomeActive:scene];
+  }
+  [[self applicationLifeCycleDelegate] sceneDidBecomeActiveFallback];
+}
+
+#pragma mark - Transitioning to the background
+
+- (void)sceneWillResignActive:(UIScene*)scene {
+  [self updateEnginesInScene:scene];
+  for (FlutterEngine* engine in _engines.allObjects) {
+    [engine.sceneLifeCycleDelegate sceneWillResignActive:scene];
+  }
+  [[self applicationLifeCycleDelegate] sceneWillResignActiveFallback];
+}
+
+- (void)sceneDidEnterBackground:(UIScene*)scene {
+  [self updateEnginesInScene:scene];
+  for (FlutterEngine* engine in _engines.allObjects) {
+    [engine.sceneLifeCycleDelegate sceneDidEnterBackground:scene];
+  }
+  [[self applicationLifeCycleDelegate] sceneDidEnterBackgroundFallback];
+}
+
+#pragma mark - Opening URLs
+
+- (BOOL)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+  [self updateEnginesInScene:scene];
+  BOOL consumedByPlugin = NO;
+  for (FlutterEngine* engine in _engines.allObjects) {
+    BOOL result = [engine.sceneLifeCycleDelegate scene:scene openURLContexts:URLContexts];
+    if (result) {
+      consumedByPlugin = YES;
+    }
+  }
+  if (!consumedByPlugin) {
+    BOOL result = [[self applicationLifeCycleDelegate] sceneFallbackOpenURLContexts:URLContexts];
+    if (result) {
+      consumedByPlugin = YES;
+    }
+  }
+
+  // If a plugin has processed the url, we should not use it.
+  if (consumedByPlugin) {
+    return YES;
+  }
+
+  for (UIOpenURLContext * urlContext in URLContexts) {
+    [self handleOpenURL:urlContext.URL relayToSystemIfUnhandled:NO];
+  }
+
+  return NO;
+}
+
+#pragma mark - Continuing user activities
+
+- (BOOL)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity {
+  [self updateEnginesInScene:scene];
+  BOOL consumedByPlugin = NO;
+  for (FlutterEngine* engine in _engines.allObjects) {
+    BOOL result = [engine.sceneLifeCycleDelegate scene:scene continueUserActivity:userActivity];
+    if (result) {
+      consumedByPlugin = YES;
+    }
+  }
+  if (!consumedByPlugin) {
+    BOOL result =
+        [[self applicationLifeCycleDelegate] sceneFallbackContinueUserActivity:userActivity];
+    if (result) {
+      consumedByPlugin = YES;
+    }
+  }
+
+  // If a plugin has used the activity, we should not use it.
+  if (consumedByPlugin) {
+    return YES;
+  }
+  return [self handleOpenURL:userActivity.webpageURL relayToSystemIfUnhandled:YES];
+}
+
+- (BOOL)handleOpenURL:(NSURL*)url relayToSystemIfUnhandled:(BOOL)throwBack {
+  // Don't process the link if deep linking is disabled.
+  if (!FlutterSharedApplication.isFlutterDeepLinkingEnabled) {
+    return NO;
+  }
+  for (FlutterEngine* engine in _engines.allObjects) {
+    // if deep linking is enabled, send it to the framework
+    [engine sendDeepLinkToFramework:url
+                  completionHandler:^(BOOL success) {
+                    if (!success && throwBack) {
+                      // throw it back to iOS
+                       [FlutterSharedApplication.application openURL:url options:@{} completionHandler:nil];
+                    }
+                  }];
+  }
+  return YES;
+}
+
+#pragma mark - Saving the state of the scene
+
+- (NSUserActivity *) stateRestorationActivityForScene:(UIScene *) scene {
+  // Saves activity to the state
+  NSUserActivity* activity = scene.userActivity;
+  if (!activity) {
+    activity = [[NSUserActivity alloc] initWithActivityType:scene.session.configuration.name];
+  }
+
+  [self updateEnginesInScene:scene];
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    UIViewController* vc = (UIViewController*)engine.viewController;
+    NSString* restorationId = vc.restorationIdentifier;
+    if (restorationId && restorationId.length > 0) {
+      NSData* restorationData = [engine.restorationPlugin restorationData];
+      if (restorationData) {
+        int64_t stateDate = [self lastAppModificationTime];
+        [activity addUserInfoEntriesFromDictionary:@{restorationId : restorationData}];
+        [activity addUserInfoEntriesFromDictionary:@{
+          kRestorationStateAppModificationKey : [NSNumber numberWithLongLong:stateDate]
+        }];
+      }
+    }
+  }
+
+  return activity;
+}
+
+- (void) scene:(UIScene *) scene
+restoreInteractionStateWithUserActivity:(NSUserActivity *) stateRestorationActivity {
+  // Restores activity to the state
+  NSDictionary<NSString*, id>* userInfo = stateRestorationActivity.userInfo;
+  [self updateEnginesInScene:scene];
+  for (FlutterEngine* engine in [_engines allObjects]) {
+    UIViewController* vc = (UIViewController*)engine.viewController;
+    NSString* restorationId = vc.restorationIdentifier;
+    if (restorationId && restorationId.length > 0) {
+      NSNumber* stateDateNumber = userInfo[kRestorationStateAppModificationKey];
+      int64_t stateDate = 0;
+      if (stateDateNumber && [stateDateNumber isKindOfClass:[NSNumber class]]) {
+        stateDate = [stateDateNumber longLongValue];
+      }
+      if (self.lastAppModificationTime != stateDate) {
+        // Don't restore state if the app has been re-installed since the state was last saved
+        return;
+      }
+      NSData* restorationData = userInfo[restorationId];
+      if ([restorationData isKindOfClass:[NSData class]]) {
+        [engine.restorationPlugin setRestorationData:restorationData];
+      }
+    }
+  }
+}
+
+- (int64_t)lastAppModificationTime {
+  NSDate* fileDate;
+  NSError* error = nil;
+  [[[NSBundle mainBundle] executableURL] getResourceValue:&fileDate
+                                                   forKey:NSURLContentModificationDateKey
+                                                    error:&error];
+  NSAssert(error == nil, @"Cannot obtain modification date of main bundle: %@", error);
+  return [fileDate timeIntervalSince1970];
+}
+
+#pragma mark - Performing tasks
+
+- (BOOL)windowScene:(UIWindowScene*)windowScene
+    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
+               completionHandler:(void (^)(BOOL succeeded))completionHandler {
+  NSLog(@"FlutterSceneLifeCycle::windowScene:performActionForShortcutItem");
+  [self updateEnginesInScene:windowScene];
+  BOOL consumedByPlugin = NO;
+  for (FlutterEngine* engine in _engines.allObjects) {
+    BOOL result = [engine.sceneLifeCycleDelegate windowScene:windowScene
+                                performActionForShortcutItem:shortcutItem
+                                           completionHandler:completionHandler];
+    if (result) {
+      consumedByPlugin = YES;
+    }
+  }
+  if (!consumedByPlugin) {
+    BOOL result = [[self applicationLifeCycleDelegate]
+        sceneFallbackPerformActionForShortcutItem:shortcutItem
+                                completionHandler:completionHandler];
+    if (result) {
+      consumedByPlugin = YES;
+    }
+  }
+  return consumedByPlugin;
+}
+@end
+
+@implementation FlutterEnginePluginSceneLifeCycleDelegate {
+  // Weak references to registered plugins.
+  NSPointerArray* _delegates;
+}
+
+- (instancetype)init {
+  if (self = [super init]) {
+    _delegates = [NSPointerArray weakObjectsPointerArray];
+  }
+  return self;
+}
+
+- (void)addDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate {
+  [_delegates addPointer:(__bridge void*)delegate];
+
+  // NSPointerArray is clever and assumes that unless a mutation operation has occurred on it that
+  // has set one of its values to nil, nothing could have changed and it can skip compaction.
+  // That's reasonable behaviour on a regular NSPointerArray but not for a weakObjectPointerArray.
+  // As a workaround, we mutate it first. See: http://www.openradar.me/15396578
+  [_delegates addPointer:nil];
+  [_delegates compact];
+}
+
+#pragma mark - Connecting and disconnecting the scene
+
+- (void)flutterViewDidConnectTo:(UIScene*)scene
+                        options:(UISceneConnectionOptions*)connectionOptions {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate flutterViewDidConnectTo:scene options:connectionOptions];
+    }
+  }
+}
+
+- (void)sceneDidDisconnect:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneDidDisconnect:scene];
+    }
+  }
+}
+
+#pragma mark - Transitioning to the foreground
+
+- (void)sceneWillEnterForeground:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneWillEnterForeground:scene];
+    }
+  }
+}
+
+- (void)sceneDidBecomeActive:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneDidBecomeActive:scene];
+    }
+  }
+}
+
+#pragma mark - Transitioning to the background
+
+- (void)sceneWillResignActive:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneWillResignActive:scene];
+    }
+  }
+}
+
+- (void)sceneDidEnterBackground:(UIScene*)scene {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      [delegate sceneDidEnterBackground:scene];
+    }
+  }
+}
+
+#pragma mark - Opening URLs
+
+- (BOOL)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      if ([delegate scene:scene openURLContexts:URLContexts]) {
+        // Only allow one plugin to process this event.
+        return YES;
+      }
+    }
+  }
+  return NO;
+}
+
+#pragma mark - Continuing user activities
+
+- (BOOL)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity {
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if ([delegate respondsToSelector:_cmd]) {
+      if ([delegate scene:scene continueUserActivity:userActivity]) {
+        // Only allow one plugin to process this event.
+        return YES;
+      }
+    }
+  }
+  return NO;
+}
+
+#pragma mark - Performing tasks
+
+- (BOOL)windowScene:(UIWindowScene*)windowScene
+    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
+               completionHandler:(void (^)(BOOL succeeded))completionHandler {
+  NSLog(@"FlutterEnginePluginSceneLifeCycle::windowScene:performActionForShortcutItem");
+  for (NSObject<FlutterSceneLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    NSLog(@"Found delegate");
+    if ([delegate respondsToSelector:_cmd]) {
+      NSLog(@"Send to delegate");
+      if ([delegate windowScene:windowScene
+              performActionForShortcutItem:shortcutItem
+                         completionHandler:completionHandler]) {
+        // Only allow one plugin to process this event.
+        return YES;
+      }
+    }
+  }
+  return NO;
 }
 @end

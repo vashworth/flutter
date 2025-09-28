@@ -1905,36 +1905,6 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
   [self.keyboardManager handlePress:press nextAction:next];
 }
 
-- (void)sendDeepLinkToFramework:(NSURL*)url completionHandler:(void (^)(BOOL success))completion {
-  __weak FlutterViewController* weakSelf = self;
-  [self.engine
-      waitForFirstFrame:3.0
-               callback:^(BOOL didTimeout) {
-                 if (didTimeout) {
-                   [FlutterLogger
-                       logError:@"Timeout waiting for first frame when launching a URL."];
-                   completion(NO);
-                 } else {
-                   // invove the method and get the result
-                   [weakSelf.engine.navigationChannel
-                       invokeMethod:@"pushRouteInformation"
-                          arguments:@{
-                            @"location" : url.absoluteString ?: [NSNull null],
-                          }
-                             result:^(id _Nullable result) {
-                               BOOL success =
-                                   [result isKindOfClass:[NSNumber class]] && [result boolValue];
-                               if (!success) {
-                                 // Logging the error if the result is not successful
-                                 [FlutterLogger
-                                     logError:@"Failed to handle route information in Flutter."];
-                               }
-                               completion(success);
-                             }];
-                 }
-               }];
-}
-
 // The documentation for presses* handlers (implemented below) is entirely
 // unclear about how to handle the case where some, but not all, of the presses
 // are handled here. I've elected to call super separately for each of the
@@ -2671,6 +2641,7 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
 #pragma mark - State Restoration
 
 - (void)encodeRestorableStateWithCoder:(NSCoder*)coder {
+  NSLog(@"encodeRestorableStateWithCoder");
   NSData* restorationData = [self.engine.restorationPlugin restorationData];
   [coder encodeBytes:(const unsigned char*)restorationData.bytes
               length:restorationData.length
@@ -2679,6 +2650,7 @@ static flutter::PointerData::DeviceKind DeviceKindFromTouchType(UITouch* touch) 
 }
 
 - (void)decodeRestorableStateWithCoder:(NSCoder*)coder {
+  NSLog(@"decodeRestorableStateWithCoder");
   NSUInteger restorationDataLength;
   const unsigned char* restorationBytes = [coder decodeBytesForKey:kFlutterRestorationStateAppData
                                                     returnedLength:&restorationDataLength];

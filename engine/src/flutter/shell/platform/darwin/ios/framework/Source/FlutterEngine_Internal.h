@@ -103,6 +103,10 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (nullable FlutterEngine*)engineForIdentifier:(int64_t)identifier;
 
+- (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
+
+- (void)sendDeepLinkToFramework:(NSURL*)url completionHandler:(void (^)(BOOL success))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END
