@@ -79,7 +79,7 @@ FLUTTER_ASSERT_ARC
   id mockWindow = mocks[@"mockWindow"];
 
   [view willMoveToWindow:mockWindow];
-  OCMVerify(times(1), [mockLifecycleDelegate addFlutterEngine:mockEngine]);
+  OCMVerify(times(1), [mockLifecycleDelegate registerFlutterEngine:mockEngine scene:mockScene]);
   XCTAssertEqual(lifecycleDelegate.engines.count, 1.0);
 }
 
@@ -95,7 +95,8 @@ FLUTTER_ASSERT_ARC
   [view willMoveToWindow:mockWindow];
   [view willMoveToWindow:mockWindow];
 
-  OCMVerify(times(2), [mockLifecycleDelegate addFlutterEngine:mockEngine]);
+  OCMVerify(times(2), [mockLifecycleDelegate registerFlutterEngine:mockEngine
+                                                             scene:mockWindowScene]);
   XCTAssertEqual(lifecycleDelegate.engines.count, 1.0);
 }
 
@@ -116,8 +117,10 @@ FLUTTER_ASSERT_ARC
   [view1 willMoveToWindow:mockWindow1];
   [view2 willMoveToWindow:mockWindow1];
   [view1 willMoveToWindow:mockWindow1];
-  OCMVerify(times(2), [mockLifecycleDelegate addFlutterEngine:mockEngine1]);
-  OCMVerify(times(1), [mockLifecycleDelegate addFlutterEngine:mockEngine2]);
+  OCMVerify(times(2), [mockLifecycleDelegate registerFlutterEngine:mockEngine1
+                                                             scene:mockWindowScene]);
+  OCMVerify(times(1), [mockLifecycleDelegate registerFlutterEngine:mockEngine2
+                                                             scene:mockWindowScene]);
   XCTAssertEqual(lifecycleDelegate.engines.count, 2.0);
 }
 
@@ -141,8 +144,10 @@ FLUTTER_ASSERT_ARC
   [view1 willMoveToWindow:mockWindow1];
   [view2 willMoveToWindow:mockWindow2];
   [view1 willMoveToWindow:mockWindow1];
-  OCMVerify(times(2), [mockLifecycleDelegate1 addFlutterEngine:mockEngine1]);
-  OCMVerify(times(1), [mockLifecycleDelegate2 addFlutterEngine:mockEngine2]);
+  OCMVerify(times(2), [mockLifecycleDelegate1 registerFlutterEngine:mockEngine1
+                                                              scene:mockWindowScene1]);
+  OCMVerify(times(1), [mockLifecycleDelegate2 registerFlutterEngine:mockEngine2
+                                                              scene:mockWindowScene2]);
   XCTAssertEqual(lifecycleDelegate1.engines.count, 1.0);
   XCTAssertEqual(lifecycleDelegate2.engines.count, 1.0);
 }
@@ -187,7 +192,8 @@ FLUTTER_ASSERT_ARC
 
   [mockView willMoveToWindow:mockWindow];
 
-  OCMVerify(times(0), [mockLifecycleDelegate addFlutterEngine:mockEngine]);
+  OCMVerify(times(0), [mockLifecycleDelegate registerFlutterEngine:mockEngine
+                                                             scene:mockWindowScene]);
   OCMVerify(times(0), [mockLifecycleDelegate removeFlutterEngine:[OCMArg any]]);
   XCTAssertEqual(lifecycleDelegate.engines.count, 0.0);
 }

@@ -253,7 +253,7 @@ static void PrintWideGamutWarningOnce() {
   if ([newScene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {
     id<FlutterSceneLifeCycleProvider> lifeCycleProvider =
         (id<FlutterSceneLifeCycleProvider>)newScene.delegate;
-    [lifeCycleProvider.sceneLifeCycleDelegate addFlutterEngine:(FlutterEngine*)self.delegate];
+    [lifeCycleProvider.sceneLifeCycleDelegate registerFlutterEngine:(FlutterEngine*)self.delegate];
   }
 
   if ([previousScene.delegate conformsToProtocol:@protocol(FlutterSceneLifeCycleProvider)]) {

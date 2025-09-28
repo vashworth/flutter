@@ -8,6 +8,7 @@
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterAppDelegate_Internal.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSceneLifecycle.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterSharedApplication.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterView.h"
 
 FLUTTER_ASSERT_ARC
 
@@ -38,7 +39,64 @@ FLUTTER_ASSERT_ARC
     UIWindowScene* windowScene = (UIWindowScene*)scene;
     [self moveRootViewControllerFrom:appDelegate to:windowScene];
   }
+  // if ([self.window.rootViewController isKindOfClass:[FlutterViewController class]]) {
+  //   [self.sceneLifeCycleDelegate
+  //       registerFlutterEngine:((FlutterViewController*)self.window.rootViewController).engine];
+  // }
+  [self.sceneLifeCycleDelegate scene:scene willConnectToSession:session options:connectionOptions];
 }
+
+- (void)registerFlutterEngine:(FlutterEngine*)engine {
+  [self.sceneLifeCycleDelegate registerFlutterEngine:engine];
+}
+
+- (void)sceneDidDisconnect:(UIScene*)scene {
+  [self.sceneLifeCycleDelegate sceneDidDisconnect:scene];
+}
+
+#pragma mark - Transitioning to the foreground
+
+- (void)sceneWillEnterForeground:(UIScene*)scene {
+  [self.sceneLifeCycleDelegate sceneWillEnterForeground:scene];
+}
+
+- (void)sceneDidBecomeActive:(UIScene*)scene {
+  [self.sceneLifeCycleDelegate sceneDidBecomeActive:scene];
+}
+
+#pragma mark - Transitioning to the background
+
+- (void)sceneWillResignActive:(UIScene*)scene {
+  [self.sceneLifeCycleDelegate sceneWillResignActive:scene];
+}
+
+- (void)sceneDidEnterBackground:(UIScene*)scene {
+  [self.sceneLifeCycleDelegate sceneDidEnterBackground:scene];
+}
+
+#pragma mark - Opening URLs
+
+- (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)URLContexts {
+  [self.sceneLifeCycleDelegate scene:scene openURLContexts:URLContexts];
+}
+
+#pragma mark - Continuing user activities
+
+- (void)scene:(UIScene*)scene continueUserActivity:(NSUserActivity*)userActivity {
+  [self.sceneLifeCycleDelegate scene:scene continueUserActivity:userActivity];
+}
+
+#pragma mark - Performing tasks
+
+- (void)windowScene:(UIWindowScene*)windowScene
+    performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
+               completionHandler:(void (^)(BOOL succeeded))completionHandler {
+  [self.sceneLifeCycleDelegate windowScene:windowScene
+              performActionForShortcutItem:shortcutItem
+                         completionHandler:completionHandler];
+}
+
+#pragma mark - Helpers
 
 - (void)moveRootViewControllerFrom:(NSObject<UIApplicationDelegate>*)appDelegate
                                 to:(UIWindowScene*)windowScene {
