@@ -563,6 +563,8 @@ static BOOL _preparedOnce = NO;
 }
 
 - (void)releaseGesture {
+  // This tells the FlutterDelayingGestureRecognizer to fail and therefore let other recognizers
+  // use the gesture.
   self.delayingRecognizer.state = UIGestureRecognizerStateFailed;
 }
 
@@ -610,6 +612,8 @@ static BOOL _preparedOnce = NO;
 
     case FlutterPlatformViewGestureRecognizersBlockingPolicyEager:
       // We block all other gesture recognizers immediately in this policy.
+
+      // This tells the FlutterDelayingGestureRecognizer to block all gestures.
       self.delayingRecognizer.state = UIGestureRecognizerStateEnded;
 
       // On iOS 18.2, WKWebView's internal recognizer likely caches the old state of its blocking
@@ -696,13 +700,27 @@ static BOOL _preparedOnce = NO;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
     shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer*)otherGestureRecognizer {
-  // The forwarding gesture recognizer should always get all touch events, so it should not be
-  // required to fail by any other gesture recognizer.
+  if (@available(iOS 26.0, *)) {
+    if (otherGestureRecognizer.enabled &&
+        [NSStringFromClass([recognizer class]) hasSuffix:@"TouchEventsGestureRecognizer"]) {
+      otherGestureRecognizer.enabled = NO;
+      otherGestureRecognizer.enabled = YES;
+    }
+  }
+
+  // This will return NO only when [otherGestureRecognizer] is the [_forwardingRecognizer] or if
+  // [otherGestureRecognizer] is itself. This allows the [_forwardingRecognizer] to recognize
+  // gestures without waiting.
+  // It'll return YES for almost all others. This forces other gesture recognizers to wait until
+  // FlutterDelayingGestureRecognizer has failed.
   return otherGestureRecognizer != _forwardingRecognizer && otherGestureRecognizer != self;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
     shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer*)otherGestureRecognizer {
+  // Should [gestureRecognizer] wait for [otherGestureRecognizer] to fail before it can begin?
+  // By returning NO, it declares that it has no dependencies on other recognizers failing first.
+  // This allows it to participate in gesture recognition simultaneously with other recognizers.
   return otherGestureRecognizer == self;
 }
 
