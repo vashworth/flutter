@@ -700,11 +700,17 @@ static BOOL _preparedOnce = NO;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
     shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer*)otherGestureRecognizer {
+  // Reset WebKit gesture recognizer if it's enabled. This is to workaround an Apple bug:
+  // https://github.com/flutter/flutter/issues/175099
   if (@available(iOS 26.0, *)) {
-    if (otherGestureRecognizer.enabled &&
-        [NSStringFromClass([recognizer class]) hasSuffix:@"TouchEventsGestureRecognizer"]) {
-      otherGestureRecognizer.enabled = NO;
-      otherGestureRecognizer.enabled = YES;
+    if (otherGestureRecognizer.enabled && [NSStringFromClass([otherGestureRecognizer class])
+                                              hasSuffix:@"TouchEventsGestureRecognizer"]) {
+      NSNumber* isWorkaroundEnabled =
+          [[NSBundle mainBundle] objectForInfoDictionaryKey:@"FlutterWebKitTouchEventReset"];
+      if (isWorkaroundEnabled ? [isWorkaroundEnabled boolValue] : YES) {
+        otherGestureRecognizer.enabled = NO;
+        otherGestureRecognizer.enabled = YES;
+      }
     }
   }
 
