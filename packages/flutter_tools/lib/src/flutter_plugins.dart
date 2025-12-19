@@ -777,7 +777,12 @@ $_dartPluginRegisterWith
 }
 ''';
 
-Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
+Future<void> writeIOSPluginRegistrant(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  File? pluginRegistrantHeader,
+  File? pluginRegistrantImplementation,
+}) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(
     plugins,
     IOSPlugin.kConfigKey,
@@ -791,26 +796,28 @@ Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plug
     'deploymentTarget': FlutterDarwinPlatform.ios.deploymentTarget().toString(),
     'framework': FlutterDarwinPlatform.ios.binaryName,
     'methodChannelPlugins': iosPlugins,
+    // 'usesSwiftPackageManager': project.ios.usesSwiftPackageManager,
   };
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;
+    final File podspecFile = registryDirectory.childFile('FlutterPluginRegistrant.podspec');
     await _renderTemplateToFile(
       _pluginRegistrantPodspecTemplate,
       context,
-      registryDirectory.childFile('FlutterPluginRegistrant.podspec'),
+      podspecFile,
       globals.templateRenderer,
     );
   }
   await _renderTemplateToFile(
     _objcPluginRegistryHeaderTemplate,
     context,
-    project.ios.pluginRegistrantHeader,
+    pluginRegistrantHeader ?? project.ios.pluginRegistrantHeader,
     globals.templateRenderer,
   );
   await _renderTemplateToFile(
     _objcPluginRegistryImplementationTemplate,
     context,
-    project.ios.pluginRegistrantImplementation,
+    pluginRegistrantImplementation ?? project.ios.pluginRegistrantImplementation,
     globals.templateRenderer,
   );
 }
@@ -1293,7 +1300,7 @@ Future<void> injectPlugins(
       pluginResolutionType: _PluginResolutionType.nativeOrDart,
     );
     if (iosPlatform) {
-      await _writeIOSPluginRegistrant(project, pluginsByPlatform[IOSPlugin.kConfigKey]!);
+      await writeIOSPluginRegistrant(project, pluginsByPlatform[IOSPlugin.kConfigKey]!);
     }
     if (macOSPlatform) {
       await _writeMacOSPluginRegistrant(project, pluginsByPlatform[MacOSPlugin.kConfigKey]!);

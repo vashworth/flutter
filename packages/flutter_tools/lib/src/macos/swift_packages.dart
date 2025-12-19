@@ -57,17 +57,14 @@ class SwiftPackage {
   SwiftPackage({
     required File manifest,
     required String name,
-    required List<SwiftPackageSupportedPlatform> platforms,
+    required this.platforms,
     required List<SwiftPackageProduct> products,
-    required List<SwiftPackagePackageDependency> dependencies,
-    required List<SwiftPackageTarget> targets,
+    required this.dependencies,
+    required this.targets,
     required TemplateRenderer templateRenderer,
   }) : _manifest = manifest,
        _name = name,
-       _platforms = platforms,
        _products = products,
-       _dependencies = dependencies,
-       _targets = targets,
        _templateRenderer = templateRenderer;
 
   /// [File] for Package.swift.
@@ -77,16 +74,16 @@ class SwiftPackage {
   final String _name;
 
   /// The list of minimum versions for platforms supported by the package.
-  final List<SwiftPackageSupportedPlatform> _platforms;
+  final List<SwiftPackageSupportedPlatform> platforms;
 
   /// The list of products that this package vends and that clients can use.
   final List<SwiftPackageProduct> _products;
 
   /// The list of package dependencies.
-  final List<SwiftPackagePackageDependency> _dependencies;
+  final List<SwiftPackagePackageDependency> dependencies;
 
   /// The list of targets that are part of this package.
-  final List<SwiftPackageTarget> _targets;
+  final List<SwiftPackageTarget> targets;
 
   final TemplateRenderer _templateRenderer;
 
@@ -101,12 +98,66 @@ class SwiftPackage {
     'targets': _formatTargets(),
   };
 
+  static SwiftPackage? fromJson(
+    Map<String, Object?> data, {
+    required File manifest,
+    required TemplateRenderer templateRenderer,
+  }) {
+    if (data case {
+      'name': final String name,
+      'platforms': final List<Object?> platformsData,
+      'dependencies': final List<Object?> dependenciesData,
+      'targets': final List<Object?> targetsData,
+    }) {
+      final products = <SwiftPackageProduct>[];
+      final List<SwiftPackageSupportedPlatform> platforms =
+          _parseJsonList<SwiftPackageSupportedPlatform>(
+            platformsData,
+            SwiftPackageSupportedPlatform.fromJson,
+          );
+      final List<SwiftPackagePackageDependency> dependencies =
+          _parseJsonList<SwiftPackagePackageDependency>(
+            dependenciesData,
+            SwiftPackagePackageDependency.fromJson,
+          );
+      final List<SwiftPackageTarget> targets = _parseJsonList<SwiftPackageTarget>(
+        targetsData,
+        SwiftPackageTarget.fromJson,
+      );
+
+      return SwiftPackage(
+        manifest: manifest,
+        name: name,
+        platforms: platforms,
+        products: products,
+        dependencies: dependencies,
+        targets: targets,
+        templateRenderer: templateRenderer,
+      );
+    } else {
+      return null;
+    }
+  }
+
+  static List<T> _parseJsonList<T>(List<Object?> data, T? Function(Map<String, Object?>) parse) {
+    final parsedItems = <T>[];
+    for (final item in data) {
+      if (item is Map<String, Object?>) {
+        final T? parsedItem = parse(item);
+        if (parsedItem != null) {
+          parsedItems.add(parsedItem);
+        }
+      }
+    }
+    return parsedItems;
+  }
+
   /// Create a Package.swift using settings from [_templateContext].
   void createSwiftPackage() {
     // Swift Packages require at least one source file per non-binary target,
     // whether it be in Swift or Objective C. If the target does not have any
     // files yet, create an empty Swift file.
-    for (final SwiftPackageTarget target in _targets) {
+    for (final SwiftPackageTarget target in targets) {
       if (target.targetType == SwiftPackageTargetType.binaryTarget) {
         continue;
       }
@@ -129,10 +180,10 @@ class SwiftPackage {
   }
 
   String? _formatPlatforms() {
-    if (_platforms.isEmpty) {
+    if (platforms.isEmpty) {
       return null;
     }
-    final List<String> platformStrings = _platforms
+    final List<String> platformStrings = platforms
         .map((SwiftPackageSupportedPlatform platform) => platform.format())
         .toList();
     return platformStrings.join(',\n$_doubleIndent');
@@ -149,20 +200,20 @@ class SwiftPackage {
   }
 
   String _formatDependencies() {
-    if (_dependencies.isEmpty) {
+    if (dependencies.isEmpty) {
       return '';
     }
-    final List<String> packages = _dependencies
+    final List<String> packages = dependencies
         .map((SwiftPackagePackageDependency dependency) => dependency.format())
         .toList();
     return packages.join(',\n$_doubleIndent');
   }
 
   String _formatTargets() {
-    if (_targets.isEmpty) {
+    if (targets.isEmpty) {
       return '';
     }
-    final List<String> targetList = _targets
+    final List<String> targetList = targets
         .map((SwiftPackageTarget target) => target.format())
         .toList();
     return targetList.join(',\n$_doubleIndent');
@@ -170,14 +221,14 @@ class SwiftPackage {
 }
 
 enum SwiftPackagePlatform {
-  ios(name: '.iOS'),
-  macos(name: '.macOS'),
-  tvos(name: '.tvOS'),
-  watchos(name: '.watchOS');
+  ios(displayName: '.iOS'),
+  macos(displayName: '.macOS'),
+  tvos(displayName: '.tvOS'),
+  watchos(displayName: '.watchOS');
 
-  const SwiftPackagePlatform({required this.name});
+  const SwiftPackagePlatform({required this.displayName});
 
-  final String name;
+  final String displayName;
 }
 
 /// A platform that the Swift package supports.
@@ -187,6 +238,29 @@ enum SwiftPackagePlatform {
 class SwiftPackageSupportedPlatform {
   SwiftPackageSupportedPlatform({required this.platform, required this.version});
 
+  static SwiftPackageSupportedPlatform? fromJson(Map<String, Object?> json) {
+    if (json case {
+      'platformName': final String platformName,
+      'version': final String versionString,
+    }) {
+      final Version? parsedVersion = Version.parse(versionString);
+      if (parsedVersion != null) {
+        if (platformName == SwiftPackagePlatform.ios.name) {
+          return SwiftPackageSupportedPlatform(
+            platform: SwiftPackagePlatform.ios,
+            version: parsedVersion,
+          );
+        } else if (platformName == SwiftPackagePlatform.macos.name) {
+          return SwiftPackageSupportedPlatform(
+            platform: SwiftPackagePlatform.macos,
+            version: parsedVersion,
+          );
+        }
+      }
+    }
+    return null;
+  }
+
   final SwiftPackagePlatform platform;
   final Version version;
 
@@ -195,7 +269,7 @@ class SwiftPackageSupportedPlatform {
     //     .macOS("10.15"),
     //     .iOS("13.0"),
     // ],
-    return '${platform.name}("$version")';
+    return '${platform.displayName}("$version")';
   }
 }
 
@@ -219,6 +293,40 @@ enum SwiftPackageLibraryType {
 /// https://developer.apple.com/documentation/packagedescription/product.
 class SwiftPackageProduct {
   SwiftPackageProduct({required this.name, required this.targets, this.libraryType});
+
+  // factory SwiftPackageProduct? fromJson(Map<String, Object?> json) {
+  //   final String? name = json['name'] as String?;
+  //   if (name == null) {
+  //     return null;
+  //   }
+  //   final List<Object?>? targetsRaw = json['targets'] as List<Object?>?;
+  //   if (targetsRaw == null) {
+  //     return null;
+  //   }
+  //   final List<String> targets = targetsRaw.cast<String>();
+
+  //   SwiftPackageLibraryType? libraryType;
+  //   if (json['type'] is Map<String, Object?>) {
+  //     final Map<String, Object?> typeMap = json['type']! as Map<String, Object?>;
+  //     if (typeMap['library'] is List<Object?> && (typeMap['library']! as List<Object?>).isNotEmpty) {
+  //       final String? libraryTypeName = (typeMap['library']! as List<Object?>).first! as String?;
+  //       if (libraryTypeName == null) {
+  //         return null;
+  //       }
+  //       switch (libraryTypeName) {
+  //         case 'static':
+  //           libraryType = SwiftPackageLibraryType.static;
+  //           break;
+  //         case 'dynamic':
+  //           libraryType = SwiftPackageLibraryType.dynamic;
+  //           break;
+  //         default:
+  //           return null; // Unknown library type
+  //       }
+  //     }
+  //   }
+  //   return SwiftPackageProduct(name: name, targets: targets, libraryType: libraryType);
+  // }
 
   final String name;
   final SwiftPackageLibraryType? libraryType;
@@ -249,6 +357,24 @@ class SwiftPackageProduct {
 class SwiftPackagePackageDependency {
   SwiftPackagePackageDependency({required this.name, required this.path});
 
+  static SwiftPackagePackageDependency? fromJson(Map<String, Object?> json) {
+    final fileSystemList = json['fileSystem'] as List<Object?>?;
+    if (fileSystemList == null || fileSystemList.isEmpty) {
+      return null;
+    }
+    for (final Object? item in fileSystemList) {
+      if (item is Map<String, Object?>) {
+        if (json case {
+          'nameForTargetDependencyResolutionOnly': final String name,
+          'path': final String path,
+        }) {
+          return SwiftPackagePackageDependency(name: name, path: path);
+        }
+      }
+    }
+    return null;
+  }
+
   final String name;
   final String path;
 
@@ -265,12 +391,13 @@ class SwiftPackagePackageDependency {
 /// See https://developer.apple.com/documentation/packagedescription/target for
 /// more information.
 enum SwiftPackageTargetType {
-  target(name: '.target'),
-  binaryTarget(name: '.binaryTarget');
+  target(displayName: '.target', jsonName: 'regular'),
+  binaryTarget(displayName: '.binaryTarget', jsonName: 'binary');
 
-  const SwiftPackageTargetType({required this.name});
+  const SwiftPackageTargetType({required this.displayName, required this.jsonName});
 
-  final String name;
+  final String displayName;
+  final String jsonName;
 }
 
 /// A building block of a Swift Package that contains a set of source files
@@ -287,6 +414,35 @@ class SwiftPackageTarget {
     : path = relativePath,
       dependencies = null,
       targetType = SwiftPackageTargetType.binaryTarget;
+
+  static SwiftPackageTarget? fromJson(Map<String, Object?> json) {
+    if (json case {
+      'name': final String name,
+      'type': final String targetTypeString,
+      'path': final String? path,
+      'dependencies': final List<Object?> dependencyItems,
+    }) {
+      final dependencies = <SwiftPackageTargetDependency>[];
+      for (final item in dependencyItems) {
+        if (item is Map<String, Object?>) {
+          final SwiftPackageTargetDependency? dependency = SwiftPackageTargetDependency.fromJson(
+            item,
+          );
+          if (dependency != null) {
+            dependencies.add(dependency);
+          }
+        }
+      }
+      if (targetTypeString == SwiftPackageTargetType.binaryTarget.jsonName) {
+        if (path != null) {
+          return SwiftPackageTarget.binaryTarget(name: name, relativePath: path);
+        }
+      } else if (targetTypeString == SwiftPackageTargetType.target.jsonName) {
+        return SwiftPackageTarget.defaultTarget(name: name, dependencies: dependencies);
+      }
+    }
+    return null;
+  }
 
   final String name;
   final String? path;
@@ -333,7 +489,7 @@ $targetDetailsIndent]''';
     }
 
     return '''
-${targetType.name}(
+${targetType.displayName}(
 $targetDetailsIndent${targetDetails.join(",\n$targetDetailsIndent")}
 $targetIndent)''';
   }
@@ -365,6 +521,32 @@ class SwiftPackageTargetDependency {
   SwiftPackageTargetDependency.target({required this.name})
     : package = null,
       dependencyType = SwiftPackageTargetDependencyType.target;
+
+  static SwiftPackageTargetDependency? fromJson(Map<String, Object?> json) {
+    if (json.containsKey('target')) {
+      final targetData = json['target'] as List<Object?>?;
+      if (targetData == null || targetData.isEmpty) {
+        return null;
+      }
+      final name = targetData.first as String?;
+      if (name == null) {
+        return null;
+      }
+      return SwiftPackageTargetDependency.target(name: name);
+    } else if (json.containsKey('product')) {
+      final productData = json['product'] as List<Object?>?;
+      if (productData == null || productData.length < 2) {
+        return null;
+      }
+      final name = productData.first as String?;
+      final packageName = productData[1] as String?;
+      if (name == null || packageName == null) {
+        return null;
+      }
+      return SwiftPackageTargetDependency.product(name: name, packageName: packageName);
+    }
+    return null; // Invalid SwiftPackageTargetDependency JSON
+  }
 
   final String name;
   final String? package;

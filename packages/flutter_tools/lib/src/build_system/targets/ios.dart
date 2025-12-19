@@ -534,6 +534,15 @@ class DebugIosLLDBInit extends Target {
   List<Target> get dependencies => <Target>[];
 
   @override
+  Future<bool> canSkip(Environment environment) async {
+    final String? buildScript = environment.defines[kXcodeBuildScript];
+    if (buildScript == 'build-native') {
+      return true;
+    }
+    return false;
+  }
+
+  @override
   Future<void> build(Environment environment) async {
     final String? sdkRoot = environment.defines[kSdkRoot];
     if (sdkRoot == null) {

@@ -31,6 +31,9 @@ abstract class UnpackDarwin extends Target {
       // handles the Flutter framework.
       return true;
     }
+    if (buildScript == 'build-native') {
+      return true;
+    }
     return false;
   }
 

@@ -48,9 +48,11 @@ class Context {
     final TargetPlatform platform = parsePlatform(platformName);
     switch (subCommand) {
       case 'build':
-        buildApp(platform);
+        buildApp(platform, 'build');
       case 'prepare':
         unpackFor(platform, 'prepare');
+      case 'build-native':
+        buildForNativeApp(platform);
       case 'thin':
         // No-op, thinning is handled during the bundle asset assemble build target.
         break;
@@ -73,6 +75,7 @@ class Context {
       case 'thin':
       case 'embed':
       case 'embed_and_thin':
+      case 'build-native':
       case 'test_vm_service_bonjour_service':
         return command;
       default:
@@ -269,6 +272,13 @@ class Context {
     ]);
   }
 
+  void buildForNativeApp(TargetPlatform platform) {
+    buildApp(platform, 'build-native');
+    final xcodeFrameworksDir =
+        '${environment['TARGET_BUILD_DIR']}/${environment['FRAMEWORKS_FOLDER_PATH']}';
+    _embedAppFramework(xcodeFrameworksDir, null);
+  }
+
   /// Embeds the App.framework, Flutter/FlutterMacOS.framework, and any native
   /// asset frameworks into the app.
   ///
@@ -292,6 +302,8 @@ class Context {
         expandedCodeSignIdentity != null &&
         expandedCodeSignIdentity.isNotEmpty &&
         environment['CODE_SIGNING_REQUIRED'] != 'NO';
+
+    _embedAppFramework(xcodeFrameworksDir, codesign ? expandedCodeSignIdentity : null);
 
     var shouldEmbedFlutterFramework = true;
     if (_usingFlutterFrameworkSwiftPackage()) {
@@ -329,7 +341,6 @@ class Context {
           );
 
           if (codesign) {
-            _codesignFramework(expandedCodeSignIdentity, '$xcodeFrameworksDir/App.framework/App');
             _codesignFramework(
               expandedCodeSignIdentity,
               '$xcodeFrameworksDir/FlutterMacOS.framework/FlutterMacOS',
@@ -347,6 +358,16 @@ class Context {
 
     if (platform == TargetPlatform.ios) {
       addVmServiceBonjourService();
+    }
+  }
+
+  void _embedAppFramework(String xcodeFrameworksDir, String? expandedCodeSignIdentity) {
+    // Embed App.framework from Flutter into the app (after creating the Frameworks directory
+    // if it doesn't already exist).
+
+    runRsync('${environment['BUILT_PRODUCTS_DIR']}/App.framework', xcodeFrameworksDir);
+    if (expandedCodeSignIdentity != null) {
+      _codesignFramework(expandedCodeSignIdentity, '$xcodeFrameworksDir/App.framework/App');
     }
   }
 
@@ -665,7 +686,7 @@ class Context {
 
   /// Calls `flutter assemble [buildMode]_[platform]_bundle_flutter_assets`
   /// (e.g. `debug_ios_bundle_flutter_assets`, `debug_macos_bundle_flutter_assets`)
-  void buildApp(TargetPlatform platform) {
+  void buildApp(TargetPlatform platform, String command) {
     final bool verbose = (environment['VERBOSE_SCRIPT_LOGGING'] ?? '').isNotEmpty;
     final String sourceRoot = environment['SOURCE_ROOT'] ?? '';
     final String projectPath = environment['FLUTTER_APPLICATION_PATH'] ?? '$sourceRoot/..';
@@ -673,7 +694,7 @@ class Context {
     final String buildMode = parseFlutterBuildMode();
 
     final List<String> flutterArgs = _generateFlutterArgsForAssemble(
-      command: 'build',
+      command: command,
       buildMode: buildMode,
       sourceRoot: sourceRoot,
       platform: platform,
