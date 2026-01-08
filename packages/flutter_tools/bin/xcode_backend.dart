@@ -293,7 +293,6 @@ class Context {
     final xcodeFrameworksDir =
         '${environment['TARGET_BUILD_DIR']}/${environment['FRAMEWORKS_FOLDER_PATH']}';
     runSync('mkdir', <String>['-p', '--', xcodeFrameworksDir]);
-    runRsync('${environment['BUILT_PRODUCTS_DIR']}/App.framework', xcodeFrameworksDir);
 
     final String? expandedCodeSignIdentity = environment['EXPANDED_CODE_SIGN_IDENTITY'];
 

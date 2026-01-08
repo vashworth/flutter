@@ -120,6 +120,7 @@ class SwiftPackage {
             dependenciesData,
             SwiftPackagePackageDependency.fromJson,
           );
+      print('VICTORIA DEBUG 2');
       final List<SwiftPackageTarget> targets = _parseJsonList<SwiftPackageTarget>(
         targetsData,
         SwiftPackageTarget.fromJson,
@@ -419,7 +420,6 @@ class SwiftPackageTarget {
     if (json case {
       'name': final String name,
       'type': final String targetTypeString,
-      'path': final String? path,
       'dependencies': final List<Object?> dependencyItems,
     }) {
       final dependencies = <SwiftPackageTargetDependency>[];
@@ -433,10 +433,9 @@ class SwiftPackageTarget {
           }
         }
       }
-      if (targetTypeString == SwiftPackageTargetType.binaryTarget.jsonName) {
-        if (path != null) {
-          return SwiftPackageTarget.binaryTarget(name: name, relativePath: path);
-        }
+      final path = json['path'] as String?;
+      if (targetTypeString == SwiftPackageTargetType.binaryTarget.jsonName && path != null) {
+        return SwiftPackageTarget.binaryTarget(name: name, relativePath: path);
       } else if (targetTypeString == SwiftPackageTargetType.target.jsonName) {
         return SwiftPackageTarget.defaultTarget(name: name, dependencies: dependencies);
       }
@@ -514,11 +513,14 @@ enum SwiftPackageTargetDependencyType {
 /// Representation of Target.Dependency from
 /// https://developer.apple.com/documentation/packagedescription/target/dependency.
 class SwiftPackageTargetDependency {
-  SwiftPackageTargetDependency.product({required this.name, required String packageName})
-    : package = packageName,
-      dependencyType = SwiftPackageTargetDependencyType.product;
+  SwiftPackageTargetDependency.product({
+    required this.name,
+    required String packageName,
+    this.platformCondition,
+  }) : package = packageName,
+       dependencyType = SwiftPackageTargetDependencyType.product;
 
-  SwiftPackageTargetDependency.target({required this.name})
+  SwiftPackageTargetDependency.target({required this.name, this.platformCondition})
     : package = null,
       dependencyType = SwiftPackageTargetDependencyType.target;
 
@@ -550,6 +552,7 @@ class SwiftPackageTargetDependency {
 
   final String name;
   final String? package;
+  final List<SwiftPackagePlatform>? platformCondition;
   final SwiftPackageTargetDependencyType dependencyType;
 
   String format() {
@@ -557,9 +560,14 @@ class SwiftPackageTargetDependency {
     //             .target(name: "Flutter"),
     //             .product(name: "image_picker_ios", package: "image_picker_ios")
     //         ]
-    if (dependencyType == SwiftPackageTargetDependencyType.product) {
-      return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name", package: "$package")';
+    var conditionString = '';
+    if (platformCondition != null && platformCondition!.isNotEmpty) {
+      conditionString =
+          ', condition: .when(platforms: [${platformCondition!.map((SwiftPackagePlatform platform) => platform.displayName).join(', ')}])';
     }
-    return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name")';
+    if (dependencyType == SwiftPackageTargetDependencyType.product) {
+      return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name", package: "$package"$conditionString)';
+    }
+    return '$_doubleIndent$_doubleIndent${dependencyType.name}(name: "$name"$conditionString)';
   }
 }

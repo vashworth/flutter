@@ -492,6 +492,14 @@ class Plugin {
     }
     return platform;
   }
+
+  bool isDarwinPluginWithSharedSources() {
+    final PluginPlatform? platformPlugin = platforms[IOSPlugin.kConfigKey];
+    if (platformPlugin == null) {
+      return false;
+    }
+    return platformPlugin is DarwinPlugin && (platformPlugin as DarwinPlugin).sharedDarwinSource;
+  }
 }
 
 /// Metadata associated with the resolution of a platform interface of a plugin.

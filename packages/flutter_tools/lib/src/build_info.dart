@@ -1083,6 +1083,10 @@ const kXcodeBuildScriptValueBuild = 'build';
 /// embedding.
 const kXcodeBuildScriptValueEmbed = 'embed';
 
+const kXcodeBuildScriptValueNativeEmbed = 'build-native';
+
+const kXcodeBuildScriptValueNativeBuild = 'build-native';
+
 final Converter<String, String> _defineEncoder = utf8.encoder.fuse(base64.encoder);
 final Converter<String, String> _defineDecoder = base64.decoder.fuse(utf8.decoder);
 

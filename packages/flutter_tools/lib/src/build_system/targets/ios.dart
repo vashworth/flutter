@@ -536,7 +536,7 @@ class DebugIosLLDBInit extends Target {
   @override
   Future<bool> canSkip(Environment environment) async {
     final String? buildScript = environment.defines[kXcodeBuildScript];
-    if (buildScript == 'build-native') {
+    if (buildScript == kXcodeBuildScriptValueNativeEmbed) {
       return true;
     }
     return false;
