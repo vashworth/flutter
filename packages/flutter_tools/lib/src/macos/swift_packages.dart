@@ -120,7 +120,6 @@ class SwiftPackage {
             dependenciesData,
             SwiftPackagePackageDependency.fromJson,
           );
-      print('VICTORIA DEBUG 2');
       final List<SwiftPackageTarget> targets = _parseJsonList<SwiftPackageTarget>(
         targetsData,
         SwiftPackageTarget.fromJson,

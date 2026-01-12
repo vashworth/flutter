@@ -268,7 +268,7 @@ Future<Uri> _writeNativeAssetsJson(
   FileSystem fileSystem,
 ) async {
   globals.logger.printTrace('Writing native assets json to $nativeAssetsJsonUri.');
-  final String nativeAssetsDartContents = _toNativeAssetsJsonFile(assets);
+  final String nativeAssetsDartContents = NativeAssetsJson.writeToJson(assets);
   final File nativeAssetsFile = fileSystem.file(nativeAssetsJsonUri);
   final Directory parentDirectory = nativeAssetsFile.parent;
   if (!await parentDirectory.exists()) {
@@ -277,29 +277,6 @@ Future<Uri> _writeNativeAssetsJson(
   await nativeAssetsFile.writeAsString(nativeAssetsDartContents);
   globals.logger.printTrace('Writing ${nativeAssetsFile.path} done.');
   return nativeAssetsFile.uri;
-}
-
-String _toNativeAssetsJsonFile(List<KernelAsset> kernelAssets) {
-  final assetsPerTarget = <Target, List<KernelAsset>>{};
-  for (final asset in kernelAssets) {
-    assetsPerTarget.putIfAbsent(asset.target, () => <KernelAsset>[]).add(asset);
-  }
-
-  const formatVersionKey = 'format-version';
-  const nativeAssetsKey = 'native-assets';
-
-  // See assets/native_assets.cc in the engine for the expected format.
-  final jsonContents = <String, Object>{
-    formatVersionKey: const <int>[1, 0, 0],
-    nativeAssetsKey: <String, Map<String, List<String>>>{
-      for (final MapEntry<Target, List<KernelAsset>> entry in assetsPerTarget.entries)
-        entry.key.toString(): <String, List<String>>{
-          for (final KernelAsset e in entry.value) e.id: e.path.toJson(),
-        },
-    },
-  };
-
-  return jsonEncode(jsonContents);
 }
 
 /// Whether link hooks should be run.
@@ -730,4 +707,66 @@ BuildMode _getBuildMode(Map<String, String> environmentDefines, bool isFlutterTe
     throw MissingDefineException(kBuildMode, 'native_assets');
   }
   return BuildMode.fromCliName(environmentBuildMode);
+}
+
+class NativeAssetsJson {
+  static String writeToJson(List<KernelAsset> kernelAssets) {
+    final assetsPerTarget = <Target, List<KernelAsset>>{};
+    for (final asset in kernelAssets) {
+      assetsPerTarget.putIfAbsent(asset.target, () => <KernelAsset>[]).add(asset);
+    }
+
+    const formatVersionKey = 'format-version';
+    const nativeAssetsKey = 'native-assets';
+
+    // See assets/native_assets.cc in the engine for the expected format.
+    final jsonContents = <String, Object>{
+      formatVersionKey: const <int>[1, 0, 0],
+      nativeAssetsKey: <String, Map<String, List<String>>>{
+        for (final MapEntry<Target, List<KernelAsset>> entry in assetsPerTarget.entries)
+          entry.key.toString(): <String, List<String>>{
+            for (final KernelAsset e in entry.value) e.id: e.path.toJson(),
+          },
+      },
+    };
+
+    return jsonEncode(jsonContents);
+  }
+
+  static List<KernelAsset>? decodeFromJson(String nativeAssetsJson) {
+    Map<String, dynamic>? json;
+    try {
+      final dynamic parsed = jsonDecode(nativeAssetsJson);
+      if (parsed is! Map<String, dynamic>) {
+        return null;
+      }
+      json = parsed;
+    } on FormatException {
+      return null;
+    }
+    final nativeAssetsMap = json['native-assets'] as Map<String, dynamic>?;
+    if (nativeAssetsMap == null) {
+      return null;
+    }
+    final assets = <KernelAsset>[];
+    for (final MapEntry<String, dynamic> entry in nativeAssetsMap.entries) {
+      final target = Target.fromString(entry.key);
+      final assetsMap = entry.value as Map<String, dynamic>;
+      for (final MapEntry<String, dynamic> assetEntry in assetsMap.entries) {
+        final String id = assetEntry.key;
+        final pathList = assetEntry.value as List<dynamic>;
+        final pathType = pathList[0] as String;
+        final KernelAssetPath kernelAssetPath = switch (pathType) {
+          'absolute' => KernelAssetAbsolutePath(Uri.file(pathList[1] as String)),
+          'relative' => KernelAssetRelativePath(Uri.file(pathList[1] as String)),
+          'system' => KernelAssetSystemPath(Uri.file(pathList[1] as String)),
+          'process' => KernelAssetInProcess(),
+          'executable' => KernelAssetInExecutable(),
+          _ => throw Exception('Unknown path type: $pathType'),
+        };
+        assets.add(KernelAsset(id: id, target: target, path: kernelAssetPath));
+      }
+    }
+    return assets;
+  }
 }

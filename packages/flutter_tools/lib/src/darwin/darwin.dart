@@ -133,4 +133,13 @@ enum FlutterDarwinPlatform {
         return project.macos;
     }
   }
+
+  String buildDirectory() {
+    switch (this) {
+      case FlutterDarwinPlatform.ios:
+        return getIosBuildDirectory();
+      case FlutterDarwinPlatform.macos:
+        return getMacOSBuildDirectory();
+    }
+  }
 }

@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 
 import 'base/common.dart';
 import 'base/file_system.dart';
+import 'darwin/darwin.dart';
 import 'platform_plugins.dart';
 
 class Plugin {
@@ -466,6 +467,16 @@ class Plugin {
       return null;
     }
     return fileSystem.path.join(packagePath, 'Package.swift');
+  }
+
+  bool supportSwiftPackageManagerForPlatform(
+    FileSystem fileSystem,
+    FlutterDarwinPlatform platform,
+  ) {
+    final String? manifestPath = pluginSwiftPackageManifestPath(fileSystem, platform.name);
+    return platforms[platform.name] != null &&
+        manifestPath != null &&
+        fileSystem.file(manifestPath).existsSync();
   }
 
   /// Expected path to the plugin's podspec. Returns null if the plugin does
