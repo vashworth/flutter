@@ -854,7 +854,7 @@ Future<void> writeIOSPluginRegistrant(
     'deploymentTarget': FlutterDarwinPlatform.ios.deploymentTarget().toString(),
     'framework': FlutterDarwinPlatform.ios.binaryName,
     'methodChannelPlugins': iosPlugins,
-    // 'usesSwiftPackageManager': project.ios.usesSwiftPackageManager,
+    'usesSwiftPackageManager': project.ios.usesSwiftPackageManager,
   };
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;

@@ -18,6 +18,7 @@ const _swiftPackageTemplate = '''
 
 import PackageDescription
 
+{{#hasSwiftCodeBefore}}\n{{swiftCodeBefore}}\n\n{{/hasSwiftCodeBefore}}
 let package = Package(
     name: "{{packageName}}",
     {{#platforms}}
@@ -62,10 +63,12 @@ class SwiftPackage {
     required this.dependencies,
     required this.targets,
     required TemplateRenderer templateRenderer,
+    String? swiftCodeBeforePackageDefinition,
   }) : _manifest = manifest,
        _name = name,
        _products = products,
-       _templateRenderer = templateRenderer;
+       _templateRenderer = templateRenderer,
+       _swiftCodeBeforePackageDefinition = swiftCodeBeforePackageDefinition;
 
   /// [File] for Package.swift.
   final File _manifest;
@@ -87,9 +90,13 @@ class SwiftPackage {
 
   final TemplateRenderer _templateRenderer;
 
+  final String? _swiftCodeBeforePackageDefinition;
+
   /// Context for the [_swiftPackageTemplate] template.
   Map<String, Object> get _templateContext => <String, Object>{
     'swiftToolsVersion': minimumSwiftToolchainVersion,
+    'hasSwiftCodeBefore': _swiftCodeBeforePackageDefinition != null,
+    'swiftCodeBefore': _swiftCodeBeforePackageDefinition ?? '',
     'packageName': _name,
     // Supported platforms can't be empty, so only include if not null.
     'platforms': _formatPlatforms() ?? false,
@@ -153,7 +160,7 @@ class SwiftPackage {
   }
 
   /// Create a Package.swift using settings from [_templateContext].
-  void createSwiftPackage() {
+  void createSwiftPackage({bool generateEmptySources = true}) {
     // Swift Packages require at least one source file per non-binary target,
     // whether it be in Swift or Objective C. If the target does not have any
     // files yet, create an empty Swift file.
@@ -164,7 +171,7 @@ class SwiftPackage {
       final Directory targetDirectory = _manifest.parent
           .childDirectory('Sources')
           .childDirectory(target.name);
-      if (!targetDirectory.existsSync() || targetDirectory.listSync().isEmpty) {
+      if (generateEmptySources && (!targetDirectory.existsSync() || targetDirectory.listSync().isEmpty)) {
         final File requiredSwiftFile = targetDirectory.childFile('${target.name}.swift');
         requiredSwiftFile.createSync(recursive: true);
         requiredSwiftFile.writeAsStringSync(_swiftPackageSourceTemplate);

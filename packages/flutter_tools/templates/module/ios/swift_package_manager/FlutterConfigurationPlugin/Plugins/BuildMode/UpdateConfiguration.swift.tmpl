@@ -1,0 +1,71 @@
+import Foundation
+import PackagePlugin
+
+@main
+struct FlutterConfigurationPlugin: CommandPlugin {
+  // Entry point for command plugins applied to Swift Packages.
+  func performCommand(context: PluginContext, arguments: [String]) async throws
+  {
+    let dir = context.package.directoryURL
+    let fileManager = FileManager.default
+    let configuration = "$(CONFIGURATION)"
+
+    try updateSymlink(
+      fileManager: fileManager,
+      dir: dir,
+      url: dir.appending(path: "Package.swift"),
+      destination: "./\(configuration)/Package.swift"
+    )
+    try updateSymlink(
+      fileManager: fileManager,
+      dir: dir,
+      url: dir.appending(path: "Sources"),
+      destination: "./\(configuration)"
+    )
+  }
+  func updateSymlink(
+    fileManager: FileManager,
+    dir: URL,
+    url: URL,
+    destination: String
+  )
+    throws
+  {
+    let originalDestination = try fileManager.destinationOfSymbolicLink(
+      atPath: url.path
+    )
+    let newDestination = dir.appending(path: destination)
+
+    // Validate new destination exists
+    if !fileManager.fileExists(atPath: newDestination.path) {
+      throw UpdateConfigurationError.notFoundError(
+        "FlutterPluginRegistrant was not found at \(destination)"
+      )
+    }
+
+    // Remove original symlink if it already exists
+    if fileManager.fileExists(atPath: url.path) {
+      try fileManager.removeItem(at: url)
+    }
+
+    do {
+      // Create the symlink pointing to the new destination
+      try fileManager.createSymbolicLink(
+        atPath: url.path(),
+        withDestinationPath: destination
+      )
+    } catch {
+      // If creating the symlink fails, recreate the previous one
+      try fileManager.createSymbolicLink(
+        atPath: url.path(),
+        withDestinationPath: originalDestination
+      )
+      throw error
+    }
+  }
+}
+
+enum UpdateConfigurationError: Error {
+  case notFoundError(String)
+}
+

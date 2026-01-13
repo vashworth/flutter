@@ -229,6 +229,10 @@
     "templates/module/ios/library/Flutter.tmpl/AppFrameworkInfo.plist",
     "templates/module/ios/library/Flutter.tmpl/podhelper.rb.tmpl",
     "templates/module/ios/library/Flutter.tmpl/README.md",
+    "templates/module/ios/swift_package_manager/FlutterConfigurationPlugin/Plugins/BuildMode/UpdateConfiguration.swift.tmpl",
+    "templates/module/ios/swift_package_manager/FlutterConfigurationPlugin/Package.swift.tmpl",
+    "templates/module/ios/swift_package_manager/Scripts/update.sh.tmpl",
+    "templates/module/ios/swift_package_manager/Scripts/verify.sh.tmpl",
     "templates/module/README.md",
 
     "templates/package/.gitignore.tmpl",
