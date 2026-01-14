@@ -495,6 +495,23 @@ class CreateCommand extends FlutterCommand with CreateBase {
           overwrite: overwrite,
           printStatusWhenWriting: !creatingNewProject,
         );
+        if (featureFlags.isSwiftPackageManagerEnabled) {
+          final FlutterProject project = FlutterProject.fromDirectory(relativeDir);
+          if (project.ios.ephemeralModuleDirectory.existsSync()) {
+            // If .ios project already exists, print a warning
+            globals.logger.printWarning('Swift Package Manager does not support module projects.');
+          } else {
+            templateContext['android'] = false;
+            generatedFileCount += await generateApp(
+              <String>[globals.fs.path.join('app')],
+              relativeDir,
+              templateContext,
+              overwrite: overwrite,
+              printStatusWhenWriting: !creatingNewProject,
+              projectType: template,
+            );
+          }
+        }
         pubContext = PubContext.create;
       case FlutterTemplateType.package:
         generatedFileCount += await _generatePackage(

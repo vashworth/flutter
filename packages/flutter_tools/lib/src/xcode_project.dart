@@ -5,6 +5,7 @@
 /// @docImport 'ios/mac.dart';
 library;
 
+import 'base/common.dart';
 import 'base/error_handling_io.dart';
 import 'base/file_system.dart';
 import 'base/logger.dart';
@@ -176,12 +177,6 @@ abstract class XcodeBasedProject extends FlutterProjectPlatform {
   /// feature is enabled.
   bool get usesSwiftPackageManager {
     if (!featureFlags.isSwiftPackageManagerEnabled) {
-      return false;
-    }
-
-    // TODO(loic-sharma): Support Swift Package Manager in add-to-app modules.
-    // https://github.com/flutter/flutter/issues/146957
-    if (parent.isModule) {
       return false;
     }
 
@@ -443,8 +438,26 @@ def __lldb_init_module(debugger: lldb.SBDebugger, _):
   /// a Flutter module with an editable host app.
   Directory get _flutterLibRoot => isModule ? ephemeralModuleDirectory : _editableDirectory;
 
-  /// True, if the parent Flutter project is a module project.
-  bool get isModule => parent.isModule;
+  @override
+  bool get usesSwiftPackageManager {
+    if (isModule) {
+      return false;
+    }
+
+    return super.usesSwiftPackageManager;
+  }
+
+  /// True, if the parent Flutter project is a module project unless SwiftPM is enabled.
+  ///
+  /// If SwiftPM is enabled, returns `false` if the `ios` directory ([_editableDirectory]) exists.
+  /// This means it's been converted to a real Xcode project even though the parent project is
+  /// marked as a module in the pubspec.
+  bool get isModule {
+    if (super.usesSwiftPackageManager && _editableDirectory.existsSync()) {
+      return false;
+    }
+    return parent.isModule;
+  }
 
   /// Whether the Flutter application has an iOS project.
   bool get exists => hostAppRoot.existsSync();

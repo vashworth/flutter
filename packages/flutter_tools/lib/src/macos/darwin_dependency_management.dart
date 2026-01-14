@@ -89,6 +89,9 @@ class DarwinDependencyManagement {
     // Skip updating Podfile if project is a module, since it will use a
     // different module-specific Podfile.
     if (_project.isModule) {
+      _logger.printWarning(
+        'SwiftPM does not allow modules. Convert to a normal iOS app to use SwiftPM.',
+      );
       return;
     }
     final (
