@@ -171,7 +171,8 @@ class SwiftPackage {
       final Directory targetDirectory = _manifest.parent
           .childDirectory('Sources')
           .childDirectory(target.name);
-      if (generateEmptySources && (!targetDirectory.existsSync() || targetDirectory.listSync().isEmpty)) {
+      if (generateEmptySources &&
+          (!targetDirectory.existsSync() || targetDirectory.listSync().isEmpty)) {
         final File requiredSwiftFile = targetDirectory.childFile('${target.name}.swift');
         requiredSwiftFile.createSync(recursive: true);
         requiredSwiftFile.writeAsStringSync(_swiftPackageSourceTemplate);
@@ -399,7 +400,8 @@ class SwiftPackagePackageDependency {
 /// more information.
 enum SwiftPackageTargetType {
   target(displayName: '.target', jsonName: 'regular'),
-  binaryTarget(displayName: '.binaryTarget', jsonName: 'binary');
+  binaryTarget(displayName: '.binaryTarget', jsonName: 'binary'),
+  remoteBinaryTarget(displayName: '.binaryTarget', jsonName: 'TODO');
 
   const SwiftPackageTargetType({required this.displayName, required this.jsonName});
 
@@ -415,12 +417,26 @@ enum SwiftPackageTargetType {
 class SwiftPackageTarget {
   SwiftPackageTarget.defaultTarget({required this.name, this.dependencies})
     : path = null,
+      url = null,
+      checksum = null,
       targetType = SwiftPackageTargetType.target;
 
   SwiftPackageTarget.binaryTarget({required this.name, required String relativePath})
     : path = relativePath,
       dependencies = null,
+      url = null,
+      checksum = null,
       targetType = SwiftPackageTargetType.binaryTarget;
+
+  SwiftPackageTarget.remoteBinaryTarget({
+    required this.name,
+    required String zipUrl,
+    required String zipChecksum,
+  }) : path = null,
+       url = zipUrl,
+       checksum = zipChecksum,
+       dependencies = null,
+       targetType = SwiftPackageTargetType.remoteBinaryTarget;
 
   static SwiftPackageTarget? fromJson(Map<String, Object?> json) {
     if (json case {
@@ -453,6 +469,8 @@ class SwiftPackageTarget {
   final String? path;
   final List<SwiftPackageTargetDependency>? dependencies;
   final SwiftPackageTargetType targetType;
+  final String? url;
+  final String? checksum;
 
   String format() {
     // targets: [
@@ -491,6 +509,16 @@ dependencies: [
 ${targetDependencies.join(",\n")}
 $targetDetailsIndent]''';
       targetDetails.add(dependenciesString);
+    }
+
+    if (url != null) {
+      final urlString = 'url: "$url"';
+      targetDetails.add(urlString);
+    }
+
+    if (checksum != null) {
+      final checksumString = 'checksum: "$checksum"';
+      targetDetails.add(checksumString);
     }
 
     return '''

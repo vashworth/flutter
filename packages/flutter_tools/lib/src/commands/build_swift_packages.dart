@@ -108,7 +108,8 @@ class BuildSwiftPackages extends BuildSubCommand {
         'cocoapods-as-binary-targets',
         defaultsTo: true,
         help: 'Adds CocoaPod-only plugins as binary targets in the generated swift package.',
-      );
+      )
+      ..addFlag('remote', help: 'Uses a remote url for the Flutter framework');
   }
 
   @override
@@ -290,6 +291,7 @@ class BuildSwiftPackages extends BuildSubCommand {
 
       await _generateSwiftPackages(
         xcodeBuildConfiguration,
+        buildInfo.mode,
         pluginRegistrant,
         flutterFramework,
         appFramework,
@@ -322,10 +324,13 @@ class BuildSwiftPackages extends BuildSubCommand {
   ) async {
     ErrorHandlingFileSystem.deleteIfExists(xcframeworkOutput, recursive: true);
     logger.printStatus('Building for $xcodeBuildConfiguration...');
-    await flutterFramework.generateArtifacts(
-      buildMode: buildInfo.mode,
-      xcframeworkOutput: xcframeworkOutput,
-    );
+    if (!boolArg('remote')) {
+      await flutterFramework.generateArtifacts(
+        buildMode: buildInfo.mode,
+        xcframeworkOutput: xcframeworkOutput,
+      );
+    }
+
     await appFramework.generateArtifacts(
       buildInfo: buildInfo,
       cacheDirectory: cacheDirectory.childDirectory('FlutterFrameworks'),
@@ -343,6 +348,7 @@ class BuildSwiftPackages extends BuildSubCommand {
 
   Future<void> _generateSwiftPackages(
     String xcodeBuildConfiguration,
+    BuildMode mode,
     _FlutterPluginRegistrantSwiftPackage pluginRegistrant,
     FlutterFrameworkDependency flutterFramework,
     _AppFrameworkAndNativeAssetsDependencies appFramework,
@@ -359,7 +365,12 @@ class BuildSwiftPackages extends BuildSubCommand {
           .childDirectory(_kPackages);
       ErrorHandlingFileSystem.deleteIfExists(swiftDependencyPackages, recursive: true);
 
-      flutterFramework.generateSwiftPackage(swiftDependencyPackages);
+      await flutterFramework.generateSwiftPackage(
+        swiftDependencyPackages,
+        mode,
+        status,
+        remote: boolArg('remote'),
+      );
 
       await pluginRegistrant.generateSourceFiles(
         plugins: plugins,
@@ -545,13 +556,19 @@ class FlutterFrameworkDependency {
 
   /// Creates a FlutterFramework swift package within the [packageDirectory]. This swift package
   /// vends the Flutter xcframework.
-  void generateSwiftPackage(Directory packageDirectory) {
+  Future<void> generateSwiftPackage(
+    Directory packageDirectory,
+    BuildMode mode,
+    Status status, {
+    bool remote = false,
+  }) async {
     final product = SwiftPackageProduct(
       name: kFlutterGeneratedFrameworkSwiftPackageTargetName,
       targets: <String>[kFlutterGeneratedFrameworkSwiftPackageTargetName],
     );
     final List<SwiftPackageTargetDependency> targetDependencies = [];
     final List<SwiftPackageTarget> binaryTargets = [];
+
     for (final FlutterDarwinPlatform platform in _utils.targetPlatforms) {
       targetDependencies.add(
         SwiftPackageTargetDependency.target(
@@ -560,9 +577,11 @@ class FlutterFrameworkDependency {
         ),
       );
       binaryTargets.add(
-        SwiftPackageTarget.binaryTarget(
-          name: platform.binaryName,
-          relativePath: '../../$_kFrameworks/${platform.binaryName}.xcframework',
+        await binaryTarget(
+          packageDirectory: packageDirectory,
+          remote: remote,
+          platform: platform,
+          mode: mode,
         ),
       );
     }
@@ -609,6 +628,36 @@ class FlutterFrameworkDependency {
     name: kFlutterGeneratedFrameworkSwiftPackageTargetName,
     packageName: kFlutterGeneratedFrameworkSwiftPackageTargetName,
   );
+
+  Future<SwiftPackageTarget> binaryTarget({
+    required bool remote,
+    required Directory packageDirectory,
+    required FlutterDarwinPlatform platform,
+    required BuildMode mode,
+  }) async {
+    if (remote) {
+      final Uri url = Uri.parse(
+        '${_utils.cache.storageBaseUrl}/flutter_infra_release/flutter/${cache.engineRevision}/${platform.artifactName(mode)}/${platform.artifactZip}',
+      );
+      final Directory destination = packageDirectory.childDirectory('temp');
+      await _utils.cache.downloadFile('url', url, destination);
+      final ProcessResult checksumResult = _utils.processManager.runSync([
+        'swift',
+        'package',
+        'compute-checksum',
+        platform.artifactZip,
+      ], workingDirectory: destination.path);
+      return SwiftPackageTarget.remoteBinaryTarget(
+        name: platform.binaryName,
+        zipUrl: url.toString(),
+        zipChecksum: checksumResult.stdout.toString().trim(),
+      );
+    }
+    return SwiftPackageTarget.binaryTarget(
+      name: platform.binaryName,
+      relativePath: '../../$_kFrameworks/${platform.binaryName}.xcframework',
+    );
+  }
 }
 
 class _AppFrameworkAndNativeAssetsDependencies {
