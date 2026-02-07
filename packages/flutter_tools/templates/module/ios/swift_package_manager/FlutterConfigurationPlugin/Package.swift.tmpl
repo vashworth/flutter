@@ -1,10 +1,13 @@
 // swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
+
 import PackageDescription
 let package = Package(
     name: "FlutterConfigurationPlugin",
     products: [
-        .plugin(name: "FlutterConfigurationPlugin", targets: [{{#buildModes}}"Switch to {{uppercaseName}} Mode",{{/buildModes}}])
+        .plugin(name: "FlutterConfigurationPlugin", targets: [{{#buildModes}}"Switch to {{uppercaseName}} Mode",{{/buildModes}}]),
+        .executable(name: "flutter-prebuild-tool", targets: ["FlutterPrebuildTool"]),
+        .executable(name: "flutter-assemble-tool", targets: ["FlutterAssembleTool"]),
     ],
     targets: [
         {{#buildModes}}
@@ -19,5 +22,8 @@ let package = Package(
             path: "Plugins/{{uppercaseName}}"
         ),
         {{/buildModes}}
+        .target(name: "FlutterToolHelper"),
+        .executableTarget(name: "FlutterPrebuildTool", dependencies: ["FlutterToolHelper"]),
+        .executableTarget(name: "FlutterAssembleTool", dependencies: ["FlutterToolHelper"]),
     ]
 )

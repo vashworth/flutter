@@ -1,0 +1,209 @@
+//  Generated file. Do not edit.
+
+import FlutterToolHelper
+import Foundation
+
+@main
+struct FlutterPrebuildTool {
+  static func main() {
+    let mode = FlutterToolHelper.parseFlutterBuildMode()
+    {{^useRemoteFlutterFramework}}
+    FlutterFrameworkSync.copy(targetBuildMode: mode)
+    {{/useRemoteFlutterFramework}}
+    FlutterFrameworkSync.update(
+      targetBuildMode: mode,
+      targetName: "Package.swift",
+      expectedLink: "./\(mode)/Package.swift"
+    )
+    FlutterFrameworkSync.update(
+      targetBuildMode: mode,
+      targetName: "Sources",
+      expectedLink: "./\(mode)"
+    )
+  }
+}
+
+class FlutterFrameworkSync {
+  {{^useRemoteFlutterFramework}}
+  static func copy(targetBuildMode: String) {
+    let env = ProcessInfo.processInfo.environment
+
+    let flutterPluginRegistrantDir = FlutterToolHelper.findOrExit(
+      env: env,
+      key: "FLUTTER_PLUGIN_REGISTRANT_PATH"
+    )
+    let targetPlatform = FlutterToolHelper.targetPlatform(env: env)
+    var frameworkName = "Flutter"
+    if targetPlatform == FlutterPlatform.macos {
+      frameworkName = "FlutterMacOS"
+    }
+
+    let fileManager = FileManager.default
+    let xcframeworkPath = URL(
+      fileURLWithPath:
+        "\(flutterPluginRegistrantDir)/\(targetBuildMode)/Frameworks/\(frameworkName).xcframework"
+    )
+    let simulator = simulatorSdk(env: env)
+    do {
+      for file in try fileManager.contentsOfDirectory(
+        at: xcframeworkPath,
+        includingPropertiesForKeys: nil
+      ) {
+        let archDir = file.lastPathComponent
+        if !archDir.starts(with: "ios") {
+          continue
+        }
+        if (archDir.hasSuffix("-simulator") && simulator)
+          || (!archDir.hasSuffix("-simulator") && !simulator)
+        {
+          let frameworkPath = file.appendingPathComponent(
+            "\(frameworkName).framework"
+          )
+          let builtProductsDir = FlutterToolHelper.findOrExit(
+            env: env,
+            key: "BUILT_PRODUCTS_DIR"
+          )
+          rsyncFramework(
+            source: frameworkPath,
+            destination: URL(fileURLWithPath: builtProductsDir)
+          )
+          break
+        }
+      }
+    } catch {
+      FlutterToolHelper.xcodeError(
+        message:
+          "Unable to copy \(xcframeworkPath): \(error.localizedDescription)"
+      )
+      exit(1)
+    }
+  }
+
+  static func rsyncFramework(source: URL, destination: URL) {
+    #if os(macOS)
+      let process = Process()
+      process.launchPath = "/usr/bin/rsync"
+      process.arguments = [
+        "-av", "--delete", "--filter", "- .DS_Store/",
+        "--chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r", source.path, destination.path,
+      ]
+      do {
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+          exit(process.terminationStatus)
+        }
+      } catch {
+        FlutterToolHelper.xcodeError(
+          message:
+            "Failed to run rsync: \(error.localizedDescription)"
+        )
+        exit(1)
+      }
+    #endif
+  }
+
+  static func simulatorSdk(env: [String: String]) -> Bool {
+    let sdkRoot = FlutterToolHelper.findOrExit(env: env, key: "SDKROOT")
+    let url = URL(fileURLWithPath: sdkRoot)
+    let filenameWithExtension = url.lastPathComponent
+    if !filenameWithExtension.contains("iphone") {
+      FlutterToolHelper.xcodeError(message: "Unrecognized SDKROOT: \(sdkRoot). Flutter only supports iOS and macOS.")
+      exit(1)
+    }
+    if filenameWithExtension.contains("simulator") {
+      return true
+    }
+    return false
+  }
+  {{/useRemoteFlutterFramework}}
+
+  static func update(
+    targetBuildMode: String,
+    targetName: String,
+    expectedLink: String
+  ) {
+    let env = ProcessInfo.processInfo.environment
+
+    let flutterPluginRegistrantDir = FlutterToolHelper.findOrExit(
+      env: env,
+      key: "FLUTTER_PLUGIN_REGISTRANT_PATH"
+    )
+    let flutterConfigurationPlugin = FlutterToolHelper.findOrExit(
+      env: env,
+      key: "FLUTTER_CONFIGURATION_PLUGIN"
+    )
+
+    let fileManager = FileManager.default
+    let currentLinkPath = "\(flutterPluginRegistrantDir)/\(targetName)"
+
+    guard
+      let currentTarget = try? fileManager.destinationOfSymbolicLink(
+        atPath: currentLinkPath
+      )
+    else {
+      FlutterToolHelper.xcodeError(
+        message:
+          "Unable to find \(currentLinkPath). Does the file exist? You may need to run \"flutter build swift-package\" again."
+      )
+      exit(1)
+    }
+    if currentTarget == expectedLink {
+      print("FlutterPluginRegistrant/\(targetName) symlink is up-to-date.")
+      return
+    }
+    let lowerBuildMode = targetBuildMode.lowercased()
+    {{#useRemoteFlutterFramework}}
+    // Remote Flutter framework configuration must be switched manually. Direct user to update configuration.
+    let currentTargetURL = URL(fileURLWithPath: currentTarget)
+    let currentBuildMode = currentTargetURL.deletingLastPathComponent()
+      .lastPathComponent
+    let pluginPath = URL(fileURLWithPath: flutterConfigurationPlugin).path
+    let warningLines = [
+      " The target build configuration is set to \(targetBuildMode), but Flutter packages are set to \(currentBuildMode).",
+      "This project uses a remote Flutter framework and requires the build configuration to be switched manually. Please complete one of the following:",
+      "  1) Right click on FlutterPluginRegistrant in Xcode's Project Navigator and select \"Switch to \(targetBuildMode) Mode\".",
+      "  2) Run the following in a terminal:",
+      "       cd \(pluginPath)",
+      "       swift package plugin --package FlutterConfigurationPlugin --allow-writing-to-package-directory --allow-writing-to-directory=\"../FlutterPluginRegistrant\" switch-to-\(lowerBuildMode)",
+    ]
+    for line in warningLines {
+      FlutterToolHelper.xcodeError(message: line)
+    }
+    exit(1)
+    {{/useRemoteFlutterFramework}}
+    {{^useRemoteFlutterFramework}}
+
+    // Verify new congfiguration exists
+    let newTargetDir = "\(flutterPluginRegistrantDir)/\(expectedLink)"
+    if !fileManager.fileExists(atPath: newTargetDir) {
+      FlutterToolHelper.xcodeError(
+        message:
+          "FlutterPluginRegistrant/\(targetName) does not exist for configuration \(targetBuildMode). You may need to run \"flutter build swift-package --build-mode \(lowerBuildMode)\"."
+      )
+      exit(1)
+    }
+
+    // Update the symlink
+    do {
+      // Remove existing item if it exists so we can recreate the link
+      if fileManager.fileExists(atPath: currentLinkPath) {
+        try fileManager.removeItem(atPath: currentLinkPath)
+      }
+      try fileManager.createSymbolicLink(
+        atPath: currentLinkPath,
+        withDestinationPath: expectedLink
+      )
+      print(
+        "FlutterPluginRegistrant/\(targetName) symlink \(currentLinkPath) updated to \(expectedLink)."
+      )
+    } catch {
+      FlutterToolHelper.xcodeError(
+        message:
+          "Failed to update symlink: \(error.localizedDescription)"
+      )
+      exit(1)
+    }
+    {{/useRemoteFlutterFramework}}
+  }
+}

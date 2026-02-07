@@ -1,0 +1,263 @@
+//  Generated file. Do not edit.
+
+import FlutterToolHelper
+import Foundation
+
+@main
+struct FlutterAssembleTool {
+  static func main() {
+    let mode = FlutterToolHelper.parseFlutterBuildMode()
+    FlutterConfigurationVerification.verifyFlutterFramework(
+      targetBuildMode: mode
+    )
+    FlutterAssemble.run(command: "build-native")
+  }
+}
+
+class FlutterConfigurationVerification {
+
+  static func verifyFlutterFramework(targetBuildMode: String) {
+    let env = ProcessInfo.processInfo.environment
+
+    let builtProductsDir = FlutterToolHelper.findOrExit(
+      env: env,
+      key: "BUILT_PRODUCTS_DIR"
+    )
+    verifyFrameworkBuildMode(
+      destinationDir: builtProductsDir,
+      targetBuildMode: targetBuildMode
+    )
+
+    let targetBuildDir = FlutterToolHelper.findOrExit(
+      env: env,
+      key: "TARGET_BUILD_DIR"
+    )
+    let frameworksFolderPath = FlutterToolHelper.findOrExit(
+      env: env,
+      key: "FRAMEWORKS_FOLDER_PATH"
+    )
+    let embeddedFrameworks = (targetBuildDir as NSString)
+      .appendingPathComponent(
+        frameworksFolderPath
+      )
+    verifyFrameworkBuildMode(
+      destinationDir: embeddedFrameworks,
+      targetBuildMode: targetBuildMode
+    )
+  }
+
+  static func verifyFrameworkBuildMode(
+    destinationDir: String,
+    targetBuildMode: String
+  ) {
+    let env = ProcessInfo.processInfo.environment
+
+    let frameworkInfoPlistURL = flutterFrameworkInfoPlist(
+      env: env,
+      destinationDir: destinationDir
+    )
+    let expectedBuildMode = expectedBuildModeForSdk(
+      env: env,
+      targetBuildMode: targetBuildMode
+    )
+    let actualBuildMode = buildModeFromInfoPlist(
+      frameworkInfoPlistURL: frameworkInfoPlistURL
+    )
+
+    // Verify expected and actual build mode matches
+    if actualBuildMode.lowercased() != expectedBuildMode.lowercased() {
+      FlutterToolHelper.xcodeError(
+        message:
+          "The Flutter framework's build mode does not match the currently targeted configuration. Expected \(expectedBuildMode) but found \(actualBuildMode) for \(frameworkInfoPlistURL.path)."
+      )
+      exit(1)
+    }
+  }
+
+  static func flutterFrameworkInfoPlist(
+    env: [String: String],
+    destinationDir: String
+  ) -> URL {
+    let infoPlistRelativePath =
+      (FlutterToolHelper.targetPlatform(env: env) == FlutterPlatform.macos)
+      ? "FlutterMacOS.framework/Resources/Info.plist"
+      : "Flutter.framework/Info.plist"
+
+    return URL(fileURLWithPath: destinationDir)
+      .appendingPathComponent(infoPlistRelativePath)
+  }
+
+  static func expectedBuildModeForSdk(
+    env: [String: String],
+    targetBuildMode: String
+  ) -> String {
+    let sdkRoot = FlutterToolHelper.findOrExit(env: env, key: "SDKROOT")
+    if sdkRoot.lowercased().contains("simulator") {
+      return "debug"
+    }
+    return targetBuildMode
+  }
+
+  static func buildModeFromInfoPlist(frameworkInfoPlistURL: URL) -> String {
+    do {
+      let data = try Data(contentsOf: frameworkInfoPlistURL)
+      guard
+        let plist =
+          try PropertyListSerialization.propertyList(
+            from: data,
+            options: [],
+            format: nil
+          ) as? [String: Any]
+      else {
+        FlutterToolHelper.xcodeError(
+          message:
+            "Failed to parse \(frameworkInfoPlistURL)"
+        )
+        exit(1)
+      }
+      guard let parsedBuildMode = plist["BuildMode"] as? String else {
+        FlutterToolHelper.xcodeError(
+          message:
+            "Failed to read BuildMode from \(frameworkInfoPlistURL)"
+        )
+        exit(1)
+      }
+      return parsedBuildMode
+    } catch {
+      FlutterToolHelper.xcodeError(
+        message:
+          "Failed to read contents of \(frameworkInfoPlistURL): : \(error.localizedDescription)"
+      )
+      exit(1)
+    }
+  }
+}
+
+class FlutterAssemble {
+  static func run(command: String) {
+    let env = ProcessInfo.processInfo.environment
+    let fileManager = FileManager.default
+
+    guard let resolvedPath = flutterApplicationPath(env: env) else {
+      return
+    }
+    if !fileManager.fileExists(atPath: resolvedPath) {
+      FlutterToolHelper.xcodeWarning(message: "FLUTTER_APPLICATION_PATH is set to \(resolvedPath), but could not be located.")
+      return
+    }
+
+    let platform = FlutterToolHelper.targetPlatform(env: env).rawValue
+    let exportEnvPath =
+      "\(resolvedPath)/\(platform)/Flutter/flutter_export_environment.sh"
+    let exportedEnv = environmentFromPath(exportedEnvPath: exportEnvPath)
+    let flutterRoot = flutterRootPath(env: env, exportedEnv: exportedEnv)
+    if !fileManager.fileExists(atPath: flutterRoot) {
+      FlutterToolHelper.xcodeWarning(message: "FLUTTER_ROOT is set to \(flutterRoot), but could not be located.")
+      return
+    }
+    let dartExecutable = "\(flutterRoot)/bin/dart"
+    let xcodeBackendScript =
+      "\(flutterRoot)/packages/flutter_tools/bin/xcode_backend.dart"
+    #if os(macOS)
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: dartExecutable)
+      process.arguments = [xcodeBackendScript, command, platform]
+      process.environment = mergeEnvironment(env: env, exportedEnv: exportedEnv)
+      do {
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+          exit(process.terminationStatus)
+        }
+      } catch {
+        FlutterToolHelper.xcodeError(
+          message:
+            "Failed to run xcode_backend.dart: \(error.localizedDescription)"
+        )
+        exit(1)
+      }
+    #endif
+
+  }
+
+  static func flutterApplicationPath(env: [String: String]) -> String? {
+    guard let flutterAppPath = env["FLUTTER_APPLICATION_PATH"] else {
+      return nil
+    }
+    var resolvedPath = flutterAppPath
+    if !flutterAppPath.hasPrefix("/") {
+      let srcRoot = FlutterToolHelper.findOrExit(env: env, key: "SRCROOT")
+      resolvedPath = "\(srcRoot)/\(flutterAppPath)"
+    }
+    return resolvedPath
+  }
+
+  static func environmentFromPath(exportedEnvPath: String) -> [String: String] {
+    do {
+      let contents = try String(contentsOfFile: exportedEnvPath)
+      let lines = contents.replacingOccurrences(of: "export ", with: "")
+        .components(
+          separatedBy: CharacterSet.newlines
+        )
+      var exportedEnv = [String: String]()
+      for line in lines {
+        let trimmedLine = line.trimmingCharacters(
+          in: CharacterSet(charactersIn: "\"")
+        )
+        guard let splitIndex = trimmedLine.firstIndex(of: "=") else {
+          continue
+        }
+        let prevousIndex = trimmedLine.index(before: splitIndex)
+        let nextIndex = trimmedLine.index(after: splitIndex)
+        let key = String(trimmedLine[...prevousIndex])
+        let value = String(trimmedLine[nextIndex...])
+        exportedEnv.updateValue(value, forKey: key)
+      }
+      return exportedEnv
+    } catch {
+      FlutterToolHelper.xcodeWarning(
+        message:
+          "Unable to run \"flutter assemble\". Failed to read contents of \(exportedEnvPath): \(error.localizedDescription)"
+      )
+      exit(0)
+    }
+  }
+
+  static func flutterRootPath(
+    env: [String: String],
+    exportedEnv: [String: String]
+  )
+    -> String
+  {
+    // Try to parse FLUTTER_ROOT out of flutter_export_environment
+    if let exportedFlutterRoot = exportedEnv["FLUTTER_ROOT"],
+      !exportedFlutterRoot.isEmpty
+    {
+      return exportedFlutterRoot
+    }
+
+    // Fallback to current env
+    guard let root = env["FLUTTER_ROOT"], !root.isEmpty else {
+      FlutterToolHelper.xcodeWarning(
+        message:
+          "Unable to run \"flutter assemble\". FLUTTER_ROOT not set."
+      )
+      exit(0)
+    }
+    return root
+  }
+
+  static func mergeEnvironment(
+    env: [String: String],
+    exportedEnv: [String: String]
+  ) -> [String: String] {
+    var mergedEnv = [String: String]()
+    for key in env.keys {
+      mergedEnv.updateValue(env[key]!, forKey: key)
+    }
+    for key in exportedEnv.keys {
+      mergedEnv.updateValue(exportedEnv[key]!, forKey: key)
+    }
+    return mergedEnv
+  }
+}

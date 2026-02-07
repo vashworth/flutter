@@ -5,30 +5,9 @@
 # exit on error, or usage of unset var
 set -euo pipefail
 
-EchoWarning() {
-  echo "$@" 1>&2
-}
-
-ParseFlutterBuildMode() {
-  # Use FLUTTER_BUILD_MODE if it's set, otherwise use the Xcode build configuration name
-  # This means that if someone wants to use an Xcode build config other than Debug/Profile/Release,
-  # they _must_ set FLUTTER_BUILD_MODE so we know what type of artifact to build.
-  local build_mode="$(echo "${FLUTTER_BUILD_MODE:-${CONFIGURATION}}" | tr "[:upper:]" "[:lower:]")"
-
-  case "$build_mode" in
-    *release*) build_mode="Release";;
-    *profile*) build_mode="Profile";;
-    *debug*) build_mode="Debug";;
-    *)
-    # TODO: link to documentation
-      EchoWarning "========================================================================"
-      EchoWarning "WARNING: Unknown FLUTTER_BUILD_MODE: ${build_mode}. Please see [insert link here] on how to setup FLUTTER_BUILD_MODE."
-      EchoWarning "========================================================================"
-      exit -1;;
-  esac
-
-  echo "${build_mode}"
-}
+if [[ $ACTION == "clean" ]]; then
+  exit 0
+fi
 
 function follow_links() (
   cd -P "$(dirname -- "$1")"
@@ -42,51 +21,26 @@ function follow_links() (
   echo "$file"
 )
 
-UpdateConfigurationSymlink() {
-  local flutter_plugin_registrant_dir="$1"
-  local build_mode="$2"
-  local target_name="$3"
-  local expected_link="$4"
-
-  local current_link="$flutter_plugin_registrant_dir/$target_name"
-  current_target=$(readlink "$current_link")
-  if [ "$current_target" == "$expected_link" ]; then
-    echo "FlutterPluginRegistrant/$target_name symlink is up-to-date."
-    return
-  fi
-
-  EchoWarning "FlutterPluginRegistrant/$target_name symlink is out-of-date. \n\tCurrent: $current_target\n\tExpected: $expected_link"
-
-  # Verify new target exists
-  new_target_dir="${flutter_plugin_registrant_dir}/${expected_link}"
-  if [ ! -e "$new_target_dir" ]; then
-    EchoWarning "error: FlutterPluginRegistrant/$target_name does not exist for configuration $build_mode: $new_target_dir"
-    exit 1
-  fi
-
-  # Update link
-  echo "Updating FlutterPluginRegistrant/$target_name symlink to point to $build_mode configuration."
-  ln -sfh "$expected_link" "$current_link"
-  echo "FlutterPluginRegistrant/$target_name symlink $current_link updated to $expected_link."
-}
-
-if [[ $ACTION == "clean" ]]; then
-  exit 0
-fi
-
-# 1: Parse build mode
-build_mode=$(ParseFlutterBuildMode)
-
-# 2: Get the symlink of the Frameworks directory relative to this script. For example, if the script is available at frameworks/Scripts/update.sh, the Frameworks directory is located at frameworks/FlutterPluginRegistrant/Frameworks
 # Needed because if it is set, cd may print the path it changed to.
 unset CDPATH
 
-# Find path to FlutterPluginRegistrant
+# Find path to FlutterConfigurationPlugin
 PROG_NAME="$(follow_links "${BASH_SOURCE[0]}")"
 BIN_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
-flutter_plugin_registrant_dir="$BIN_DIR/../FlutterPluginRegistrant"
-EchoWarning "flutter_plugin_registrant_dir: $flutter_plugin_registrant_dir"
+FLUTTER_PLUGIN_REGISTRANT_PATH="$BIN_DIR/../FlutterPluginRegistrant"
+FLUTTER_CONFIGURATION_PLUGIN="$BIN_DIR/../FlutterConfigurationPlugin"
 
-UpdateConfigurationSymlink "$flutter_plugin_registrant_dir" "$build_mode" "Package.swift" "./$build_mode/Package.swift"
-UpdateConfigurationSymlink "$flutter_plugin_registrant_dir" "$build_mode" "Sources" "./$build_mode"
-
+# Use prebuilt flutter-prebuild-tool if possible, otherwise re-build it for next time
+PREBUILT_FLUTTER_TOOL="$FLUTTER_CONFIGURATION_PLUGIN/.build/release/flutter-prebuild-tool"
+if [[ -z REBUILD_FLUTTER_TOOL ]] || [[ "$REBUILD_FLUTTER_TOOL" != "YES" ]]; then
+  PREBUILT_FLUTTER_TOOL_SCAN=$(gktool scan "$PREBUILT_FLUTTER_TOOL") || REBUILD_FLUTTER_TOOL="YES"
+  if [[ "$PREBUILT_FLUTTER_TOOL_SCAN" != *"Scan completed and software is allowed by system policy."* ]]; then
+    echo "Gatekeeper check failed: $PREBUILT_FLUTTER_TOOL_SCAN"
+    REBUILD_FLUTTER_TOOL="YES"
+  fi
+fi
+if [[ "$REBUILD_FLUTTER_TOOL" == "YES" ]]; then
+  cd "$FLUTTER_CONFIGURATION_PLUGIN"
+  env -i PATH=$PATH swift build --product flutter-prebuild-tool -c release --disable-sandbox
+fi
+FLUTTER_PLUGIN_REGISTRANT_PATH=$FLUTTER_PLUGIN_REGISTRANT_PATH FLUTTER_CONFIGURATION_PLUGIN=$FLUTTER_CONFIGURATION_PLUGIN "$PREBUILT_FLUTTER_TOOL"

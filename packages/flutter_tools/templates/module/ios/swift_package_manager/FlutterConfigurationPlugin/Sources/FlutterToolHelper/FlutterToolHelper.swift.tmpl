@@ -1,0 +1,65 @@
+//  Generated file. Do not edit.
+
+import Foundation
+
+public class FlutterToolHelper {
+  public static func parseFlutterBuildMode() -> String {
+    let env = ProcessInfo.processInfo.environment
+
+    // Get FLUTTER_BUILD_MODE or fallback to CONFIGURATION, then lowercase it
+    let rawMode = (env["FLUTTER_BUILD_MODE"] ?? env["CONFIGURATION"] ?? "")
+      .lowercased()
+
+    let buildMode: String
+
+    if rawMode.contains("release") {
+      buildMode = "Release"
+    } else if rawMode.contains("profile") {
+      buildMode = "Profile"
+    } else if rawMode.contains("debug") {
+      buildMode = "Debug"
+    } else {
+      let message =
+        "Unknown CONFIGURATION: \(rawMode). Please see [link] on how to setup FLUTTER_BUILD_MODE."
+      xcodeError(message: message)
+      exit(-1)
+    }
+
+    return buildMode
+  }
+
+  public static func targetPlatform(env: [String: String]) -> FlutterPlatform {
+    let platformName = findOrExit(env: env, key: "PLATFORM_NAME")
+    if platformName.contains("macosx") {
+      return FlutterPlatform.macos
+    } else if platformName.contains("iphoneos")
+      || platformName.contains("iphonesimulator")
+    {
+      return FlutterPlatform.ios
+    } else {
+      xcodeError(
+        message:
+          "Unknown PLATFORM_NAME: \(platformName). Flutter only supports iOS and macOS."
+      )
+      exit(1)
+    }
+  }
+
+  public static func findOrExit(env: [String: String], key: String) -> String {
+    guard let value = env[key] else {
+      FlutterToolHelper.xcodeError(message: "\(key) not found.")
+      exit(1)
+    }
+    return value
+  }
+
+  public static func xcodeError(message: String) {
+    fputs("error: \(message)\n", stderr)
+  }
+
+  public static func xcodeWarning(message: String) {
+    fputs("warning: \(message)\n", stderr)
+  }
+}
+
+public enum FlutterPlatform: String { case ios, macos }

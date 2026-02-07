@@ -6,7 +6,10 @@ struct FlutterConfigurationPlugin: CommandPlugin {
   // Entry point for command plugins applied to Swift Packages.
   func performCommand(context: PluginContext, arguments: [String]) async throws
   {
-    let dir = context.package.directoryURL
+    var dir = context.package.directoryURL
+    if dir.lastPathComponent == "FlutterConfigurationPlugin" {
+      dir = dir.deletingLastPathComponent().appendingPathComponent("FlutterPluginRegistrant")
+    }
     let fileManager = FileManager.default
     let configuration = "$(CONFIGURATION)"
 

@@ -173,6 +173,8 @@ class BuildSwiftPackages extends BuildSubCommand {
     return buildInfos;
   }
 
+  bool get useRemoteFlutterFramework => boolArg('remote');
+
   @override
   Future<void> validateCommand() async {
     await super.validateCommand();
@@ -271,7 +273,11 @@ class BuildSwiftPackages extends BuildSubCommand {
 
     final List<Plugin> plugins = await findPlugins(project);
     plugins.sort((Plugin left, Plugin right) => left.name.compareTo(right.name));
-    await pluginFrameworks.copyPlugins(plugins: plugins, outputDirectory: outputDirectory);
+    await pluginFrameworks.copyPlugins(
+      plugins: plugins,
+      outputDirectory: outputDirectory,
+      remote: useRemoteFlutterFramework,
+    );
 
     for (final buildInfo in buildInfos) {
       final String xcodeBuildConfiguration = buildInfo.mode.uppercaseName;
@@ -322,9 +328,8 @@ class BuildSwiftPackages extends BuildSubCommand {
     Directory cacheDirectory,
     Directory xcframeworkOutput,
   ) async {
-    ErrorHandlingFileSystem.deleteIfExists(xcframeworkOutput, recursive: true);
     logger.printStatus('Building for $xcodeBuildConfiguration...');
-    if (!boolArg('remote')) {
+    if (!useRemoteFlutterFramework) {
       await flutterFramework.generateArtifacts(
         buildMode: buildInfo.mode,
         xcframeworkOutput: xcframeworkOutput,
@@ -369,7 +374,7 @@ class BuildSwiftPackages extends BuildSubCommand {
         swiftDependencyPackages,
         mode,
         status,
-        remote: boolArg('remote'),
+        remote: useRemoteFlutterFramework,
       );
 
       await pluginRegistrant.generateSourceFiles(
@@ -444,6 +449,7 @@ class BuildSwiftPackages extends BuildSubCommand {
         for (final buildInfo in buildInfos)
           {'uppercaseName': buildInfo.mode.uppercaseName, 'lowercaseName': buildInfo.mode.cliName},
       ],
+      'useRemoteFlutterFramework': useRemoteFlutterFramework,
     }, printStatusWhenWriting: false);
     final Directory directoryPerBuildMode = swiftConfigurationPluginDirectory
         .childDirectory('Plugins')
@@ -714,8 +720,12 @@ class _AppFrameworkAndNativeAssetsDependencies {
       status.stop();
     }
 
-    status = _utils.logger.startProgress('   ├─Copying native assets...');
+    ErrorHandlingFileSystem.deleteIfExists(
+      xcframeworkOutput.childDirectory(_kNativeAssets),
+      recursive: true,
+    );
     if (nativeAssetFrameworks.isNotEmpty) {
+      status = _utils.logger.startProgress('   ├─Copying native assets...');
       try {
         await _createXcframeworksForNativeAssets(
           nativeAssetFrameworks,
@@ -915,6 +925,7 @@ class _CocoaPodPluginDependencies {
     required bool buildStatic,
   }) async {
     final Status status = _utils.logger.startProgress('   ├─Building CocoaPods...');
+    var skipped = false;
     try {
       final String xcodeBuildConfiguration = buildInfo.mode.uppercaseName;
       final bool dependenciesChanged = _hasDependenciesChanged(
@@ -923,7 +934,7 @@ class _CocoaPodPluginDependencies {
         buildInfo.mode.cliName,
       );
       if (!dependenciesChanged && xcframeworkOutput.existsSync()) {
-        _utils.logger.printStatus('Skipping building CocoaPod plugins. No change detected');
+        skipped = true;
         return;
       } else if (dependenciesChanged) {
         ErrorHandlingFileSystem.deleteIfExists(cacheDirectory, recursive: true);
@@ -969,6 +980,11 @@ class _CocoaPodPluginDependencies {
       _writeFingerprint(cacheDirectory.path, xcframeworkOutput, buildInfo.mode.cliName);
     } finally {
       status.stop();
+      if (skipped) {
+        _utils.logger.printStatus(
+          '   │   └── Skipping building CocoaPod plugins. No change detected',
+        );
+      }
     }
   }
 
@@ -1177,6 +1193,7 @@ class _FlutterPluginDependencies {
   Future<void> copyPlugins({
     required List<Plugin> plugins,
     required Directory outputDirectory,
+    required bool remote,
   }) async {
     final Directory cachedPluginsDirectory = outputDirectory.childDirectory(_kPlugins);
     try {
@@ -1220,7 +1237,7 @@ class _FlutterPluginDependencies {
           throwToolExit('2Failed to copy ${plugin.name}');
         }
 
-        await _parseSwiftPackage(swiftPackagePath, swiftPackageManifest);
+        await _parseSwiftPackage(swiftPackagePath, swiftPackageManifest, remote: remote);
       }
     }
   }
@@ -1302,7 +1319,11 @@ class _FlutterPluginDependencies {
     }
   }
 
-  Future<void> _parseSwiftPackage(String packagePath, File swiftPackageManifest) async {
+  Future<void> _parseSwiftPackage(
+    String packagePath,
+    File swiftPackageManifest, {
+    bool remote = false,
+  }) async {
     try {
       final ProcessResult parsedManifest = await _utils.processManager.run([
         'swift',
@@ -1327,46 +1348,47 @@ class _FlutterPluginDependencies {
           highestSupportedVersion[swiftPlatform.platform] = swiftPlatform;
         }
       }
-
-      // Parse swift package for FlutterFramework dependency and add if not found
-      // If it's not found as a package dependency, add it and add it as a dependency for each target
-      var hasDependencyOnFlutter = false;
-      for (final SwiftPackagePackageDependency dependency in pluginSwiftPackage.dependencies) {
-        if (dependency.name == kFlutterGeneratedFrameworkSwiftPackageTargetName) {
-          hasDependencyOnFlutter = true;
-          break;
+      if (remote) {
+        // Parse swift package for FlutterFramework dependency and add if not found
+        // If it's not found as a package dependency, add it and add it as a dependency for each target
+        var hasDependencyOnFlutter = false;
+        for (final SwiftPackagePackageDependency dependency in pluginSwiftPackage.dependencies) {
+          if (dependency.name == kFlutterGeneratedFrameworkSwiftPackageTargetName) {
+            hasDependencyOnFlutter = true;
+            break;
+          }
         }
-      }
-      if (!hasDependencyOnFlutter) {
-        // Add the Flutter framework as a dependency for each target
-        final ProcessResult addDependencyResult = await _utils.processManager.run([
-          'swift',
-          'package',
-          'add-dependency',
-          '../$kFlutterGeneratedFrameworkSwiftPackageTargetName',
-          '--type',
-          'path',
-        ], workingDirectory: packagePath);
-        if (addDependencyResult.exitCode != 0) {
-          _utils.logger.printTrace(
-            'Failed to add $kFlutterGeneratedFrameworkSwiftPackageTargetName as a package dependency to $packagePath',
-          );
-          return;
-        }
-        for (final SwiftPackageTarget target in pluginSwiftPackage.targets) {
+        if (!hasDependencyOnFlutter) {
+          // Add the Flutter framework as a dependency for each target
           final ProcessResult addDependencyResult = await _utils.processManager.run([
             'swift',
             'package',
-            'add-target-dependency',
-            kFlutterGeneratedFrameworkSwiftPackageTargetName,
-            target.name,
-            '--package',
-            kFlutterGeneratedFrameworkSwiftPackageTargetName,
+            'add-dependency',
+            '../$kFlutterGeneratedFrameworkSwiftPackageTargetName',
+            '--type',
+            'path',
           ], workingDirectory: packagePath);
           if (addDependencyResult.exitCode != 0) {
             _utils.logger.printTrace(
-              'Failed to add $kFlutterGeneratedFrameworkSwiftPackageTargetName as a target dependency of ${target.name} to $packagePath',
+              'Failed to add $kFlutterGeneratedFrameworkSwiftPackageTargetName as a package dependency to $packagePath',
             );
+            return;
+          }
+          for (final SwiftPackageTarget target in pluginSwiftPackage.targets) {
+            final ProcessResult addDependencyResult = await _utils.processManager.run([
+              'swift',
+              'package',
+              'add-target-dependency',
+              kFlutterGeneratedFrameworkSwiftPackageTargetName,
+              target.name,
+              '--package',
+              kFlutterGeneratedFrameworkSwiftPackageTargetName,
+            ], workingDirectory: packagePath);
+            if (addDependencyResult.exitCode != 0) {
+              _utils.logger.printTrace(
+                'Failed to add $kFlutterGeneratedFrameworkSwiftPackageTargetName as a target dependency of ${target.name} to $packagePath',
+              );
+            }
           }
         }
       }

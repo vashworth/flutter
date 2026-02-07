@@ -4,94 +4,37 @@
 
 set -euo pipefail
 
-EchoWarning() {
-  echo "warning: $@" 1>&2
-}
+function follow_links() (
+  cd -P "$(dirname -- "$1")"
+  file="$PWD/$(basename -- "$1")"
+  while [[ -h "$file" ]]; do
+    cd -P "$(dirname -- "$file")"
+    file="$(readlink -- "$file")"
+    cd -P "$(dirname -- "$file")"
+    file="$PWD/$(basename -- "$file")"
+  done
+  echo "$file"
+)
 
-EchoError() {
-  echo "error: $@" 1>&2
-}
+# Needed because if it is set, cd may print the path it changed to.
+unset CDPATH
 
-ParseFlutterBuildMode() {
-  # Use FLUTTER_BUILD_MODE if it's set, otherwise use the Xcode build configuration name
-  # This means that if someone wants to use an Xcode build config other than Debug/Profile/Release,
-  # they _must_ set FLUTTER_BUILD_MODE so we know what type of artifact to build.
-  local build_mode="$(echo "${FLUTTER_BUILD_MODE:-${CONFIGURATION}}" | tr "[:upper:]" "[:lower:]")"
+# Find path to FlutterConfigurationPlugin
+PROG_NAME="$(follow_links "${BASH_SOURCE[0]}")"
+BIN_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
+FLUTTER_CONFIGURATION_PLUGIN="$BIN_DIR/../FlutterConfigurationPlugin"
 
-  case "$build_mode" in
-    *release*) build_mode="release";;
-    *profile*) build_mode="profile";;
-    *debug*) build_mode="debug";;
-    *)
-    # TODO: link to documentation
-      EchoWarning "========================================================================"
-      EchoWarning "WARNING: Unknown FLUTTER_BUILD_MODE: ${build_mode}. Please see [insert link here] on how to setup FLUTTER_BUILD_MODE."
-      EchoWarning "========================================================================"
-      exit -1;;
-  esac
-
-  echo "${build_mode}"
-}
-
-# 1, parse the build mode
-build_mode=$(ParseFlutterBuildMode)
-
-# Determine platform and Info.plist path
-if [[ "${PLATFORM_NAME:-}" == "macosx" ]]; then
-  info_plist_path="FlutterMacOS.framework/Resources/Info.plist"
-else
-  # Default to iOS
-  info_plist_path="Flutter.framework/Info.plist"
-fi
-
-VerifyFrameworkBuildMode() {
-  local destination_dir="$1"
-
-  framework_info_plist_path="$destination_dir/$info_plist_path"
-  local output=$(env -i plutil -extract BuildMode raw -o - $framework_info_plist_path 2>&1)
-
-  local sdk_root="$(echo "${SDKROOT}" | tr "[:upper:]" "[:lower:]")"
-  if [[ "$sdk_root" == *"simulator"* ]]; then
-    local expected_build_mode="debug"
-  else
-    local expected_build_mode="$build_mode"
+# Use prebuilt flutter-assemble-tool if possible, otherwise re-build it for next time
+PREBUILT_FLUTTER_TOOL="$FLUTTER_CONFIGURATION_PLUGIN/.build/release/flutter-assemble-tool"
+if [[ -z REBUILD_FLUTTER_TOOL ]] || [[ "$REBUILD_FLUTTER_TOOL" != "YES" ]]; then
+  PREBUILT_FLUTTER_TOOL_SCAN=$(gktool scan "$PREBUILT_FLUTTER_TOOL") || REBUILD_FLUTTER_TOOL="YES"
+  if [[ "$PREBUILT_FLUTTER_TOOL_SCAN" != *"Scan completed and software is allowed by system policy."* ]]; then
+    echo "Gatekeeper check failed: $PREBUILT_FLUTTER_TOOL_SCAN"
+    REBUILD_FLUTTER_TOOL="YES"
   fi
-
-  if [ "$output" != $expected_build_mode ]; then
-    EchoError "The Flutter framework's build mode does not match the currently targeted configuration in $framework_info_plist_path. Expected $build_mode, but found $output";
-    exit -1;
-  fi
-}
-
-VerifyFrameworkBuildMode "${BUILT_PRODUCTS_DIR}"
-VerifyFrameworkBuildMode "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}"
-
-# Ensure FLUTTER_APPLICATION_PATH is provided.
-if [ -z "${FLUTTER_APPLICATION_PATH}" ]; then
-  echo "error: FLUTTER_APPLICATION_PATH is not set." >&2
-  exit 1
 fi
-resolved_path="${FLUTTER_APPLICATION_PATH}"
-if [[ "${FLUTTER_APPLICATION_PATH}" != /* ]]; then
-  # It's a relative path. Ensure SRCROOT is set.
-  if [ -z "${SRCROOT}" ]; then
-    echo "error: SRCROOT is not set." >&2
-    exit 1
-  fi
-  # Prepend SRCROOT to make the path absolute.
-  resolved_path="${SRCROOT}/${FLUTTER_APPLICATION_PATH}"
+if [[ "$REBUILD_FLUTTER_TOOL" == "YES" ]]; then
+  cd "$FLUTTER_CONFIGURATION_PLUGIN"
+  env -i PATH=$PATH swift build --product flutter-assemble-tool -c release --disable-sandbox
 fi
-case "${PLATFORM_NAME}" in
-  *macosx*) platform="macos";;
-  *iphoneos*) platform="ios";;
-  *iphonesimulator*) platform="ios";;
-  *)
-    # TODO: link to documentation
-    echo "error: Unknown PLATFORM_NAME: ${PLATFORM_NAME}. Flutter only supports iOS and macOS." >&2
-    exit -1;;
-esac
-resolved_path="${resolved_path}/${platform}/Flutter/flutter_export_environment.sh"
-source "$resolved_path"
-BIN_DIR="$FLUTTER_ROOT/packages/flutter_tools/bin/"
-DART="$FLUTTER_ROOT/bin/dart"
-"$DART" "$BIN_DIR/xcode_backend.dart" build-native "$platform"
+"$PREBUILT_FLUTTER_TOOL"
