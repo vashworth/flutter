@@ -22,7 +22,7 @@ import 'build_bundle.dart';
 import 'build_ios.dart';
 import 'build_ios_framework.dart';
 import 'build_macos_framework.dart';
-import 'build_swift_packages.dart';
+import 'build_swift_package.dart';
 import 'build_web.dart';
 
 class BuildCommand extends FlutterCommand {
@@ -56,7 +56,7 @@ class BuildCommand extends FlutterCommand {
       ),
     );
     _addSubcommand(
-      BuildSwiftPackages(
+      BuildSwiftPackage(
         analytics: globals.analytics,
         artifacts: globals.artifacts!,
         buildSystem: buildSystem,

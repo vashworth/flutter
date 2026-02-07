@@ -466,64 +466,27 @@ Future<void> _writeAndroidPluginRegistrant(FlutterProject project, List<Plugin> 
   );
 }
 
-const String _objcDarwinPluginRegistryHeaderTemplate = '''
+const _swiftPluginRegistry = '''
 //
 //  Generated file. Do not edit.
 //
-// clang-format off
-#ifndef GeneratedPluginRegistrant_h
-#define GeneratedPluginRegistrant_h
-#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
-#import <{{iosFramework}}/{{iosFramework}}.h>
-#elif defined(TARGET_OS_OSX) && TARGET_OS_OSX
-#import <{{macosFramework}}/{{macosFramework}}.h>
-#endif
-NS_ASSUME_NONNULL_BEGIN
-@interface GeneratedPluginRegistrant : NSObject
-+ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry;
-@end
-NS_ASSUME_NONNULL_END
-#endif /* GeneratedPluginRegistrant_h */
-''';
+import {{framework}}
+import UIKit
 
-const String _objcDarwinPluginRegistryImplementationTemplate = '''
-//
-//  Generated file. Do not edit.
-//
-// clang-format off
-#import "GeneratedPluginRegistrant.h"
-#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
-{{#iosMethodChannelPlugins}}
-#if __has_include(<{{name}}/{{class}}.h>)
-#import <{{name}}/{{class}}.h>
-#else
-@import {{name}};
-#endif
-{{/iosMethodChannelPlugins}}
-@implementation GeneratedPluginRegistrant
-+ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
-{{#iosMethodChannelPlugins}}
-  [{{prefix}}{{class}} registerWithRegistrar:[registry registrarForPlugin:@"{{prefix}}{{class}}"]];
-{{/iosMethodChannelPlugins}}
-}
-#elif defined(TARGET_OS_OSX) && TARGET_OS_OSX
-{{#macosMethodChannelPlugins}}
-#if __has_include(<{{name}}/{{class}}.h>)
-#import <{{name}}/{{class}}.h>
-#else
-@import {{name}};
-#endif
-{{/macosMethodChannelPlugins}}
-@implementation GeneratedPluginRegistrant
-+ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
-{{#macosMethodChannelPlugins}}
-  [{{prefix}}{{class}} registerWithRegistrar:[registry registrarForPlugin:@"{{prefix}}{{class}}"]];
-{{/macosMethodChannelPlugins}}
-}
-#endif
-@end
-''';
+{{#methodChannelPlugins}}
+import {{name}}
+{{/methodChannelPlugins}}
 
+@objc public class GeneratedPluginRegistrant: NSObject {
+    @objc public static func register(with registry: FlutterPluginRegistry) {
+        {{#methodChannelPlugins}}
+        if let {{classVar}} = registry.registrar(forPlugin: "{{prefix}}{{class}}") {
+            {{prefix}}{{class}}.register(with: {{classVar}})
+        }
+        {{/methodChannelPlugins}}
+    }
+}
+''';
 const _objcPluginRegistryHeaderTemplate = '''
 //
 //  Generated file. Do not edit.
@@ -838,8 +801,8 @@ $_dartPluginRegisterWith
 Future<void> writeIOSPluginRegistrant(
   FlutterProject project,
   List<Plugin> plugins, {
-  File? pluginRegistrantHeader,
-  File? pluginRegistrantImplementation,
+  File? swiftPluginRegistrant,
+  TemplateRenderer? templateRenderer,
 }) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(
     plugins,
@@ -854,73 +817,35 @@ Future<void> writeIOSPluginRegistrant(
     'deploymentTarget': FlutterDarwinPlatform.ios.deploymentTarget().toString(),
     'framework': FlutterDarwinPlatform.ios.binaryName,
     'methodChannelPlugins': iosPlugins,
-    'usesSwiftPackageManager': project.ios.usesSwiftPackageManager,
   };
   if (project.isModule) {
     final Directory registryDirectory = project.ios.pluginRegistrantHost;
-    final File podspecFile = registryDirectory.childFile('FlutterPluginRegistrant.podspec');
     await _renderTemplateToFile(
       _pluginRegistrantPodspecTemplate,
       context,
-      podspecFile,
-      globals.templateRenderer,
+      registryDirectory.childFile('FlutterPluginRegistrant.podspec'),
+      templateRenderer ?? globals.templateRenderer,
+    );
+  }
+  if (swiftPluginRegistrant != null) {
+    await _renderTemplateToFile(
+      _swiftPluginRegistry,
+      context,
+      swiftPluginRegistrant,
+      templateRenderer ?? globals.templateRenderer,
     );
   }
   await _renderTemplateToFile(
     _objcPluginRegistryHeaderTemplate,
     context,
-    pluginRegistrantHeader ?? project.ios.pluginRegistrantHeader,
-    globals.templateRenderer,
+    project.ios.pluginRegistrantHeader,
+    templateRenderer ?? globals.templateRenderer,
   );
   await _renderTemplateToFile(
     _objcPluginRegistryImplementationTemplate,
     context,
-    pluginRegistrantImplementation ?? project.ios.pluginRegistrantImplementation,
-    globals.templateRenderer,
-  );
-}
-
-Future<void> writeDarwinPluginRegistrant(
-  FlutterProject project,
-  List<Plugin> plugins, {
-  required File pluginRegistrantHeader,
-  required File pluginRegistrantImplementation,
-}) async {
-  final List<Plugin> iosMethodChannelPlugins = _filterMethodChannelPlugins(
-    plugins,
-    IOSPlugin.kConfigKey,
-  );
-  final List<Map<String, Object?>> iosPlugins = _extractPlatformMaps(
-    iosMethodChannelPlugins,
-    IOSPlugin.kConfigKey,
-  );
-  final List<Plugin> macosMethodChannelPlugins = _filterMethodChannelPlugins(
-    plugins,
-    MacOSPlugin.kConfigKey,
-  );
-  final List<Map<String, Object?>> macosPlugins = _extractPlatformMaps(
-    macosMethodChannelPlugins,
-    MacOSPlugin.kConfigKey,
-  );
-  final context = <String, Object>{
-    'iosFramework': 'Flutter',
-    'macosFramework': 'FlutterMacOS',
-    'iosMethodChannelPlugins': iosPlugins,
-    'macosMethodChannelPlugins': macosPlugins,
-  };
-
-  await _renderTemplateToFile(
-    _objcDarwinPluginRegistryHeaderTemplate,
-    context,
-    pluginRegistrantHeader,
-    globals.templateRenderer,
-  );
-
-  await _renderTemplateToFile(
-    _objcDarwinPluginRegistryImplementationTemplate,
-    context,
-    pluginRegistrantImplementation,
-    globals.templateRenderer,
+    project.ios.pluginRegistrantImplementation,
+    templateRenderer ?? globals.templateRenderer,
   );
 }
 
@@ -1005,6 +930,7 @@ Future<void> writeMacOSPluginRegistrant(
   FlutterProject project,
   List<Plugin> plugins, {
   File? pluginRegistrantImplementation,
+  TemplateRenderer? templateRenderer,
 }) async {
   final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(
     plugins,
@@ -1023,7 +949,7 @@ Future<void> writeMacOSPluginRegistrant(
     _swiftPluginRegistryTemplate,
     context,
     pluginRegistrantImplementation ?? project.macos.pluginRegistrantImplementation,
-    globals.templateRenderer,
+    templateRenderer ?? globals.templateRenderer,
   );
 }
 
