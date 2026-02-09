@@ -39,14 +39,22 @@ class FlutterFrameworkSync {
     }
 
     let fileManager = FileManager.default
-    let xcframeworkPath = URL(
+    let xcframeworkURL = URL(
       fileURLWithPath:
         "\(flutterPluginRegistrantDir)/\(targetBuildMode)/Frameworks/\(frameworkName).xcframework"
     )
+    if !fileManager.fileExists(atPath: xcframeworkURL.path) {
+      FlutterToolHelper.xcodeError(
+        message:
+          "FlutterPluginRegistrant does not exist for configuration \(targetBuildMode). You may need to run \"flutter build swift-package --build-mode \(targetBuildMode.lowercased())\" in your Flutter app."
+      )
+      exit(1)
+    }
+
     let simulator = simulatorSdk(env: env)
     do {
       for file in try fileManager.contentsOfDirectory(
-        at: xcframeworkPath,
+        at: xcframeworkURL,
         includingPropertiesForKeys: nil
       ) {
         let archDir = file.lastPathComponent
@@ -73,7 +81,7 @@ class FlutterFrameworkSync {
     } catch {
       FlutterToolHelper.xcodeError(
         message:
-          "Unable to copy \(xcframeworkPath): \(error.localizedDescription)"
+          "Unable to copy \(xcframeworkURL): \(error.localizedDescription)"
       )
       exit(1)
     }
@@ -179,7 +187,7 @@ class FlutterFrameworkSync {
     if !fileManager.fileExists(atPath: newTargetDir) {
       FlutterToolHelper.xcodeError(
         message:
-          "FlutterPluginRegistrant/\(targetName) does not exist for configuration \(targetBuildMode). You may need to run \"flutter build swift-package --build-mode \(lowerBuildMode)\"."
+          "FlutterPluginRegistrant does not exist for configuration \(targetBuildMode). You may need to run \"flutter build swift-package --build-mode \(lowerBuildMode)\" in your Flutter app."
       )
       exit(1)
     }
