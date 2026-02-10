@@ -27,6 +27,8 @@ import '../darwin/darwin.dart';
 import '../features.dart';
 import '../flutter_plugins.dart';
 import '../globals.dart';
+import '../globals.dart' as globals;
+import '../ios/code_signing.dart';
 import '../ios/xcodeproj.dart';
 import '../isolated/native_assets/native_assets.dart';
 import '../macos/cocoapod_utils.dart';
@@ -110,7 +112,9 @@ class BuildSwiftPackage extends BuildSubCommand {
         defaultsTo: true,
         help: 'Adds CocoaPod-only plugins as binary targets in the generated swift package.',
       )
-      ..addFlag('remote', help: 'Uses a remote url for the Flutter framework');
+      ..addFlag('remote', help: 'Uses a remote url for the Flutter framework')
+      ..addOption('codesigning-identity', help: 'TODO')
+      ..addFlag('codesign', help: 'TODO');
   }
 
   @override
@@ -288,6 +292,11 @@ class BuildSwiftPackage extends BuildSubCommand {
       throwToolExit('--build-mode is required.');
     }
 
+    String? codesignIdentity;
+    if (boolArg('codesign')) {
+      codesignIdentity = await getCodesignIdentity(buildInfos);
+    }
+
     final Directory cacheDirectory = outputDirectory.childDirectory('.cache');
     cacheDirectory.createSync(recursive: true);
 
@@ -309,6 +318,7 @@ class BuildSwiftPackage extends BuildSubCommand {
         xcodeBuildConfiguration,
         cacheDirectory,
         xcframeworkOutput,
+        codesignIdentity,
       );
 
       await _generateSwiftPackages(
@@ -335,6 +345,7 @@ class BuildSwiftPackage extends BuildSubCommand {
     String xcodeBuildConfiguration,
     Directory cacheDirectory,
     Directory xcframeworkOutput,
+    String? codesignIdentity,
   ) async {
     logger.printStatus('Building for $xcodeBuildConfiguration...');
     if (!useRemoteFlutterFramework) {
@@ -350,12 +361,14 @@ class BuildSwiftPackage extends BuildSubCommand {
       packageConfigPath: packageConfigPath(),
       targetFile: targetFile,
       xcframeworkOutput: xcframeworkOutput,
+      codesignIdentity: codesignIdentity,
     );
     await cocoapodFrameworks.generateArtifacts(
       buildInfo: buildInfo,
       buildStatic: boolArg('static'),
       cacheDirectory: cacheDirectory.childDirectory('CocoaPodsFrameworks'),
       xcframeworkOutput: xcframeworkOutput.childDirectory(_kCocoaPods),
+      codesignIdentity: codesignIdentity,
     );
   }
 
@@ -419,6 +432,97 @@ class BuildSwiftPackage extends BuildSubCommand {
     } else {
       link.createSync(target);
     }
+  }
+
+  Future<String> getCodesignIdentity(List<BuildInfo> buildInfos) async {
+    final String? codesignIdentity = stringArg('codesigning-identity');
+    if (codesignIdentity != null) {
+      return codesignIdentity;
+    }
+    // Attempt to get codesigning info from Flutter project
+
+    final Map<String, String>? buildSettings = await _targetPlatform
+        .xcodeProject(project)
+        .buildSettingsForBuildInfo(buildInfos.first);
+    final settings = XcodeCodeSigningSettings(
+      config: globals.config,
+      logger: globals.logger,
+      platform: globals.platform,
+      processUtils: globals.processUtils,
+      fileSystem: globals.fs,
+      fileSystemUtils: globals.fsUtils,
+      terminal: globals.terminal,
+      plistParser: globals.plistParser,
+    );
+    final List<String> identities = await settings.getSigningIdentities();
+
+    final String? codesignStyle = buildSettings?['CODE_SIGN_STYLE'];
+    List<String> matchingIdentities = [];
+    if (codesignStyle != null && codesignStyle == 'Manual') {
+      final String? developmentTeam = buildSettings?['DEVELOPMENT_TEAM'];
+      final String? provisioningProfileSpecifier = buildSettings?['PROVISIONING_PROFILE_SPECIFIER'];
+      await settings.validateCodeSignSearchTools();
+
+      final List<ProvisioningProfile> profiles = await settings.getProvisioningProfiles();
+      for (final profile in profiles) {
+        if (profile.name == provisioningProfileSpecifier &&
+            profile.teamIdentifier == developmentTeam) {
+          for (final File cert in profile.developerCertificates) {
+            final String? commonName = await settings.commonNameForCertificate(cert);
+            if (commonName != null) {
+              matchingIdentities = identities
+                  .where((String id) => id.contains(commonName))
+                  .toList();
+            }
+          }
+        }
+      }
+    } else {
+      final String? developmentTeam = buildSettings?['DEVELOPMENT_TEAM'];
+      if (developmentTeam != null) {
+        await settings.validateCodeSignSearchTools();
+        for (final id in identities) {
+          final String? developmentTeamForIdentity = await settings.getDevelopmentTeamFromIdentity(
+            id,
+          );
+          if (developmentTeamForIdentity == developmentTeam) {
+            matchingIdentities.add(id);
+          }
+        }
+      }
+    }
+    if (matchingIdentities.length > 1) {
+      throwToolExit('More than one identity found');
+    }
+    if (matchingIdentities.length == 1) {
+      return matchingIdentities.single;
+    }
+
+    // Next, attempt to get codesigning from config
+    final ProvisioningProfile? savedProfile = await settings.getProvisioningProfileFromConfig(
+      identities,
+    );
+    if (savedProfile != null) {
+      for (final File cert in savedProfile.developerCertificates) {
+        final String? commonName = await settings.commonNameForCertificate(cert);
+        if (commonName != null) {
+          matchingIdentities = identities.where((String id) => id.contains(commonName)).toList();
+        }
+      }
+    } else {
+      final String? identity = await settings.getIdentityFromCertFromConfig(identities);
+      if (identity != null) {
+        matchingIdentities.add(identity);
+      }
+    }
+    // Otherwise, print error
+    if (matchingIdentities.isEmpty) {
+      throwToolExit(
+        'No identity found. Please pass in a codesign identity or use "--no-codesign".',
+      );
+    }
+
+    return matchingIdentities.single;
   }
 
   Future<void> _createBuildScripts(Directory outputDirectory) async {
@@ -486,6 +590,7 @@ class BuildSwiftPackage extends BuildSubCommand {
     required String frameworkBinaryName,
     required Directory outputDirectory,
     required ProcessManager processManager,
+    required String? codesignIdentity,
   }) async {
     final Directory xcframeworkOutput = outputDirectory.childDirectory(
       '$frameworkBinaryName.xcframework',
@@ -521,6 +626,23 @@ class BuildSwiftPackage extends BuildSubCommand {
       throwToolExit(
         'Unable to create $frameworkBinaryName.xcframework: ${xcframeworkResult.stderr}',
       );
+    }
+
+    if (codesignIdentity != null) {
+      final codesignCommand = <String>[
+        'codesign',
+        '--force',
+        '--verbose',
+        codesignIdentity,
+        '--',
+        xcframeworkOutput.path,
+      ];
+      final ProcessResult codesignResult = await processManager.run(codesignCommand);
+      if (codesignResult.exitCode != 0) {
+        throwToolExit(
+          'Unable to codesign $frameworkBinaryName.xcframework: ${codesignResult.stderr}',
+        );
+      }
     }
   }
 }
@@ -697,6 +819,7 @@ class _AppFrameworkAndNativeAssetsDependencies {
     required Directory cacheDirectory,
     required String packageConfigPath,
     required String targetFile,
+    required String? codesignIdentity,
   }) async {
     const appFrameworkName = '$_binaryName.framework';
     final String xcodeBuildConfiguration = buildInfo.mode.uppercaseName;
@@ -725,6 +848,7 @@ class _AppFrameworkAndNativeAssetsDependencies {
         frameworkBinaryName: _binaryName,
         outputDirectory: xcframeworkOutput,
         processManager: _utils.processManager,
+        codesignIdentity: codesignIdentity,
       );
     } finally {
       status.stop();
@@ -740,6 +864,7 @@ class _AppFrameworkAndNativeAssetsDependencies {
         await _createXcframeworksForNativeAssets(
           nativeAssetFrameworks,
           xcframeworkOutput.childDirectory(_kNativeAssets),
+          codesignIdentity,
         );
       } finally {
         status.stop();
@@ -816,6 +941,7 @@ class _AppFrameworkAndNativeAssetsDependencies {
   Future<void> _createXcframeworksForNativeAssets(
     Map<String, Set<String>> nativeAssetFrameworks,
     Directory xcframeworkOutput,
+    String? codesignIdentity,
   ) async {
     final Directory nativeAssetsDirectory = _utils.fileSystem
         .directory(getBuildDirectory())
@@ -835,6 +961,7 @@ class _AppFrameworkAndNativeAssetsDependencies {
         frameworkBinaryName: packageName,
         outputDirectory: xcframeworkOutput,
         processManager: _utils.processManager,
+        codesignIdentity: codesignIdentity,
       );
     }
   }
@@ -938,6 +1065,7 @@ class _CocoaPodPluginDependencies {
     required Directory cacheDirectory,
     required Directory xcframeworkOutput,
     required bool buildStatic,
+    required String? codesignIdentity,
   }) async {
     final Status status = _utils.logger.startProgress('   ├─Building CocoaPods...');
     var skipped = false;
@@ -987,6 +1115,7 @@ class _CocoaPodPluginDependencies {
             frameworkBinaryName: frameworkName,
             outputDirectory: xcframeworkOutput,
             processManager: _utils.processManager,
+            codesignIdentity: codesignIdentity,
           );
         }
       }
